@@ -12,11 +12,36 @@ interface Props {
   children: ReactNode;
 }
 
+const MOBILE_QUERY = '(max-width: 640px)';
+const COLLAPSE_KEY = 'entraapp:nav-collapsed';
+
+function useIsMobile(): boolean {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined'
+      ? window.matchMedia(MOBILE_QUERY).matches
+      : false,
+  );
+  useEffect(() => {
+    const mql = window.matchMedia(MOBILE_QUERY);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
+  return isMobile;
+}
+
 export function Layout({ children }: Props) {
+  const isMobile = useIsMobile();
+  // Mobile drawer open/closed. Default: closed (mobile starts collapsed).
   const [navOpen, setNavOpen] = useState(false);
+  // Desktop collapsed state, persisted across reloads.
+  const [desktopCollapsed, setDesktopCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(COLLAPSE_KEY) === '1';
+  });
   const location = useLocation();
 
-  // Close the drawer whenever navigation happens.
+  // Close the mobile drawer whenever navigation happens.
   useEffect(() => {
     setNavOpen(false);
   }, [location.pathname]);
@@ -31,14 +56,32 @@ export function Layout({ children }: Props) {
     };
   }, [navOpen]);
 
+  useEffect(() => {
+    window.localStorage.setItem(COLLAPSE_KEY, desktopCollapsed ? '1' : '0');
+  }, [desktopCollapsed]);
+
+  const toggleMenu = () => {
+    if (isMobile) setNavOpen((v) => !v);
+    else setDesktopCollapsed((v) => !v);
+  };
+
+  const showingMenu = isMobile ? navOpen : !desktopCollapsed;
+  const layoutClasses = [
+    'layout',
+    navOpen ? 'nav-open' : '',
+    !isMobile && desktopCollapsed ? 'nav-collapsed' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <>
       <UnauthenticatedTemplate>
         <SignInScreen />
       </UnauthenticatedTemplate>
       <AuthenticatedTemplate>
-        <div className={`layout${navOpen ? ' nav-open' : ''}`}>
-          <Header onMenuClick={() => setNavOpen((v) => !v)} navOpen={navOpen} />
+        <div className={layoutClasses}>
+          <Header onMenuClick={toggleMenu} navOpen={showingMenu} />
           <Sidebar />
           {navOpen && (
             <div

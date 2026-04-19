@@ -1,7 +1,6 @@
-import { graph, graphAll, GraphError } from './client';
+import { graph, graphAll } from './client';
 import type {
   AppRoleAssignment,
-  DirectoryObjectLite,
   OAuth2PermissionGrant,
   ServicePrincipal,
   ServicePrincipalSignInActivity,
@@ -68,78 +67,6 @@ export function getServicePrincipal(token: TokenFn, id: string) {
         'info,keyCredentials,passwordCredentials,createdDateTime',
     },
   });
-}
-
-// Mines the directory audit log for the SP's creation event. Works for SPs
-// created via portal, Graph, automation — anything that leaves an audit
-// trail. Requires AuditLog.Read.All. Returns a best-effort
-// { who, when } — either field can be missing if the audit was pruned.
-export interface SpCreationRecord {
-  when?: string;
-  who: DirectoryObjectLite | null;
-}
-
-export async function getServicePrincipalCreation(
-  token: TokenFn,
-  applicationObjectId: string,
-): Promise<SpCreationRecord | null> {
-  const safeId = applicationObjectId.replace(/'/g, "''");
-  try {
-    // Microsoft emits the activity under several names depending on how the
-    // SP was created. "Add service principal" covers interactive + Graph.
-    const page = await graph<{
-      value?: Array<{
-        activityDateTime?: string;
-        initiatedBy?: {
-          user?: {
-            id?: string;
-            displayName?: string;
-            userPrincipalName?: string;
-          };
-          app?: {
-            appId?: string;
-            displayName?: string;
-          };
-        };
-      }>;
-    }>(token, '/auditLogs/directoryAudits', {
-      query: {
-        $filter:
-          `activityDisplayName eq 'Add service principal' and ` +
-          `targetResources/any(t:t/id eq '${safeId}')`,
-        $top: 1,
-        $orderby: 'activityDateTime desc',
-      },
-    });
-    const event = page.value?.[0];
-    if (!event) return null;
-
-    let who: DirectoryObjectLite | null = null;
-    const user = event.initiatedBy?.user;
-    if (user?.id) {
-      who = {
-        id: user.id,
-        displayName: user.displayName ?? null,
-        userPrincipalName: user.userPrincipalName ?? null,
-      };
-    } else {
-      const initApp = event.initiatedBy?.app;
-      if (initApp?.appId) {
-        who = {
-          id: initApp.appId,
-          displayName: initApp.displayName
-            ? `${initApp.displayName} (app)`
-            : 'Service principal',
-          userPrincipalName: null,
-        };
-      }
-    }
-    return { when: event.activityDateTime, who };
-  } catch (e) {
-    if (e instanceof GraphError && (e.status === 403 || e.status === 404))
-      return null;
-    throw e;
-  }
 }
 
 export function getServicePrincipalByAppId(token: TokenFn, appId: string) {

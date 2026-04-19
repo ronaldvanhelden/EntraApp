@@ -6,7 +6,6 @@ import {
   addApplicationPassword,
   deleteApplication,
   getApplication,
-  getApplicationCreator,
   removeApplicationCertificate,
   removeApplicationPassword,
   updateApplication,
@@ -29,7 +28,6 @@ import {
 import type {
   AppCredentialSignInActivity,
   Application,
-  DirectoryObjectLite,
   FederatedIdentityCredential,
   KeyCredential,
   PasswordCredential,
@@ -69,9 +67,6 @@ export function ApplicationDetail() {
   const [resourceSps, setResourceSps] = useState<
     Record<string, ServicePrincipal | null>
   >({});
-  const [creator, setCreator] = useState<DirectoryObjectLite | null | 'loading'>(
-    'loading',
-  );
 
   useEffect(() => {
     setApp(null);
@@ -82,7 +77,6 @@ export function ApplicationDetail() {
     setActivityByKeyId(new Map());
     setActivityError(null);
     setResourceSps({});
-    setCreator('loading');
     getApplication(token, id)
       .then(async (a) => {
         setApp(a);
@@ -99,9 +93,6 @@ export function ApplicationDetail() {
           .catch((e: unknown) =>
             setActivityError(e instanceof Error ? e.message : String(e)),
           );
-        getApplicationCreator(token, a.id)
-          .then(setCreator)
-          .catch(() => setCreator(null));
       })
       .catch((e) => setError(e.message));
   }, [token, id]);
@@ -207,23 +198,6 @@ export function ApplicationDetail() {
               {app.createdDateTime
                 ? new Date(app.createdDateTime).toLocaleString()
                 : '—'}
-            </div>
-            <div className="k">Created by</div>
-            <div>
-              {creator === 'loading' ? (
-                <span className="spinner" />
-              ) : creator ? (
-                <>
-                  <div>{creator.displayName ?? '—'}</div>
-                  {creator.userPrincipalName && (
-                    <div className="muted" style={{ fontSize: 12 }}>
-                      {creator.userPrincipalName}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <span className="muted">—</span>
-              )}
             </div>
             <div className="k">OAuth flows</div>
             <div>
@@ -1290,6 +1264,15 @@ function CredentialsCard({
   const [showAddCert, setShowAddCert] = useState(false);
   const [newSecret, setNewSecret] = useState<PasswordCredential | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState<'secrets' | 'certs' | null>(null);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+
+  const expiredSecrets = secrets.filter(
+    (s) => expiryStatus(s.endDateTime) === 'expired',
+  );
+  const expiredCerts = certs.filter(
+    (c) => expiryStatus(c.endDateTime) === 'expired',
+  );
   const toggleCollapsed = (key: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -1342,6 +1325,59 @@ function CredentialsCard({
     setSelectedCert(null);
   };
 
+  const handleRemoveExpiredSecrets = async () => {
+    if (expiredSecrets.length === 0) return;
+    const n = expiredSecrets.length;
+    if (
+      !window.confirm(
+        `Remove ${n} expired client secret${n === 1 ? '' : 's'}?`,
+      )
+    )
+      return;
+    setBulkBusy('secrets');
+    setBulkError(null);
+    try {
+      // Remove one at a time so a mid-loop failure still leaves already-removed
+      // secrets gone in Graph. removePassword is cheap.
+      for (const s of expiredSecrets) {
+        await removeApplicationPassword(token, app.id, s.keyId);
+      }
+      const removedIds = new Set(expiredSecrets.map((s) => s.keyId));
+      onAppChange({
+        ...app,
+        passwordCredentials: secrets.filter((s) => !removedIds.has(s.keyId)),
+      });
+    } catch (e) {
+      setBulkError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBulkBusy(null);
+    }
+  };
+
+  const handleRemoveExpiredCerts = async () => {
+    if (expiredCerts.length === 0) return;
+    const n = expiredCerts.length;
+    if (
+      !window.confirm(
+        `Remove ${n} expired certificate${n === 1 ? '' : 's'}?`,
+      )
+    )
+      return;
+    setBulkBusy('certs');
+    setBulkError(null);
+    try {
+      const kept = certs.filter(
+        (c) => expiryStatus(c.endDateTime) !== 'expired',
+      );
+      await updateApplication(token, app.id, { keyCredentials: kept });
+      onAppChange({ ...app, keyCredentials: kept });
+    } catch (e) {
+      setBulkError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBulkBusy(null);
+    }
+  };
+
   return (
     <div className="card">
       <h3>Credentials</h3>
@@ -1351,6 +1387,9 @@ function CredentialsCard({
           <span className="mono">AuditLog.Read.All</span> to enable.
         </p>
       )}
+      {bulkError && (
+        <p className="error" style={{ marginTop: 0 }}>{bulkError}</p>
+      )}
 
       <CredentialSection
         id="secrets"
@@ -1359,9 +1398,31 @@ function CredentialsCard({
         collapsed={collapsed.has('secrets')}
         onToggle={() => toggleCollapsed('secrets')}
         action={
-          <button className="primary" onClick={() => setShowAddSecret(true)}>
-            + New client secret
-          </button>
+          <div className="row" style={{ gap: 8 }}>
+            <button
+              className="danger"
+              onClick={handleRemoveExpiredSecrets}
+              disabled={
+                expiredSecrets.length === 0 || bulkBusy === 'secrets'
+              }
+              title={
+                expiredSecrets.length === 0
+                  ? 'No expired client secrets'
+                  : `Remove ${expiredSecrets.length} expired`
+              }
+            >
+              {bulkBusy === 'secrets'
+                ? 'Removing…'
+                : `Remove expired${
+                    expiredSecrets.length > 0
+                      ? ` (${expiredSecrets.length})`
+                      : ''
+                  }`}
+            </button>
+            <button className="primary" onClick={() => setShowAddSecret(true)}>
+              + New client secret
+            </button>
+          </div>
         }
         emptyLabel="No client secrets configured."
         isEmpty={secrets.length === 0}
@@ -1419,9 +1480,29 @@ function CredentialsCard({
         collapsed={collapsed.has('certs')}
         onToggle={() => toggleCollapsed('certs')}
         action={
-          <button className="primary" onClick={() => setShowAddCert(true)}>
-            + New certificate
-          </button>
+          <div className="row" style={{ gap: 8 }}>
+            <button
+              className="danger"
+              onClick={handleRemoveExpiredCerts}
+              disabled={expiredCerts.length === 0 || bulkBusy === 'certs'}
+              title={
+                expiredCerts.length === 0
+                  ? 'No expired certificates'
+                  : `Remove ${expiredCerts.length} expired`
+              }
+            >
+              {bulkBusy === 'certs'
+                ? 'Removing…'
+                : `Remove expired${
+                    expiredCerts.length > 0
+                      ? ` (${expiredCerts.length})`
+                      : ''
+                  }`}
+            </button>
+            <button className="primary" onClick={() => setShowAddCert(true)}>
+              + New certificate
+            </button>
+          </div>
         }
         emptyLabel="No certificates configured."
         isEmpty={certs.length === 0}

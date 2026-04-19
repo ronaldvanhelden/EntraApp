@@ -145,6 +145,12 @@ pre {
   height: 100vh;
   height: 100dvh;
 }
+.layout.nav-collapsed {
+  grid-template-columns: 0 1fr;
+}
+.layout.nav-collapsed .sidebar {
+  display: none;
+}
 
 .header {
   grid-area: header;
@@ -183,7 +189,7 @@ pre {
 }
 
 .menu-toggle {
-  display: none;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 36px;
@@ -742,15 +748,12 @@ label.field span {
     --sidebar-width: 260px;
   }
 
-  .layout {
+  .layout,
+  .layout.nav-collapsed {
     grid-template-columns: 1fr;
     grid-template-areas:
       'header'
       'main';
-  }
-
-  .menu-toggle {
-    display: inline-flex;
   }
 
   .header {
