@@ -1,0 +1,79 @@
+import type { Configuration } from '@azure/msal-browser';
+import { LogLevel } from '@azure/msal-browser';
+
+const STORAGE_KEY = 'entraapp.authConfig';
+
+export interface AuthConfig {
+  clientId: string;
+  tenantId: string;
+}
+
+// Default to the "Debble Permission Manager" multi-tenant app registration.
+// Override in Settings for tenants that register their own client.
+const DEFAULT_CONFIG: AuthConfig = {
+  clientId: '438ccf20-d1a2-4027-baf3-0104d018357e',
+  tenantId: 'organizations',
+};
+
+export function loadAuthConfig(): AuthConfig {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return DEFAULT_CONFIG;
+    const parsed = JSON.parse(raw) as Partial<AuthConfig>;
+    return {
+      clientId: parsed.clientId || DEFAULT_CONFIG.clientId,
+      tenantId: parsed.tenantId || DEFAULT_CONFIG.tenantId,
+    };
+  } catch {
+    return DEFAULT_CONFIG;
+  }
+}
+
+export function saveAuthConfig(config: AuthConfig): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+}
+
+export function clearAuthConfig(): void {
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+export function isConfigured(config: AuthConfig): boolean {
+  return /^[0-9a-f-]{36}$/i.test(config.clientId);
+}
+
+export function buildMsalConfig(config: AuthConfig): Configuration {
+  return {
+    auth: {
+      clientId: config.clientId,
+      authority: `https://login.microsoftonline.com/${config.tenantId || 'common'}`,
+      redirectUri: window.location.origin + window.location.pathname,
+      postLogoutRedirectUri: window.location.origin + window.location.pathname,
+      navigateToLoginRequestUrl: false,
+    },
+    cache: {
+      cacheLocation: 'sessionStorage',
+      storeAuthStateInCookie: false,
+    },
+    system: {
+      loggerOptions: {
+        logLevel: LogLevel.Warning,
+        piiLoggingEnabled: false,
+        loggerCallback: (_level, message) => {
+          if (import.meta.env.DEV) console.debug(message);
+        },
+      },
+    },
+  };
+}
+
+// Scopes must match those declared on the app registration. Directory.AccessAsUser.All
+// is broad enough to cover oauth2PermissionGrants on behalf of an admin user, which
+// is why DelegatedPermissionGrant.ReadWrite.All is not required separately.
+export const GRAPH_SCOPES = [
+  'User.Read',
+  'Application.ReadWrite.All',
+  'AppRoleAssignment.ReadWrite.All',
+  'Directory.AccessAsUser.All',
+];
+
+export const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
