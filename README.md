@@ -50,7 +50,7 @@ must register an application in Entra ID with:
 - **API permissions (Microsoft Graph, Delegated)**:
   - `User.Read`
   - `Application.ReadWrite.All`
-  - `Directory.ReadWrite.All`
+  - `Directory.AccessAsUser.All`
   - `DelegatedPermissionGrant.ReadWrite.All`
 - **Admin consent** granted for the tenant (the `.All` scopes all require it)
 

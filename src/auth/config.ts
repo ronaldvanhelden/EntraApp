@@ -76,13 +76,13 @@ export function buildMsalConfig(config: AuthConfig): Configuration {
 }
 
 // Scopes must match those declared on the app registration (Debble EntraApp).
-// Directory.ReadWrite.All covers creating appRoleAssignments on service
-// principals; DelegatedPermissionGrant.ReadWrite.All is used explicitly for
-// oauth2PermissionGrants so the principle of least privilege applies.
+// Directory.AccessAsUser.All lets the app act as the signed-in user, which
+// covers creating appRoleAssignments on service principals for admins;
+// DelegatedPermissionGrant.ReadWrite.All is used for oauth2PermissionGrants.
 export const GRAPH_SCOPES = [
   'User.Read',
   'Application.ReadWrite.All',
-  'Directory.ReadWrite.All',
+  'Directory.AccessAsUser.All',
   'DelegatedPermissionGrant.ReadWrite.All',
 ];
 
