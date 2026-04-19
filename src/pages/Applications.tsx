@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
 import { createApplication, listApplications } from '../graph/applications';
@@ -19,32 +19,34 @@ export function Applications() {
   const [apps, setApps] = useState<Application[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
+    const handle = setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    return () => clearTimeout(handle);
+  }, [search]);
+
+  useEffect(() => {
+    let cancelled = false;
     setApps(null);
     setError(null);
-    listApplications(token)
-      .then((list) =>
+    listApplications(token, debouncedSearch || undefined)
+      .then((list) => {
+        if (cancelled) return;
         setApps(
           [...list].sort((a, b) =>
             (a.displayName ?? '').localeCompare(b.displayName ?? ''),
           ),
-        ),
-      )
-      .catch((e) => setError(e.message));
-  }, [token]);
-
-  const filtered = useMemo(() => {
-    if (!apps) return [];
-    const q = search.trim().toLowerCase();
-    if (!q) return apps;
-    return apps.filter(
-      (a) =>
-        a.displayName?.toLowerCase().includes(q) ||
-        a.appId?.toLowerCase().includes(q),
-    );
-  }, [apps, search]);
+        );
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, debouncedSearch]);
 
   return (
     <>
@@ -63,13 +65,13 @@ export function Applications() {
       <div className="toolbar">
         <input
           className="search"
-          placeholder="Filter by name or appId…"
+          placeholder="Search by name or appId…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
         {apps && (
           <span className="muted">
-            {filtered.length} of {apps.length}
+            {apps.length} {debouncedSearch ? 'matches' : 'total'}
           </span>
         )}
       </div>
@@ -88,17 +90,21 @@ export function Applications() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((a) => (
+              {apps.map((a) => (
                 <tr key={a.id} onClick={() => nav(`/applications/${a.id}`)}>
                   <td>{a.displayName}</td>
                   <td className="mono">{a.appId}</td>
                   <td className="muted">{a.signInAudience}</td>
                 </tr>
               ))}
-              {filtered.length === 0 && (
+              {apps.length === 0 && (
                 <tr>
                   <td colSpan={3}>
-                    <div className="empty">No applications match your filter.</div>
+                    <div className="empty">
+                      {debouncedSearch
+                        ? 'No applications match your search.'
+                        : 'No applications found.'}
+                    </div>
                   </td>
                 </tr>
               )}

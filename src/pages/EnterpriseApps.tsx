@@ -22,34 +22,40 @@ export function EnterpriseApps() {
   const [sps, setSps] = useState<ServicePrincipal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
 
   useEffect(() => {
+    const handle = setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    return () => clearTimeout(handle);
+  }, [search]);
+
+  useEffect(() => {
+    let cancelled = false;
     setSps(null);
     setError(null);
-    listServicePrincipals(token)
-      .then((list) =>
+    listServicePrincipals(token, debouncedSearch || undefined)
+      .then((list) => {
+        if (cancelled) return;
         setSps(
           [...list].sort((a, b) =>
             (a.displayName ?? '').localeCompare(b.displayName ?? ''),
           ),
-        ),
-      )
-      .catch((e) => setError(e.message));
-  }, [token]);
+        );
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, debouncedSearch]);
 
   const filtered = useMemo(() => {
     if (!sps) return [];
-    const q = search.trim().toLowerCase();
-    return sps.filter((sp) => {
-      if (filter !== 'all' && classify(sp) !== filter) return false;
-      if (!q) return true;
-      return (
-        sp.displayName?.toLowerCase().includes(q) ||
-        sp.appId?.toLowerCase().includes(q)
-      );
-    });
-  }, [sps, search, filter]);
+    if (filter === 'all') return sps;
+    return sps.filter((sp) => classify(sp) === filter);
+  }, [sps, filter]);
 
   return (
     <>
@@ -65,7 +71,7 @@ export function EnterpriseApps() {
       <div className="toolbar">
         <input
           className="search"
-          placeholder="Filter by name or appId…"
+          placeholder="Search by name or appId…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -92,7 +98,9 @@ export function EnterpriseApps() {
         <div className="grow" />
         {sps && (
           <span className="muted">
-            {filtered.length} of {sps.length}
+            {filter === 'all'
+              ? `${sps.length} ${debouncedSearch ? 'matches' : 'total'}`
+              : `${filtered.length} of ${sps.length}`}
           </span>
         )}
       </div>
@@ -151,7 +159,11 @@ export function EnterpriseApps() {
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={5}>
-                    <div className="empty">No enterprise apps match.</div>
+                    <div className="empty">
+                      {debouncedSearch
+                        ? 'No enterprise apps match your search.'
+                        : 'No enterprise apps found.'}
+                    </div>
                   </td>
                 </tr>
               )}

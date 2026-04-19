@@ -12,18 +12,51 @@ export type UpdateApplicationPatch = Partial<
   Pick<Application, 'displayName' | 'signInAudience' | 'notes' | 'identifierUris'>
 >;
 
+// A bare hex-and-dashes token — treat as a (possibly partial) appId GUID
+// rather than a display-name search term.
+const GUID_LIKE = /^[0-9a-f-]+$/i;
+
 export function listApplications(token: TokenFn, search?: string) {
-  const filter = search
-    ? `startswith(displayName,'${search.replace(/'/g, "''")}')`
-    : undefined;
-  return graphAll<Application>(token, '/applications', {
-    query: {
-      $select:
-        'id,appId,displayName,createdDateTime,signInAudience,publisherDomain',
-      $top: 100,
-      $filter: filter,
+  const q = search?.trim();
+  const $select =
+    'id,appId,displayName,createdDateTime,signInAudience,publisherDomain';
+
+  if (!q) {
+    return graphAll<Application>(token, '/applications', {
+      query: { $select, $top: 100 },
+    });
+  }
+
+  if (GUID_LIKE.test(q)) {
+    return graphAll<Application>(
+      token,
+      '/applications',
+      {
+        query: {
+          $select,
+          $top: 100,
+          $filter: `startswith(appId,'${q.replace(/'/g, "''")}')`,
+        },
+        advanced: true,
+      },
+      3,
+    );
+  }
+
+  const s = q.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return graphAll<Application>(
+    token,
+    '/applications',
+    {
+      query: {
+        $select,
+        $top: 100,
+        $search: `"displayName:${s}"`,
+      },
+      advanced: true,
     },
-  });
+    3,
+  );
 }
 
 export function getApplication(token: TokenFn, id: string) {
