@@ -7,6 +7,8 @@ export interface Application {
   createdDateTime?: string;
   signInAudience?: string;
   publisherDomain?: string;
+  notes?: string;
+  identifierUris?: string[];
   requiredResourceAccess?: RequiredResourceAccess[];
 }
 

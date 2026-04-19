@@ -16,7 +16,6 @@ export function listServicePrincipals(token: TokenFn, search?: string) {
       $select:
         'id,appId,displayName,servicePrincipalType,accountEnabled,tags,publisherName,appOwnerOrganizationId',
       $top: 100,
-      $orderby: 'displayName',
       $filter: filter,
     },
   });
@@ -95,6 +94,64 @@ export function deleteAppRoleAssignment(
   return graph<void>(
     token,
     `/servicePrincipals/${principalSpId}/appRoleAssignments/${assignmentId}`,
+    { method: 'DELETE' },
+  );
+}
+
+// SP lifecycle
+export function createServicePrincipalFromAppId(token: TokenFn, appId: string) {
+  return graph<ServicePrincipal>(token, '/servicePrincipals', {
+    method: 'POST',
+    body: { appId },
+  });
+}
+
+export function updateServicePrincipal(
+  token: TokenFn,
+  id: string,
+  patch: Partial<Pick<ServicePrincipal, 'accountEnabled' | 'tags'>>,
+) {
+  return graph<void>(token, `/servicePrincipals/${id}`, {
+    method: 'PATCH',
+    body: patch,
+  });
+}
+
+export function deleteServicePrincipal(token: TokenFn, id: string) {
+  return graph<void>(token, `/servicePrincipals/${id}`, { method: 'DELETE' });
+}
+
+// Assignments TO this SP — who (users/groups/SPs) has been granted one of the
+// appRoles that this SP exposes. Distinct from appRoleAssignments (roles this
+// SP holds on OTHER resources).
+export function listAppRoleAssignedTo(token: TokenFn, spId: string) {
+  return graphAll<AppRoleAssignment>(
+    token,
+    `/servicePrincipals/${spId}/appRoleAssignedTo`,
+    { query: { $top: 100 } },
+  );
+}
+
+export function createAppRoleAssignedTo(
+  token: TokenFn,
+  resourceSpId: string,
+  body: { appRoleId: string; principalId: string; resourceId: string },
+) {
+  return graph<AppRoleAssignment>(
+    token,
+    `/servicePrincipals/${resourceSpId}/appRoleAssignedTo`,
+    { method: 'POST', body },
+  );
+}
+
+export function deleteAppRoleAssignedTo(
+  token: TokenFn,
+  resourceSpId: string,
+  assignmentId: string,
+) {
+  return graph<void>(
+    token,
+    `/servicePrincipals/${resourceSpId}/appRoleAssignedTo/${assignmentId}`,
     { method: 'DELETE' },
   );
 }

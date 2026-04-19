@@ -6,22 +6,29 @@ import {
   listServicePrincipals,
 } from '../graph/servicePrincipals';
 import type { ServicePrincipal } from '../graph/types';
+import type { PrincipalRef } from '../graph/directoryObjects';
 import { Modal } from './Modal';
+import { PrincipalPicker } from './PrincipalPicker';
 
-interface SubmitPayload {
+export interface AddPermissionSubmitPayload {
   resource: ServicePrincipal;
   appRoleIds: string[];
   delegatedScopes: string[];
   consentType: 'AllPrincipals' | 'Principal';
+  /** User/group object id when consentType === 'Principal' (delegated). */
   principalId?: string;
+  /** Principal SP that the application-permission role assignment is on behalf of.
+   *  Defaults to the client SP (undefined means "use clientSp"). */
+  applicationPrincipalId?: string;
+  applicationPrincipalName?: string;
 }
 
 interface Props {
+  clientSp: ServicePrincipal;
   onClose: () => void;
-  onSubmit: (payload: SubmitPayload) => Promise<void>;
+  onSubmit: (payload: AddPermissionSubmitPayload) => Promise<void>;
 }
 
-// Known well-known API app IDs for quick picking.
 const COMMON_APIS: Array<{ appId: string; name: string }> = [
   { appId: '00000003-0000-0000-c000-000000000000', name: 'Microsoft Graph' },
   {
@@ -42,7 +49,7 @@ const COMMON_APIS: Array<{ appId: string; name: string }> = [
   },
 ];
 
-export function AddPermissionModal({ onClose, onSubmit }: Props) {
+export function AddPermissionModal({ clientSp, onClose, onSubmit }: Props) {
   const token = useGraphToken();
 
   const [resource, setResource] = useState<ServicePrincipal | null>(null);
@@ -56,11 +63,18 @@ export function AddPermissionModal({ onClose, onSubmit }: Props) {
   const [selectedDel, setSelectedDel] = useState<Set<string>>(new Set());
   const [consentType, setConsentType] =
     useState<'AllPrincipals' | 'Principal'>('AllPrincipals');
-  const [principalId, setPrincipalId] = useState('');
+  const [delegatedPrincipal, setDelegatedPrincipal] =
+    useState<PrincipalRef | null>(null);
+  const [applicationPrincipal, setApplicationPrincipal] =
+    useState<PrincipalRef | null>({
+      id: clientSp.id,
+      displayName: clientSp.displayName,
+      kind: 'sp',
+      subtitle: clientSp.appId,
+    });
   const [submitting, setSubmitting] = useState(false);
   const [filter, setFilter] = useState('');
 
-  // Live search of service principals while typing
   useEffect(() => {
     if (resource) return;
     if (search.trim().length < 2) {
@@ -125,19 +139,28 @@ export function AddPermissionModal({ onClose, onSubmit }: Props) {
 
   const submit = async () => {
     if (!resource) return;
+    if (consentType === 'Principal' && selectedDel.size > 0 && !delegatedPrincipal) {
+      setError('Pick a user or group for single-principal consent.');
+      return;
+    }
+    if (selectedApp.size > 0 && !applicationPrincipal) {
+      setError('Pick a service principal that the application permission is assigned to.');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
       await onSubmit({
         resource,
         appRoleIds: [...selectedApp],
-        delegatedScopes: [...selectedDel].map(
-          (id) =>
-            delegatedScopes.find((s) => s.id === id)?.value ?? '',
-        ).filter(Boolean),
+        delegatedScopes: [...selectedDel]
+          .map((id) => delegatedScopes.find((s) => s.id === id)?.value ?? '')
+          .filter(Boolean),
         consentType,
         principalId:
-          consentType === 'Principal' ? principalId.trim() : undefined,
+          consentType === 'Principal' ? delegatedPrincipal?.id : undefined,
+        applicationPrincipalId: applicationPrincipal?.id,
+        applicationPrincipalName: applicationPrincipal?.displayName,
       });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -307,16 +330,20 @@ export function AddPermissionModal({ onClose, onSubmit }: Props) {
                       checked={consentType === 'Principal'}
                       onChange={() => setConsentType('Principal')}
                     />
-                    Consent for single user
+                    Consent for single user or group
                   </label>
                 </div>
                 {consentType === 'Principal' && (
-                  <input
-                    style={{ marginTop: 8 }}
-                    placeholder="User object ID"
-                    value={principalId}
-                    onChange={(e) => setPrincipalId(e.target.value)}
-                  />
+                  <div style={{ marginTop: 10 }}>
+                    <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+                      Principal (user or group)
+                    </div>
+                    <PrincipalPicker
+                      kinds={['user', 'group']}
+                      selected={delegatedPrincipal}
+                      onChange={setDelegatedPrincipal}
+                    />
+                  </div>
                 )}
               </div>
             </>
@@ -344,6 +371,23 @@ export function AddPermissionModal({ onClose, onSubmit }: Props) {
                   }
                 />
               )}
+              <div
+                className="card"
+                style={{ padding: 12, marginTop: 16, marginBottom: 0 }}
+              >
+                <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+                  Assign role to (principal service principal)
+                </div>
+                <PrincipalPicker
+                  kinds={['sp']}
+                  selected={applicationPrincipal}
+                  onChange={setApplicationPrincipal}
+                />
+                <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
+                  Defaults to this enterprise app. Change to grant the role to a
+                  different service principal.
+                </div>
+              </div>
             </>
           )}
 
