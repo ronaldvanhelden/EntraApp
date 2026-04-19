@@ -26,30 +26,48 @@ export interface PrincipalRef {
   subtitle?: string;
 }
 
-function escapeOdata(q: string): string {
-  return q.replace(/'/g, "''");
+// Escape a user query for use inside a $search="…" phrase. Double quotes and
+// backslashes are the two literal characters that must be escaped.
+function escapeSearch(q: string): string {
+  return q.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
 export function searchUsers(token: TokenFn, q: string) {
-  const f = escapeOdata(q);
-  return graphAll<DirectoryUser>(token, '/users', {
-    query: {
-      $select: 'id,displayName,userPrincipalName,mail',
-      $top: 25,
-      $filter: `startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')`,
+  const s = escapeSearch(q);
+  const search =
+    `"displayName:${s}" OR "userPrincipalName:${s}" ` +
+    `OR "mail:${s}" OR "givenName:${s}" OR "surname:${s}"`;
+  return graphAll<DirectoryUser>(
+    token,
+    '/users',
+    {
+      query: {
+        $select: 'id,displayName,userPrincipalName,mail',
+        $top: 50,
+        $search: search,
+      },
+      advanced: true,
     },
-  });
+    2,
+  );
 }
 
 export function searchGroups(token: TokenFn, q: string) {
-  const f = escapeOdata(q);
-  return graphAll<DirectoryGroup>(token, '/groups', {
-    query: {
-      $select: 'id,displayName,mailNickname,mail,securityEnabled',
-      $top: 25,
-      $filter: `startswith(displayName,'${f}')`,
+  const s = escapeSearch(q);
+  const search = `"displayName:${s}" OR "description:${s}" OR "mail:${s}"`;
+  return graphAll<DirectoryGroup>(
+    token,
+    '/groups',
+    {
+      query: {
+        $select: 'id,displayName,mailNickname,mail,securityEnabled',
+        $top: 50,
+        $search: search,
+      },
+      advanced: true,
     },
-  });
+    2,
+  );
 }
 
 interface DirectoryObjectResolved {

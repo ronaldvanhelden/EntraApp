@@ -15,15 +15,26 @@ export interface GraphRequestInit {
   body?: unknown;
   headers?: Record<string, string>;
   query?: Record<string, string | number | boolean | undefined>;
+  // Opt in to Microsoft Graph advanced query ($search, $count, advanced
+  // $filter operators, $orderby combined with $filter). Sets
+  // ConsistencyLevel: eventual and $count=true on the request.
+  advanced?: boolean;
 }
 
-function buildUrl(path: string, query?: GraphRequestInit['query']): string {
+function buildUrl(
+  path: string,
+  query?: GraphRequestInit['query'],
+  advanced?: boolean,
+): string {
   const url = new URL(path.startsWith('http') ? path : `${GRAPH_BASE}${path}`);
   if (query) {
     for (const [k, v] of Object.entries(query)) {
       if (v === undefined) continue;
       url.searchParams.set(k, String(v));
     }
+  }
+  if (advanced && !url.searchParams.has('$count')) {
+    url.searchParams.set('$count', 'true');
   }
   return url.toString();
 }
@@ -34,11 +45,12 @@ export async function graph<T>(
   init: GraphRequestInit = {},
 ): Promise<T> {
   const token = await getToken();
-  const res = await fetch(buildUrl(path, init.query), {
+  const res = await fetch(buildUrl(path, init.query, init.advanced), {
     method: init.method ?? 'GET',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
+      ...(init.advanced ? { ConsistencyLevel: 'eventual' } : {}),
       ...init.headers,
     },
     body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
@@ -87,10 +99,19 @@ export async function graphAll<T>(
 
   while (pages < maxPages) {
     const pagePath = next ?? path;
+    // Subsequent page requests must preserve the ConsistencyLevel header
+    // (and any caller-supplied headers); the @odata.nextLink URL already
+    // encodes the original query params.
     const page = await graph<Paged<T>>(
       getToken,
       pagePath,
-      first ? init : { method: 'GET' },
+      first
+        ? init
+        : {
+            method: 'GET',
+            advanced: init.advanced,
+            headers: init.headers,
+          },
     );
     out.push(...page.value);
     next = page['@odata.nextLink'];
