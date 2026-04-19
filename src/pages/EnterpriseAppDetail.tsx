@@ -5,18 +5,37 @@ import { useCurrentTenantId } from '../auth/useCurrentTenantId';
 import {
   deleteServicePrincipal,
   getServicePrincipal,
+  getServicePrincipalCreation,
   updateServicePrincipal,
+  type SpCreationRecord,
 } from '../graph/servicePrincipals';
+import {
+  listAppOnlySignInsForApp,
+  listUserSignInsForApp,
+} from '../graph/signIns';
 import {
   findTenantInformation,
   type TenantInformation,
 } from '../graph/organization';
-import type { ServicePrincipal } from '../graph/types';
+import type {
+  AppCredentialSignInActivity,
+  KeyCredential,
+  PasswordCredential,
+  ServicePrincipal,
+  SignIn,
+} from '../graph/types';
+import {
+  buildCredentialActivityMap,
+  listAppCredentialSignInActivities,
+} from '../graph/credentials';
 import { PermissionsManager } from '../components/PermissionsManager';
 import { AssignedUsersManager } from '../components/AssignedUsersManager';
+import { SignInAuditTab } from '../components/SignInAuditTab';
+import { AppIcon } from '../components/AppIcon';
+import { CopyButton } from '../components/CopyButton';
 import { Modal } from '../components/Modal';
 
-type Tab = 'overview' | 'permissions' | 'assignments';
+type Tab = 'overview' | 'permissions' | 'assignments' | 'audit';
 
 export function EnterpriseAppDetail() {
   const { id = '' } = useParams();
@@ -24,16 +43,62 @@ export function EnterpriseAppDetail() {
   const nav = useNavigate();
   const [sp, setSp] = useState<ServicePrincipal | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>('permissions');
+  const [tab, setTab] = useState<Tab>('overview');
   const [togglingEnabled, setTogglingEnabled] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // The /reports/servicePrincipalSignInActivities endpoint lags heavily in
+  // many tenants (often empty while /auditLogs/signIns already has 100+
+  // events). Query the authoritative sign-in log directly for the most
+  // recent events per flow, matching what the Audit tab shows.
+  const [lastDelegated, setLastDelegated] = useState<SignIn | null | 'loading'>(
+    'loading',
+  );
+  const [lastAppOnly, setLastAppOnly] = useState<SignIn | null | 'loading'>(
+    'loading',
+  );
+  const [signInError, setSignInError] = useState<string | null>(null);
+  const [credActivity, setCredActivity] = useState<
+    Map<string, AppCredentialSignInActivity>
+  >(new Map());
+  const [creation, setCreation] = useState<SpCreationRecord | null | 'loading'>(
+    'loading',
+  );
 
   useEffect(() => {
     setSp(null);
     setError(null);
+    setLastDelegated('loading');
+    setLastAppOnly('loading');
+    setSignInError(null);
+    setCredActivity(new Map());
+    setCreation('loading');
     getServicePrincipal(token, id)
-      .then(setSp)
+      .then((full) => {
+        setSp(full);
+        getServicePrincipalCreation(token, full.id)
+          .then(setCreation)
+          .catch(() => setCreation(null));
+
+        listUserSignInsForApp(token, full.appId, 1)
+          .then((rows) => setLastDelegated(rows[0] ?? null))
+          .catch((e: unknown) => {
+            setLastDelegated(null);
+            setSignInError(e instanceof Error ? e.message : String(e));
+          });
+        listAppOnlySignInsForApp(token, full.appId, 1)
+          .then((rows) => setLastAppOnly(rows[0] ?? null))
+          .catch((e: unknown) => {
+            setLastAppOnly(null);
+            setSignInError(e instanceof Error ? e.message : String(e));
+          });
+
+        listAppCredentialSignInActivities(token, full.appId)
+          .then((rows) => setCredActivity(buildCredentialActivityMap(rows)))
+          .catch(() => {
+            /* AuditLog.Read.All absent — credentials render without "last used" */
+          });
+      })
       .catch((e) => setError(e.message));
   }, [token, id]);
 
@@ -76,13 +141,30 @@ export function EnterpriseAppDetail() {
   return (
     <>
       <div className="page-header">
-        <div>
-          <h1>{sp.displayName}</h1>
-          <div className="subtitle mono">{sp.appId}</div>
+        <div className="row" style={{ gap: 12, alignItems: 'center' }}>
+          <AppIcon
+            id={sp.appId || sp.id}
+            logoUrl={sp.info?.logoUrl}
+            size={48}
+            title={sp.displayName}
+          />
+          <div>
+            <h1 style={{ margin: 0 }}>{sp.displayName}</h1>
+            <div className="subtitle mono">
+              {sp.appId}
+              <CopyButton value={sp.appId} label="application (client) ID" />
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="tabs">
+        <button
+          className={tab === 'overview' ? 'active' : ''}
+          onClick={() => setTab('overview')}
+        >
+          Overview
+        </button>
         <button
           className={tab === 'permissions' ? 'active' : ''}
           onClick={() => setTab('permissions')}
@@ -96,10 +178,10 @@ export function EnterpriseAppDetail() {
           Users and groups
         </button>
         <button
-          className={tab === 'overview' ? 'active' : ''}
-          onClick={() => setTab('overview')}
+          className={tab === 'audit' ? 'active' : ''}
+          onClick={() => setTab('audit')}
         >
-          Overview
+          Audit
         </button>
       </div>
 
@@ -109,9 +191,15 @@ export function EnterpriseAppDetail() {
             <h3>Details</h3>
             <div className="kv">
               <div className="k">Object ID</div>
-              <div className="mono">{sp.id}</div>
+              <div className="mono">
+                {sp.id}
+                <CopyButton value={sp.id} label="object ID" />
+              </div>
               <div className="k">App ID</div>
-              <div className="mono">{sp.appId}</div>
+              <div className="mono">
+                {sp.appId}
+                <CopyButton value={sp.appId} label="app ID" />
+              </div>
               <div className="k">Type</div>
               <div>{sp.servicePrincipalType ?? '—'}</div>
               <div className="k">Publisher</div>
@@ -141,8 +229,47 @@ export function EnterpriseAppDetail() {
               </div>
               <div className="k">Tags</div>
               <div className="muted">{sp.tags?.join(', ') || '—'}</div>
+              <div className="k">Created</div>
+              <div>
+                {sp.createdDateTime
+                  ? new Date(sp.createdDateTime).toLocaleString()
+                  : creation && creation !== 'loading' && creation.when
+                    ? new Date(creation.when).toLocaleString()
+                    : creation === 'loading'
+                      ? <span className="spinner" />
+                      : <span className="muted">—</span>}
+              </div>
+              <div className="k">Created by</div>
+              <div>
+                {creation === 'loading' ? (
+                  <span className="spinner" />
+                ) : creation?.who ? (
+                  <>
+                    <div>{creation.who.displayName ?? '—'}</div>
+                    {creation.who.userPrincipalName && (
+                      <div className="muted" style={{ fontSize: 12 }}>
+                        {creation.who.userPrincipalName}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <span className="muted" title="Requires AuditLog.Read.All; Microsoft retains directory audits for 30 days">
+                    —
+                  </span>
+                )}
+              </div>
+              <div className="k">Last delegated sign-in</div>
+              <div>
+                <LastSignInCell signIn={lastDelegated} error={signInError} />
+              </div>
+              <div className="k">Last app-only sign-in</div>
+              <div>
+                <LastSignInCell signIn={lastAppOnly} error={signInError} />
+              </div>
             </div>
           </div>
+
+          <SpCredentialsCard sp={sp} credActivity={credActivity} />
 
           <div className="card">
             <h3>Danger zone</h3>
@@ -164,6 +291,7 @@ export function EnterpriseAppDetail() {
 
       {tab === 'permissions' && <PermissionsManager clientSp={sp} />}
       {tab === 'assignments' && <AssignedUsersManager sp={sp} />}
+      {tab === 'audit' && <SignInAuditTab sp={sp} />}
 
       {confirmDelete && (
         <Modal
@@ -263,4 +391,256 @@ function HomeTenantCell({ ownerTenantId }: { ownerTenantId?: string }) {
       </div>
     </div>
   );
+}
+
+// Reads directly from /auditLogs/signIns (via signIns.ts). Mirrors what the
+// Audit tab shows — the older /reports/servicePrincipalSignInActivities
+// endpoint often lags for hours/days or returns empty aggregate rows, which
+// made this card misleadingly claim "no sign-ins" while the actual logs were
+// full.
+function LastSignInCell({
+  signIn,
+  error,
+}: {
+  signIn: SignIn | null | 'loading';
+  error: string | null;
+}) {
+  if (signIn === 'loading') {
+    return (
+      <span className="muted">
+        <span className="spinner" />
+      </span>
+    );
+  }
+  if (!signIn) {
+    if (error) {
+      return (
+        <span className="muted" style={{ fontSize: 13 }}>
+          Unavailable — {error}
+        </span>
+      );
+    }
+    return <span className="muted">No sign-ins in the last 30 days</span>;
+  }
+  const when = signIn.createdDateTime;
+  const actor =
+    signIn.userDisplayName ??
+    signIn.userPrincipalName ??
+    signIn.servicePrincipalName ??
+    signIn.appDisplayName;
+  return (
+    <>
+      <div title={when}>
+        {when ? new Date(when).toLocaleString() : '—'}
+      </div>
+      {actor && (
+        <div className="muted" style={{ fontSize: 12 }}>
+          by {actor}
+          {signIn.resourceDisplayName ? ` → ${signIn.resourceDisplayName}` : ''}
+        </div>
+      )}
+    </>
+  );
+}
+
+function SpCredentialsCard({
+  sp,
+  credActivity,
+}: {
+  sp: ServicePrincipal;
+  credActivity: Map<string, AppCredentialSignInActivity>;
+}) {
+  const secrets = sp.passwordCredentials ?? [];
+  const certs = sp.keyCredentials ?? [];
+  if (secrets.length === 0 && certs.length === 0) {
+    return (
+      <div className="card">
+        <h3>Credentials</h3>
+        <div className="muted" style={{ fontSize: 13 }}>
+          This service principal has no secrets or certificates of its own.
+          First-party Microsoft apps and most multi-tenant apps fall in this
+          bucket — credentials live on the app registration in the home
+          tenant. SAML-federated apps and some SaaS apps keep signing certs
+          here.
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="card">
+      <h3>Credentials</h3>
+
+      {secrets.length > 0 && (
+        <>
+          <h4 style={{ marginTop: 8, marginBottom: 8 }}>
+            Client secrets ({secrets.length})
+          </h4>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th>Secret ID</th>
+                <th>Hint</th>
+                <th>Created</th>
+                <th>Expires</th>
+                <th>Last used</th>
+              </tr>
+            </thead>
+            <tbody>
+              {secrets.map((s) => (
+                <SpSecretRow
+                  key={s.keyId}
+                  secret={s}
+                  activity={credActivity.get(s.keyId)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {certs.length > 0 && (
+        <>
+          <h4 style={{ marginTop: 20, marginBottom: 8 }}>
+            Certificates ({certs.length})
+          </h4>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Thumbprint</th>
+                <th>Type</th>
+                <th>Usage</th>
+                <th>Created</th>
+                <th>Expires</th>
+                <th>Last used</th>
+              </tr>
+            </thead>
+            <tbody>
+              {certs.map((c) => (
+                <SpCertRow
+                  key={c.keyId}
+                  cert={c}
+                  activity={credActivity.get(c.keyId)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  );
+}
+
+function SpSecretRow({
+  secret,
+  activity,
+}: {
+  secret: PasswordCredential;
+  activity?: AppCredentialSignInActivity;
+}) {
+  const last = activity?.signInActivity?.lastSignInDateTime;
+  return (
+    <tr>
+      <td>{secret.displayName || <span className="muted">—</span>}</td>
+      <td className="mono" title={secret.keyId} style={{ fontSize: 12 }}>
+        {shortenId(secret.keyId)}
+        <CopyButton value={secret.keyId} label="keyId" />
+      </td>
+      <td className="mono">
+        {secret.hint ? `${secret.hint}…` : <span className="muted">—</span>}
+      </td>
+      <td>{formatDateTime(secret.startDateTime)}</td>
+      <td>
+        <div className="row" style={{ gap: 6 }}>
+          <span>{formatDate(secret.endDateTime)}</span>
+          <ExpiryBadge end={secret.endDateTime} />
+        </div>
+      </td>
+      <td>
+        {last ? (
+          <span title={last}>{new Date(last).toLocaleString()}</span>
+        ) : (
+          <span className="muted">—</span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function SpCertRow({
+  cert,
+  activity,
+}: {
+  cert: KeyCredential;
+  activity?: AppCredentialSignInActivity;
+}) {
+  const last = activity?.signInActivity?.lastSignInDateTime;
+  const thumb = formatThumbprintHex(cert.customKeyIdentifier);
+  return (
+    <tr>
+      <td>{cert.displayName || <span className="muted">—</span>}</td>
+      <td
+        className="mono"
+        title={thumb || cert.keyId}
+        style={{ fontSize: 12 }}
+      >
+        {thumb ? shortenId(thumb) : shortenId(cert.keyId)}
+        <CopyButton value={thumb || cert.keyId} label="thumbprint" />
+      </td>
+      <td>{cert.type ?? <span className="muted">—</span>}</td>
+      <td>{cert.usage ?? <span className="muted">—</span>}</td>
+      <td>{formatDateTime(cert.startDateTime)}</td>
+      <td>
+        <div className="row" style={{ gap: 6 }}>
+          <span>{formatDate(cert.endDateTime)}</span>
+          <ExpiryBadge end={cert.endDateTime} />
+        </div>
+      </td>
+      <td>
+        {last ? (
+          <span title={last}>{new Date(last).toLocaleString()}</span>
+        ) : (
+          <span className="muted">—</span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function formatDate(d?: string): string {
+  if (!d) return '—';
+  const t = new Date(d).getTime();
+  return Number.isNaN(t) ? '—' : new Date(t).toLocaleDateString();
+}
+function formatDateTime(d?: string): string {
+  if (!d) return '—';
+  const t = new Date(d).getTime();
+  return Number.isNaN(t) ? '—' : new Date(t).toLocaleString();
+}
+function formatThumbprintHex(b64?: string | null): string {
+  if (!b64) return '';
+  try {
+    const bin = atob(b64);
+    let hex = '';
+    for (let i = 0; i < bin.length; i++) {
+      hex += bin.charCodeAt(i).toString(16).padStart(2, '0');
+    }
+    return hex.toUpperCase();
+  } catch {
+    return b64;
+  }
+}
+function shortenId(s: string): string {
+  return s.length > 14 ? `${s.slice(0, 8)}…${s.slice(-4)}` : s;
+}
+function ExpiryBadge({ end }: { end?: string }) {
+  if (!end) return null;
+  const endMs = new Date(end).getTime();
+  if (Number.isNaN(endMs)) return null;
+  const now = Date.now();
+  if (endMs < now) return <span className="badge expired">Expired</span>;
+  if (endMs - now < 30 * 24 * 60 * 60 * 1000)
+    return <span className="badge pending">Expires soon</span>;
+  return <span className="badge granted">Active</span>;
 }

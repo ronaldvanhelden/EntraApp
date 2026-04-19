@@ -5,6 +5,7 @@ import { createApplication, listApplications } from '../graph/applications';
 import { createServicePrincipalFromAppId } from '../graph/servicePrincipals';
 import type { Application } from '../graph/types';
 import { Modal } from '../components/Modal';
+import { AppIcon } from '../components/AppIcon';
 
 const AUDIENCES = [
   'AzureADMyOrg',
@@ -86,20 +87,41 @@ export function Applications() {
               <tr>
                 <th>Display name</th>
                 <th>Application (client) ID</th>
+                <th>Credentials</th>
                 <th>Sign-in audience</th>
               </tr>
             </thead>
             <tbody>
               {apps.map((a) => (
                 <tr key={a.id} onClick={() => nav(`/applications/${a.id}`)}>
-                  <td>{a.displayName}</td>
+                  <td>
+                    <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+                      <AppIcon
+                        id={a.appId || a.id}
+                        logoUrl={a.info?.logoUrl}
+                        title={a.displayName}
+                      />
+                      {hasExpiredCredential(a) && (
+                        <span
+                          title="One or more credentials have expired"
+                          style={{ color: 'var(--danger, #d13438)' }}
+                        >
+                          ⚠
+                        </span>
+                      )}
+                      <span>{a.displayName}</span>
+                    </div>
+                  </td>
                   <td className="mono">{a.appId}</td>
+                  <td>
+                    <CredentialBadges app={a} />
+                  </td>
                   <td className="muted">{a.signInAudience}</td>
                 </tr>
               ))}
               {apps.length === 0 && (
                 <tr>
-                  <td colSpan={3}>
+                  <td colSpan={4}>
                     <div className="empty">
                       {debouncedSearch
                         ? 'No applications match your search.'
@@ -218,5 +240,94 @@ function CreateAppModal({
 
       {error && <p className="error" style={{ marginTop: 12 }}>{error}</p>}
     </Modal>
+  );
+}
+
+type ExpiryState = 'none' | 'active' | 'soon' | 'expired';
+
+function credentialGroupState(
+  creds: Array<{ endDateTime?: string }> | undefined,
+): ExpiryState {
+  if (!creds || creds.length === 0) return 'none';
+  const now = Date.now();
+  const soonMs = 30 * 24 * 60 * 60 * 1000;
+  let worst: 'active' | 'soon' = 'active';
+  for (const c of creds) {
+    const end = c.endDateTime ? new Date(c.endDateTime).getTime() : NaN;
+    if (!Number.isFinite(end)) continue;
+    if (end < now) return 'expired';
+    if (end - now < soonMs) worst = 'soon';
+  }
+  return worst;
+}
+
+function hasExpiredCredential(app: Application): boolean {
+  return (
+    credentialGroupState(app.passwordCredentials) === 'expired' ||
+    credentialGroupState(app.keyCredentials) === 'expired'
+  );
+}
+
+function CredentialBadges({ app }: { app: Application }) {
+  const secretState = credentialGroupState(app.passwordCredentials);
+  const certState = credentialGroupState(app.keyCredentials);
+  const ficCount = app.federatedIdentityCredentials?.length ?? 0;
+
+  if (
+    secretState === 'none' &&
+    certState === 'none' &&
+    ficCount === 0
+  ) {
+    return <span className="muted">—</span>;
+  }
+  return (
+    <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+      {secretState !== 'none' && (
+        <CredentialBadge
+          label="Secret"
+          count={app.passwordCredentials?.length ?? 0}
+          state={secretState}
+        />
+      )}
+      {certState !== 'none' && (
+        <CredentialBadge
+          label="Cert"
+          count={app.keyCredentials?.length ?? 0}
+          state={certState}
+        />
+      )}
+      {ficCount > 0 && (
+        <CredentialBadge label="FIC" count={ficCount} state="active" />
+      )}
+    </div>
+  );
+}
+
+function CredentialBadge({
+  label,
+  count,
+  state,
+}: {
+  label: string;
+  count: number;
+  state: ExpiryState;
+}) {
+  const cls =
+    state === 'expired'
+      ? 'badge expired'
+      : state === 'soon'
+        ? 'badge pending'
+        : 'badge granted';
+  const title =
+    state === 'expired'
+      ? `${label}: one or more expired`
+      : state === 'soon'
+        ? `${label}: one or more expire within 30 days`
+        : `${label}: active`;
+  return (
+    <span className={cls} title={title}>
+      {label} {count}
+      {state === 'expired' && ' ⚠'}
+    </span>
   );
 }

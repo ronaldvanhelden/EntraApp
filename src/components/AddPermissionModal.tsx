@@ -9,6 +9,9 @@ import type { ServicePrincipal } from '../graph/types';
 import type { PrincipalRef } from '../graph/directoryObjects';
 import { Modal } from './Modal';
 import { PrincipalPicker } from './PrincipalPicker';
+import { ScopeLookupPanel } from './ScopeLookupPanel';
+import { useScopeCatalog } from './PrivilegeBadge';
+import { MS_GRAPH_APP_ID, type EndpointMatch } from '../graph/scopeCatalog';
 
 export interface AddPermissionSubmitPayload {
   resource: ServicePrincipal;
@@ -74,6 +77,42 @@ export function AddPermissionModal({ clientSp, onClose, onSubmit }: Props) {
     });
   const [submitting, setSubmitting] = useState(false);
   const [filter, setFilter] = useState('');
+  const [mode, setMode] = useState<'api' | 'url'>('api');
+  const catalog = useScopeCatalog();
+  const [pendingPick, setPendingPick] = useState<
+    | { scope: string; kind: 'delegated' | 'application' }
+    | null
+  >(null);
+
+  useEffect(() => {
+    if (!resource || !pendingPick) return;
+    if (pendingPick.kind === 'delegated') {
+      const id = resource.oauth2PermissionScopes?.find(
+        (s) => s.value === pendingPick.scope,
+      )?.id;
+      if (id) {
+        setSelectedDel((prev) => {
+          const next = new Set(prev);
+          next.add(id);
+          return next;
+        });
+        setTab('delegated');
+      }
+    } else {
+      const id = resource.appRoles?.find(
+        (r) => r.value === pendingPick.scope,
+      )?.id;
+      if (id) {
+        setSelectedApp((prev) => {
+          const next = new Set(prev);
+          next.add(id);
+          return next;
+        });
+        setTab('app');
+      }
+    }
+    setPendingPick(null);
+  }, [resource, pendingPick]);
 
   useEffect(() => {
     if (resource) return;
@@ -190,52 +229,87 @@ export function AddPermissionModal({ clientSp, onClose, onSubmit }: Props) {
     >
       {!resource ? (
         <>
-          <h3 style={{ marginTop: 0 }}>Select an API</h3>
-          <div className="row wrap" style={{ marginBottom: 16 }}>
-            {COMMON_APIS.map((api) => (
-              <button
-                key={api.appId}
-                disabled={resourceLoading}
-                onClick={() => selectResourceByAppId(api.appId, api.name)}
-              >
-                {api.name}
-              </button>
-            ))}
+          <div className="tabs" style={{ marginBottom: 16 }}>
+            <button
+              className={mode === 'api' ? 'active' : ''}
+              onClick={() => setMode('api')}
+            >
+              By API
+            </button>
+            <button
+              className={mode === 'url' ? 'active' : ''}
+              onClick={() => setMode('url')}
+            >
+              By Graph URL
+            </button>
           </div>
+          {mode === 'api' ? (
+            <>
+              <h3 style={{ marginTop: 0 }}>Select an API</h3>
+              <div className="row wrap" style={{ marginBottom: 16 }}>
+                {COMMON_APIS.map((api) => (
+                  <button
+                    key={api.appId}
+                    disabled={resourceLoading}
+                    onClick={() => selectResourceByAppId(api.appId, api.name)}
+                  >
+                    {api.name}
+                  </button>
+                ))}
+              </div>
 
-          <label className="field">
-            <span>Or search all APIs (by display name)</span>
-            <input
-              autoFocus
-              placeholder="Type at least 2 characters…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </label>
+              <label className="field">
+                <span>Or search all APIs (by display name)</span>
+                <input
+                  autoFocus
+                  placeholder="Type at least 2 characters…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </label>
 
-          {resourceLoading && (
-            <div className="row" style={{ gap: 8 }}>
-              <span className="spinner" />
-              <span className="muted">Loading API…</span>
-            </div>
+              {resourceLoading && (
+                <div className="row" style={{ gap: 8 }}>
+                  <span className="spinner" />
+                  <span className="muted">Loading API…</span>
+                </div>
+              )}
+
+              {results.length > 0 && (
+                <div className="card" style={{ padding: 0, marginTop: 8 }}>
+                  <table className="table">
+                    <tbody>
+                      {results.map((sp) => (
+                        <tr key={sp.id} onClick={() => selectResource(sp)}>
+                          <td>{sp.displayName}</td>
+                          <td className="mono muted">{sp.appId}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {error && <p className="error">{error}</p>}
+            </>
+          ) : (
+            <>
+              <h3 style={{ marginTop: 0 }}>Find scopes by Graph URL</h3>
+              <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+                Only Microsoft Graph endpoints are in the public catalog.
+                Picking a result loads the Microsoft Graph service principal
+                and pre-selects the scope.
+              </p>
+              <ScopeLookupPanel
+                catalog={catalog}
+                onPick={async (match: EndpointMatch, kind) => {
+                  setPendingPick({ scope: match.scope, kind });
+                  await selectResourceByAppId(MS_GRAPH_APP_ID, 'Microsoft Graph');
+                }}
+              />
+              {error && <p className="error">{error}</p>}
+            </>
           )}
-
-          {results.length > 0 && (
-            <div className="card" style={{ padding: 0, marginTop: 8 }}>
-              <table className="table">
-                <tbody>
-                  {results.map((sp) => (
-                    <tr key={sp.id} onClick={() => selectResource(sp)}>
-                      <td>{sp.displayName}</td>
-                      <td className="mono muted">{sp.appId}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {error && <p className="error">{error}</p>}
         </>
       ) : (
         <>
@@ -398,14 +472,14 @@ export function AddPermissionModal({ clientSp, onClose, onSubmit }: Props) {
   );
 }
 
-function toggleSet(prev: Set<string>, id: string): Set<string> {
+export function toggleSet(prev: Set<string>, id: string): Set<string> {
   const next = new Set(prev);
   if (next.has(id)) next.delete(id);
   else next.add(id);
   return next;
 }
 
-interface ChecklistItem {
+export interface ChecklistItem {
   id: string;
   title: string;
   subtitle: string;
@@ -413,7 +487,7 @@ interface ChecklistItem {
   badge?: string;
 }
 
-function PermissionChecklist({
+export function PermissionChecklist({
   items,
   selected,
   onToggle,

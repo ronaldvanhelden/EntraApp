@@ -41,12 +41,12 @@ export function isConfigured(config: AuthConfig): boolean {
   return /^[0-9a-f-]{36}$/i.test(config.clientId);
 }
 
-// Normalize to the URL MSAL will compare against the app registration's
-// SPA redirectUris — strip the trailing slash so "/EntraApp/" and
-// "/EntraApp" both reduce to the same canonical URI.
+// Must match an SPA redirectUri on the app registration exactly. We preserve
+// the trailing slash because Vite's dev server (and GitHub Pages) only serve
+// the app at the base path *with* the slash — landing at "/EntraApp" hits
+// Vite's "did you mean /EntraApp/" page and handleRedirectPromise never runs.
 export function computeRedirectUri(): string {
-  const raw = window.location.origin + window.location.pathname;
-  return raw.length > 1 ? raw.replace(/\/$/, '') : raw;
+  return window.location.origin + window.location.pathname;
 }
 
 export function buildMsalConfig(config: AuthConfig): Configuration {

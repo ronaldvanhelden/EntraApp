@@ -12,6 +12,44 @@ export interface Application {
   requiredResourceAccess?: RequiredResourceAccess[];
   passwordCredentials?: PasswordCredential[];
   keyCredentials?: KeyCredential[];
+  federatedIdentityCredentials?: FederatedIdentityCredential[];
+  info?: InformationalUrl;
+  // Auth / platform configuration — which OAuth 2.0 flows the app supports.
+  web?: WebApplication;
+  spa?: SpaApplication;
+  publicClient?: PublicClientApplication;
+  isFallbackPublicClient?: boolean;
+}
+
+export interface WebApplication {
+  redirectUris?: string[];
+  homePageUrl?: string | null;
+  logoutUrl?: string | null;
+  implicitGrantSettings?: ImplicitGrantSettings;
+}
+export interface SpaApplication {
+  redirectUris?: string[];
+}
+export interface PublicClientApplication {
+  redirectUris?: string[];
+}
+export interface ImplicitGrantSettings {
+  enableIdTokenIssuance?: boolean;
+  enableAccessTokenIssuance?: boolean;
+}
+
+export interface DirectoryObjectLite {
+  id: string;
+  displayName?: string | null;
+  userPrincipalName?: string | null;
+}
+
+export interface InformationalUrl {
+  logoUrl?: string | null;
+  marketingUrl?: string | null;
+  privacyStatementUrl?: string | null;
+  supportUrl?: string | null;
+  termsOfServiceUrl?: string | null;
 }
 
 export interface KeyCredential {
@@ -22,6 +60,9 @@ export interface KeyCredential {
   startDateTime?: string;
   endDateTime?: string;
   customKeyIdentifier?: string | null;
+  // Write-only: base64-encoded DER certificate (public X.509). Graph never
+  // returns this on reads, but including it in a PATCH adds a new key.
+  key?: string | null;
 }
 
 export interface PasswordCredential {
@@ -55,6 +96,72 @@ export interface AppCredentialSignInActivity {
   };
 }
 
+// /beta/reports/servicePrincipalSignInActivities/{appId}
+export interface SignInActivityDetail {
+  lastSignInDateTime?: string;
+  lastSignInRequestId?: string;
+}
+export interface ServicePrincipalSignInActivity {
+  id?: string;
+  appId?: string;
+  lastSignInActivity?: SignInActivityDetail;
+  delegatedClientSignInActivity?: SignInActivityDetail;
+  delegatedResourceSignInActivity?: SignInActivityDetail;
+  applicationAuthenticationClientSignInActivity?: SignInActivityDetail;
+  applicationAuthenticationResourceSignInActivity?: SignInActivityDetail;
+}
+
+// /beta/auditLogs/signIns — one record per sign-in event.
+export type SignInClientCredentialType =
+  | 'none'
+  | 'clientSecret'
+  | 'clientAssertion'
+  | 'federatedIdentityCredential'
+  | 'managedIdentity'
+  | 'unknown'
+  | string;
+
+export interface SignInKeyValue {
+  key?: string;
+  value?: string;
+}
+
+export interface SignIn {
+  id: string;
+  createdDateTime?: string;
+  appId?: string;
+  appDisplayName?: string;
+  ipAddress?: string;
+  clientAppUsed?: string;
+  authenticationProtocol?: string;
+  // User sign-ins
+  userDisplayName?: string;
+  userPrincipalName?: string;
+  userId?: string;
+  // App-only sign-ins
+  servicePrincipalId?: string;
+  servicePrincipalName?: string;
+  // Resource targeted
+  resourceDisplayName?: string;
+  resourceId?: string;
+  // Event classification and credentials (beta)
+  signInEventTypes?: string[];
+  clientCredentialType?: SignInClientCredentialType;
+  federatedCredentialId?: string;
+  // Dedicated fields populated on app-only (service principal) sign-ins.
+  // Preferred over digging through authenticationProcessingDetails.
+  servicePrincipalCredentialKeyId?: string;
+  servicePrincipalCredentialThumbprint?: string;
+  authenticationProcessingDetails?: SignInKeyValue[];
+  authenticationMethodsUsed?: string[];
+  isInteractive?: boolean;
+  status?: {
+    errorCode?: number;
+    failureReason?: string;
+    additionalDetails?: string;
+  };
+}
+
 export interface ServicePrincipal {
   id: string;
   appId: string;
@@ -66,6 +173,10 @@ export interface ServicePrincipal {
   tags?: string[];
   publisherName?: string;
   appOwnerOrganizationId?: string;
+  info?: InformationalUrl;
+  keyCredentials?: KeyCredential[];
+  passwordCredentials?: PasswordCredential[];
+  createdDateTime?: string;
 }
 
 export interface AppRole {

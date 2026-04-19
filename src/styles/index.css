@@ -297,6 +297,190 @@ pre {
   -webkit-overflow-scrolling: touch;
 }
 
+/* Collapsible resource group — used to visually cluster permissions-per-API
+   on both app registrations and service principals. The left accent bar plus
+   raised header make each group distinct from a plain bordered box. */
+.group-box {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.group-box.collapsed {
+  border-left-color: var(--text-dim);
+}
+.group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-hover);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+  transition: background 120ms;
+}
+.group-header:hover {
+  background: #262c35;
+}
+.group-box.collapsed .group-header {
+  border-bottom: none;
+}
+.group-header .chevron {
+  display: inline-block;
+  width: 12px;
+  color: var(--text-muted);
+  transition: transform 120ms;
+}
+.group-box.collapsed .group-header .chevron {
+  transform: rotate(-90deg);
+}
+.group-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+.group-subtitle {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.group-body {
+  overflow-x: auto;
+}
+.group-body .table {
+  margin-bottom: 0;
+}
+
+/* Microsoft publishes a 1–4 privilegeLevel for every Graph permission. The
+   pill surfaces the level alongside each scope so admins can see at a glance
+   how much blast radius a selection carries. */
+.priv-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.priv-badge.priv-low {
+  color: #7ee0a0;
+  background: rgba(63, 185, 80, 0.12);
+  border-color: rgba(63, 185, 80, 0.35);
+}
+.priv-badge.priv-medium {
+  color: #e2c56a;
+  background: rgba(210, 153, 34, 0.14);
+  border-color: rgba(210, 153, 34, 0.4);
+}
+.priv-badge.priv-high {
+  color: #ffb27a;
+  background: rgba(219, 109, 40, 0.18);
+  border-color: rgba(219, 109, 40, 0.45);
+}
+.priv-badge.priv-critical {
+  color: #ff8080;
+  background: rgba(248, 81, 73, 0.2);
+  border-color: rgba(248, 81, 73, 0.55);
+}
+.priv-badge.priv-unknown {
+  color: var(--text-dim);
+  background: rgba(110, 118, 129, 0.1);
+  border-color: var(--border-subtle);
+}
+
+/* HTTP method chips used in the scope → URL detail dialog. Colors roughly
+   mirror Swagger/OpenAPI conventions so the familiar mental model carries
+   over. */
+.method-pill {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+}
+.method-pill.m-GET {
+  color: #7ab7ff;
+  background: rgba(47, 129, 247, 0.12);
+  border-color: rgba(47, 129, 247, 0.35);
+}
+.method-pill.m-POST {
+  color: #7ee0a0;
+  background: rgba(63, 185, 80, 0.12);
+  border-color: rgba(63, 185, 80, 0.35);
+}
+.method-pill.m-PATCH,
+.method-pill.m-PUT {
+  color: #e2c56a;
+  background: rgba(210, 153, 34, 0.14);
+  border-color: rgba(210, 153, 34, 0.4);
+}
+.method-pill.m-DELETE {
+  color: #ff8080;
+  background: rgba(248, 81, 73, 0.18);
+  border-color: rgba(248, 81, 73, 0.45);
+}
+
+/* Button styled like a plain inline link — used for making permission names
+   clickable to open the scope-details dialog without looking like a button. */
+button.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+button.link:hover .mono {
+  text-decoration: underline;
+  color: var(--accent);
+}
+
+/* Copy-to-clipboard icon button beside resource IDs. Low-profile: invisible
+   background, faint color, reveals on hover. */
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin-left: 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--text-dim);
+  cursor: pointer;
+  vertical-align: middle;
+  opacity: 0.55;
+  transition: opacity 120ms, background 120ms, color 120ms;
+  line-height: 1;
+}
+.copy-btn:hover {
+  opacity: 1;
+  color: var(--text);
+  background: var(--bg-hover);
+  border-color: var(--border-subtle);
+}
+.copy-btn.copied {
+  color: var(--success);
+  opacity: 1;
+}
+.copy-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;

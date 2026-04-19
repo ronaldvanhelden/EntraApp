@@ -4,15 +4,26 @@ import { useGraphToken } from '../auth/useGraphToken';
 import { useCurrentTenantId } from '../auth/useCurrentTenantId';
 import { listServicePrincipals } from '../graph/servicePrincipals';
 import type { ServicePrincipal } from '../graph/types';
+import { AppIcon } from '../components/AppIcon';
 
-type Filter = 'all' | 'enterprise' | 'managed';
+type Filter = 'all' | 'enterprise' | 'managed' | 'legacy';
+type TenantFilter = 'all' | 'this' | 'external';
 
-function classify(sp: ServicePrincipal): Filter {
-  if (sp.tags?.includes('WindowsAzureActiveDirectoryIntegratedApp')) {
-    return 'enterprise';
-  }
+function classify(sp: ServicePrincipal): Exclude<Filter, 'all'> {
   if (sp.servicePrincipalType === 'ManagedIdentity') return 'managed';
+  if (sp.servicePrincipalType === 'Legacy') return 'legacy';
   return 'enterprise';
+}
+
+function isExternal(
+  sp: ServicePrincipal,
+  currentTenantId: string | undefined,
+): boolean {
+  return Boolean(
+    sp.appOwnerOrganizationId &&
+      currentTenantId &&
+      sp.appOwnerOrganizationId.toLowerCase() !== currentTenantId.toLowerCase(),
+  );
 }
 
 export function EnterpriseApps() {
@@ -24,6 +35,10 @@ export function EnterpriseApps() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
+  const [tenantFilter, setTenantFilter] = useState<TenantFilter>('all');
+  // When 'external' is chosen the user can further narrow to a single owning
+  // tenant. Empty string means "any external tenant".
+  const [externalTenantId, setExternalTenantId] = useState('');
 
   useEffect(() => {
     const handle = setTimeout(() => setDebouncedSearch(search.trim()), 250);
@@ -53,9 +68,35 @@ export function EnterpriseApps() {
 
   const filtered = useMemo(() => {
     if (!sps) return [];
-    if (filter === 'all') return sps;
-    return sps.filter((sp) => classify(sp) === filter);
-  }, [sps, filter]);
+    return sps.filter((sp) => {
+      if (filter !== 'all' && classify(sp) !== filter) return false;
+      if (tenantFilter === 'this' && isExternal(sp, currentTenantId))
+        return false;
+      if (tenantFilter === 'external') {
+        if (!isExternal(sp, currentTenantId)) return false;
+        if (
+          externalTenantId &&
+          sp.appOwnerOrganizationId?.toLowerCase() !==
+            externalTenantId.toLowerCase()
+        )
+          return false;
+      }
+      return true;
+    });
+  }, [sps, filter, tenantFilter, externalTenantId, currentTenantId]);
+
+  // Distinct external owning tenants seen in the current list — drives the
+  // secondary dropdown when tenantFilter === 'external'.
+  const externalTenants = useMemo(() => {
+    if (!sps) return [] as string[];
+    const set = new Set<string>();
+    for (const sp of sps) {
+      if (isExternal(sp, currentTenantId) && sp.appOwnerOrganizationId) {
+        set.add(sp.appOwnerOrganizationId);
+      }
+    }
+    return [...set].sort();
+  }, [sps, currentTenantId]);
 
   return (
     <>
@@ -94,11 +135,58 @@ export function EnterpriseApps() {
           >
             Managed identities
           </button>
+          <button
+            className={filter === 'legacy' ? 'active' : ''}
+            onClick={() => setFilter('legacy')}
+            title="Legacy service principals — created before the app registration model, no backing application"
+          >
+            Legacy
+          </button>
         </div>
+        <div className="tabs" style={{ margin: 0, borderBottom: 'none' }}>
+          <button
+            className={tenantFilter === 'all' ? 'active' : ''}
+            onClick={() => setTenantFilter('all')}
+            title="Show apps from any home tenant"
+          >
+            Any tenant
+          </button>
+          <button
+            className={tenantFilter === 'this' ? 'active' : ''}
+            onClick={() => setTenantFilter('this')}
+            title="Only apps whose home tenant is this tenant"
+          >
+            This tenant
+          </button>
+          <button
+            className={tenantFilter === 'external' ? 'active' : ''}
+            onClick={() => setTenantFilter('external')}
+            title="Only apps from external tenants (multi-tenant apps, B2B)"
+          >
+            External
+          </button>
+        </div>
+        {tenantFilter === 'external' && externalTenants.length > 0 && (
+          <select
+            value={externalTenantId}
+            onChange={(e) => setExternalTenantId(e.target.value)}
+            style={{ maxWidth: 280 }}
+            title="Narrow to a specific external tenant"
+          >
+            <option value="">
+              Any external tenant ({externalTenants.length})
+            </option>
+            {externalTenants.map((tid) => (
+              <option key={tid} value={tid}>
+                {tid}
+              </option>
+            ))}
+          </select>
+        )}
         <div className="grow" />
         {sps && (
           <span className="muted">
-            {filter === 'all'
+            {filter === 'all' && tenantFilter === 'all'
               ? `${sps.length} ${debouncedSearch ? 'matches' : 'total'}`
               : `${filtered.length} of ${sps.length}`}
           </span>
@@ -132,7 +220,16 @@ export function EnterpriseApps() {
                     key={sp.id}
                     onClick={() => nav(`/enterprise-apps/${sp.id}`)}
                   >
-                    <td>{sp.displayName}</td>
+                    <td>
+                      <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+                        <AppIcon
+                          id={sp.appId || sp.id}
+                          logoUrl={sp.info?.logoUrl}
+                          title={sp.displayName}
+                        />
+                        <span>{sp.displayName}</span>
+                      </div>
+                    </td>
                     <td className="mono">{sp.appId}</td>
                     <td className="muted">
                       {sp.servicePrincipalType ?? 'Application'}
