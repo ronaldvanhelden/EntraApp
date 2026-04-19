@@ -1,9 +1,5 @@
-import { graph, graphAll, GraphError } from './client';
-import type {
-  Application,
-  DirectoryObjectLite,
-  KeyCredential,
-} from './types';
+import { graph, graphAll } from './client';
+import type { Application, KeyCredential } from './types';
 
 type TokenFn = () => Promise<string>;
 
@@ -124,85 +120,6 @@ export function updateApplication(
 
 export function deleteApplication(token: TokenFn, id: string) {
   return graph<void>(token, `/applications/${id}`, { method: 'DELETE' });
-}
-
-// /applications/{id}/createdOnBehalfOf returns the directory object (usually a
-// user) that created the app. $expand of this nav property is rejected on
-// v1.0 ("Unsupported link query on Application property"), so we fetch it
-// separately. 404 is a normal response for apps created via Graph with an
-// app-only token — Entra doesn't track a creator in that case.
-export async function getApplicationCreator(
-  token: TokenFn,
-  applicationObjectId: string,
-): Promise<DirectoryObjectLite | null> {
-  // Primary source: the nav property. Usually only populated for apps
-  // created through the portal with an interactive signed-in user.
-  try {
-    const direct = await graph<DirectoryObjectLite>(
-      token,
-      `/applications/${applicationObjectId}/createdOnBehalfOf`,
-      { query: { $select: 'id,displayName,userPrincipalName' } },
-    );
-    if (direct?.id) return direct;
-  } catch (e) {
-    if (!(e instanceof GraphError) || (e.status !== 404 && e.status !== 403))
-      throw e;
-  }
-
-  // Fallback: mine the directory audit log for the creation event. This
-  // works for apps created through Graph or automation, as long as the
-  // caller has AuditLog.Read.All.
-  try {
-    const safeId = applicationObjectId.replace(/'/g, "''");
-    const page = await graph<{
-      value?: Array<{
-        initiatedBy?: {
-          user?: {
-            id?: string;
-            displayName?: string;
-            userPrincipalName?: string;
-          };
-          app?: {
-            appId?: string;
-            displayName?: string;
-          };
-        };
-      }>;
-    }>(token, '/auditLogs/directoryAudits', {
-      query: {
-        $filter:
-          `activityDisplayName eq 'Add application' and ` +
-          `targetResources/any(t:t/id eq '${safeId}')`,
-        $top: 1,
-        $orderby: 'activityDateTime desc',
-      },
-    });
-    const event = page.value?.[0];
-    const user = event?.initiatedBy?.user;
-    if (user?.id) {
-      return {
-        id: user.id,
-        displayName: user.displayName ?? null,
-        userPrincipalName: user.userPrincipalName ?? null,
-      };
-    }
-    const initApp = event?.initiatedBy?.app;
-    if (initApp?.appId) {
-      return {
-        id: initApp.appId,
-        displayName: initApp.displayName
-          ? `${initApp.displayName} (app)`
-          : 'Service principal',
-        userPrincipalName: null,
-      };
-    }
-  } catch (e) {
-    // AuditLog.Read.All missing or audits pruned — fall through to null.
-    if (!(e instanceof GraphError) || (e.status !== 403 && e.status !== 404))
-      throw e;
-  }
-
-  return null;
 }
 
 export interface AddPasswordInput {

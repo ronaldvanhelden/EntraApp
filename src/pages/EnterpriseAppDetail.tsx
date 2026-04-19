@@ -5,9 +5,7 @@ import { useCurrentTenantId } from '../auth/useCurrentTenantId';
 import {
   deleteServicePrincipal,
   getServicePrincipal,
-  getServicePrincipalCreation,
   updateServicePrincipal,
-  type SpCreationRecord,
 } from '../graph/servicePrincipals';
 import {
   listAppOnlySignInsForApp,
@@ -61,9 +59,6 @@ export function EnterpriseAppDetail() {
   const [credActivity, setCredActivity] = useState<
     Map<string, AppCredentialSignInActivity>
   >(new Map());
-  const [creation, setCreation] = useState<SpCreationRecord | null | 'loading'>(
-    'loading',
-  );
 
   useEffect(() => {
     setSp(null);
@@ -72,13 +67,9 @@ export function EnterpriseAppDetail() {
     setLastAppOnly('loading');
     setSignInError(null);
     setCredActivity(new Map());
-    setCreation('loading');
     getServicePrincipal(token, id)
       .then((full) => {
         setSp(full);
-        getServicePrincipalCreation(token, full.id)
-          .then(setCreation)
-          .catch(() => setCreation(null));
 
         listUserSignInsForApp(token, full.appId, 1)
           .then((rows) => setLastDelegated(rows[0] ?? null))
@@ -233,30 +224,7 @@ export function EnterpriseAppDetail() {
               <div>
                 {sp.createdDateTime
                   ? new Date(sp.createdDateTime).toLocaleString()
-                  : creation && creation !== 'loading' && creation.when
-                    ? new Date(creation.when).toLocaleString()
-                    : creation === 'loading'
-                      ? <span className="spinner" />
-                      : <span className="muted">—</span>}
-              </div>
-              <div className="k">Created by</div>
-              <div>
-                {creation === 'loading' ? (
-                  <span className="spinner" />
-                ) : creation?.who ? (
-                  <>
-                    <div>{creation.who.displayName ?? '—'}</div>
-                    {creation.who.userPrincipalName && (
-                      <div className="muted" style={{ fontSize: 12 }}>
-                        {creation.who.userPrincipalName}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <span className="muted" title="Requires AuditLog.Read.All; Microsoft retains directory audits for 30 days">
-                    —
-                  </span>
-                )}
+                  : <span className="muted">—</span>}
               </div>
               <div className="k">Last delegated sign-in</div>
               <div>
@@ -451,8 +419,15 @@ function SpCredentialsCard({
   credActivity: Map<string, AppCredentialSignInActivity>;
 }) {
   const secrets = sp.passwordCredentials ?? [];
-  const certs = sp.keyCredentials ?? [];
-  if (secrets.length === 0 && certs.length === 0) {
+  const rawCerts = sp.keyCredentials ?? [];
+  // keyCredentials are only meaningful on Legacy-type service principals
+  // (the old password-SSO / legacy SAML bucket). For Application,
+  // ManagedIdentity, and SocialIdp types they're typically empty or internal
+  // noise — hide the Certificates section there so the UI doesn't mislead.
+  const showCerts =
+    sp.servicePrincipalType === 'Legacy' && rawCerts.length > 0;
+  const certs = showCerts ? rawCerts : [];
+  if (secrets.length === 0 && !showCerts) {
     return (
       <div className="card">
         <h3>Credentials</h3>
@@ -499,7 +474,7 @@ function SpCredentialsCard({
         </>
       )}
 
-      {certs.length > 0 && (
+      {showCerts && (
         <>
           <h4 style={{ marginTop: 20, marginBottom: 8 }}>
             Certificates ({certs.length})
