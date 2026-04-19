@@ -60,7 +60,14 @@ export function listApplications(token: TokenFn, search?: string) {
 }
 
 export function getApplication(token: TokenFn, id: string) {
-  return graph<Application>(token, `/applications/${id}`);
+  return graph<Application>(token, `/applications/${id}`, {
+    query: {
+      $select:
+        'id,appId,displayName,createdDateTime,signInAudience,publisherDomain,' +
+        'notes,identifierUris,requiredResourceAccess,' +
+        'passwordCredentials,keyCredentials',
+    },
+  });
 }
 
 export function getApplicationByAppId(token: TokenFn, appId: string) {

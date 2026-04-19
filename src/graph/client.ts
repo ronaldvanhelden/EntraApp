@@ -1,4 +1,4 @@
-import { GRAPH_BASE } from '../auth/config';
+import { GRAPH_BASE, GRAPH_BASE_BETA } from '../auth/config';
 
 export class GraphError extends Error {
   status: number;
@@ -19,14 +19,18 @@ export interface GraphRequestInit {
   // $filter operators, $orderby combined with $filter). Sets
   // ConsistencyLevel: eventual and $count=true on the request.
   advanced?: boolean;
+  // Which Graph API version to target. Defaults to v1.0.
+  api?: 'v1.0' | 'beta';
 }
 
 function buildUrl(
   path: string,
   query?: GraphRequestInit['query'],
   advanced?: boolean,
+  api?: GraphRequestInit['api'],
 ): string {
-  const url = new URL(path.startsWith('http') ? path : `${GRAPH_BASE}${path}`);
+  const base = api === 'beta' ? GRAPH_BASE_BETA : GRAPH_BASE;
+  const url = new URL(path.startsWith('http') ? path : `${base}${path}`);
   if (query) {
     for (const [k, v] of Object.entries(query)) {
       if (v === undefined) continue;
@@ -45,7 +49,7 @@ export async function graph<T>(
   init: GraphRequestInit = {},
 ): Promise<T> {
   const token = await getToken();
-  const res = await fetch(buildUrl(path, init.query, init.advanced), {
+  const res = await fetch(buildUrl(path, init.query, init.advanced, init.api), {
     method: init.method ?? 'GET',
     headers: {
       Authorization: `Bearer ${token}`,

@@ -362,6 +362,10 @@ pre {
   border-color: var(--warning);
   color: var(--warning);
 }
+.badge.expired {
+  border-color: var(--danger);
+  color: var(--danger);
+}
 
 .stack {
   display: flex;

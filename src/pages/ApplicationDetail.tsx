@@ -10,7 +10,19 @@ import {
   deleteServicePrincipal,
   getServicePrincipalByAppId,
 } from '../graph/servicePrincipals';
-import type { Application, ServicePrincipal } from '../graph/types';
+import {
+  buildCredentialActivityMap,
+  listAppCredentialSignInActivities,
+  listFederatedIdentityCredentials,
+} from '../graph/credentials';
+import type {
+  AppCredentialSignInActivity,
+  Application,
+  FederatedIdentityCredential,
+  KeyCredential,
+  PasswordCredential,
+  ServicePrincipal,
+} from '../graph/types';
 import { Modal } from '../components/Modal';
 
 const AUDIENCES = [
@@ -29,21 +41,36 @@ export function ApplicationDetail() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [fic, setFic] = useState<FederatedIdentityCredential[] | null>(null);
+  const [activityByKeyId, setActivityByKeyId] = useState<
+    Map<string, AppCredentialSignInActivity>
+  >(new Map());
+  const [activityError, setActivityError] = useState<string | null>(null);
 
   useEffect(() => {
     setApp(null);
     setSp(null);
     setError(null);
     setEditing(false);
+    setFic(null);
+    setActivityByKeyId(new Map());
+    setActivityError(null);
     getApplication(token, id)
       .then(async (a) => {
         setApp(a);
-        try {
-          const maybe = await getServicePrincipalByAppId(token, a.appId);
-          setSp(maybe ?? null);
-        } catch {
-          /* no SP yet — fine */
-        }
+        getServicePrincipalByAppId(token, a.appId)
+          .then((maybe) => setSp(maybe ?? null))
+          .catch(() => {
+            /* no SP yet — fine */
+          });
+        listFederatedIdentityCredentials(token, a.id)
+          .then(setFic)
+          .catch(() => setFic([]));
+        listAppCredentialSignInActivities(token, a.appId)
+          .then((rows) => setActivityByKeyId(buildCredentialActivityMap(rows)))
+          .catch((e: unknown) =>
+            setActivityError(e instanceof Error ? e.message : String(e)),
+          );
       })
       .catch((e) => setError(e.message));
   }, [token, id]);
@@ -122,6 +149,13 @@ export function ApplicationDetail() {
           </div>
         </div>
       )}
+
+      <CredentialsCard
+        app={app}
+        fic={fic}
+        activityByKeyId={activityByKeyId}
+        activityError={activityError}
+      />
 
       <div className="card">
         <h3>Required resource access (manifest)</h3>
@@ -347,5 +381,245 @@ function DeleteModal({
       )}
       {error && <p className="error" style={{ marginTop: 12 }}>{error}</p>}
     </Modal>
+  );
+}
+
+function expiryStatus(
+  end?: string,
+): 'expired' | 'soon' | 'active' | null {
+  if (!end) return null;
+  const ms = new Date(end).getTime();
+  if (Number.isNaN(ms)) return null;
+  const now = Date.now();
+  if (ms < now) return 'expired';
+  if (ms - now < 30 * 24 * 60 * 60 * 1000) return 'soon';
+  return 'active';
+}
+
+function ExpiryBadge({ end }: { end?: string }) {
+  const status = expiryStatus(end);
+  if (!status) return null;
+  if (status === 'expired')
+    return <span className="badge expired">Expired</span>;
+  if (status === 'soon')
+    return <span className="badge pending">Expires soon</span>;
+  return <span className="badge granted">Active</span>;
+}
+
+function formatDate(d?: string) {
+  if (!d) return '—';
+  const ms = new Date(d).getTime();
+  if (Number.isNaN(ms)) return '—';
+  return new Date(ms).toLocaleDateString();
+}
+
+function formatDateTime(d?: string) {
+  if (!d) return '—';
+  const ms = new Date(d).getTime();
+  if (Number.isNaN(ms)) return '—';
+  return new Date(ms).toLocaleString();
+}
+
+function formatThumbprint(b64?: string | null) {
+  if (!b64) return '';
+  try {
+    const bin = atob(b64);
+    let hex = '';
+    for (let i = 0; i < bin.length; i++) {
+      hex += bin.charCodeAt(i).toString(16).padStart(2, '0');
+    }
+    return hex.toUpperCase();
+  } catch {
+    return b64;
+  }
+}
+
+function shortenKeyId(keyId: string) {
+  return keyId.length > 13 ? `${keyId.slice(0, 8)}…${keyId.slice(-4)}` : keyId;
+}
+
+function LastUsedCell({
+  activity,
+}: {
+  activity?: AppCredentialSignInActivity;
+}) {
+  if (!activity) return <span className="muted">—</span>;
+  const last = activity.signInActivity?.lastSignInDateTime;
+  if (!last) return <span className="muted">Never</span>;
+  return <span title={last}>{formatDateTime(last)}</span>;
+}
+
+function ResourceCell({
+  activity,
+}: {
+  activity?: AppCredentialSignInActivity;
+}) {
+  const name = activity?.signInActivity?.resourceDisplayName;
+  return name ? <span>{name}</span> : <span className="muted">—</span>;
+}
+
+function CredentialsCard({
+  app,
+  fic,
+  activityByKeyId,
+  activityError,
+}: {
+  app: Application;
+  fic: FederatedIdentityCredential[] | null;
+  activityByKeyId: Map<string, AppCredentialSignInActivity>;
+  activityError: string | null;
+}) {
+  const secrets: PasswordCredential[] = app.passwordCredentials ?? [];
+  const certs: KeyCredential[] = app.keyCredentials ?? [];
+
+  return (
+    <div className="card">
+      <h3>Client secrets &amp; certificates</h3>
+      {activityError && (
+        <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+          Last-used info unavailable — grant{' '}
+          <span className="mono">AuditLog.Read.All</span> to enable.
+        </p>
+      )}
+
+      <h4 style={{ marginTop: 8, marginBottom: 8 }}>
+        Client secrets ({secrets.length})
+      </h4>
+      {secrets.length === 0 ? (
+        <div className="muted">No client secrets configured.</div>
+      ) : (
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Secret ID</th>
+              <th>Hint</th>
+              <th>Expires</th>
+              <th>Last used</th>
+              <th>Resource</th>
+            </tr>
+          </thead>
+          <tbody>
+            {secrets.map((s) => {
+              const activity = activityByKeyId.get(s.keyId);
+              return (
+                <tr key={s.keyId}>
+                  <td>{s.displayName || <span className="muted">—</span>}</td>
+                  <td className="mono" title={s.keyId}>
+                    {shortenKeyId(s.keyId)}
+                  </td>
+                  <td className="mono">
+                    {s.hint ? `${s.hint}…` : <span className="muted">—</span>}
+                  </td>
+                  <td>
+                    <div className="row" style={{ gap: 6 }}>
+                      <span>{formatDate(s.endDateTime)}</span>
+                      <ExpiryBadge end={s.endDateTime} />
+                    </div>
+                  </td>
+                  <td>
+                    <LastUsedCell activity={activity} />
+                  </td>
+                  <td>
+                    <ResourceCell activity={activity} />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+
+      <h4 style={{ marginTop: 20, marginBottom: 8 }}>
+        Certificates ({certs.length})
+      </h4>
+      {certs.length === 0 ? (
+        <div className="muted">No certificates configured.</div>
+      ) : (
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Thumbprint</th>
+              <th>Type</th>
+              <th>Usage</th>
+              <th>Expires</th>
+              <th>Last used</th>
+              <th>Resource</th>
+            </tr>
+          </thead>
+          <tbody>
+            {certs.map((c) => {
+              const activity = activityByKeyId.get(c.keyId);
+              const thumb = formatThumbprint(c.customKeyIdentifier);
+              return (
+                <tr key={c.keyId}>
+                  <td>{c.displayName || <span className="muted">—</span>}</td>
+                  <td
+                    className="mono"
+                    title={thumb || c.keyId}
+                    style={{ fontSize: 12 }}
+                  >
+                    {thumb ? shortenKeyId(thumb) : shortenKeyId(c.keyId)}
+                  </td>
+                  <td>{c.type ?? <span className="muted">—</span>}</td>
+                  <td>{c.usage ?? <span className="muted">—</span>}</td>
+                  <td>
+                    <div className="row" style={{ gap: 6 }}>
+                      <span>{formatDate(c.endDateTime)}</span>
+                      <ExpiryBadge end={c.endDateTime} />
+                    </div>
+                  </td>
+                  <td>
+                    <LastUsedCell activity={activity} />
+                  </td>
+                  <td>
+                    <ResourceCell activity={activity} />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+
+      <h4 style={{ marginTop: 20, marginBottom: 8 }}>
+        Federated credentials ({fic?.length ?? 0})
+      </h4>
+      {fic === null ? (
+        <div className="muted">
+          <span className="spinner" /> Loading…
+        </div>
+      ) : fic.length === 0 ? (
+        <div className="muted">No federated credentials configured.</div>
+      ) : (
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Issuer</th>
+              <th>Subject</th>
+              <th>Audiences</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fic.map((f) => (
+              <tr key={f.id}>
+                <td>{f.name}</td>
+                <td className="mono" style={{ fontSize: 12 }}>
+                  {f.issuer}
+                </td>
+                <td className="mono" style={{ fontSize: 12 }}>
+                  {f.subject}
+                </td>
+                <td className="mono" style={{ fontSize: 12 }}>
+                  {f.audiences.join(', ')}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
   );
 }
