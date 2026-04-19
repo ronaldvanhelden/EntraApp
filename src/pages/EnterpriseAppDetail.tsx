@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
+import { useCurrentTenantId } from '../auth/useCurrentTenantId';
 import {
   deleteServicePrincipal,
   getServicePrincipal,
   updateServicePrincipal,
 } from '../graph/servicePrincipals';
+import {
+  findTenantInformation,
+  type TenantInformation,
+} from '../graph/organization';
 import type { ServicePrincipal } from '../graph/types';
 import { PermissionsManager } from '../components/PermissionsManager';
 import { AssignedUsersManager } from '../components/AssignedUsersManager';
@@ -111,6 +116,10 @@ export function EnterpriseAppDetail() {
               <div>{sp.servicePrincipalType ?? '—'}</div>
               <div className="k">Publisher</div>
               <div>{sp.publisherName ?? '—'}</div>
+              <div className="k">Home tenant</div>
+              <div>
+                <HomeTenantCell ownerTenantId={sp.appOwnerOrganizationId} />
+              </div>
               <div className="k">Enabled</div>
               <div className="row">
                 {sp.accountEnabled ? (
@@ -185,5 +194,73 @@ export function EnterpriseAppDetail() {
         </Modal>
       )}
     </>
+  );
+}
+
+function HomeTenantCell({ ownerTenantId }: { ownerTenantId?: string }) {
+  const token = useGraphToken();
+  const currentTenantId = useCurrentTenantId();
+  const [info, setInfo] = useState<TenantInformation | null>(null);
+  const [lookupFailed, setLookupFailed] = useState(false);
+
+  const isHome =
+    !ownerTenantId ||
+    (currentTenantId && ownerTenantId.toLowerCase() === currentTenantId.toLowerCase());
+
+  useEffect(() => {
+    if (isHome || !ownerTenantId) return;
+    let cancelled = false;
+    setInfo(null);
+    setLookupFailed(false);
+    findTenantInformation(token, ownerTenantId)
+      .then((r) => {
+        if (!cancelled) setInfo(r);
+      })
+      .catch(() => {
+        if (!cancelled) setLookupFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, ownerTenantId, isHome]);
+
+  if (!ownerTenantId) {
+    return <span className="muted">—</span>;
+  }
+
+  if (isHome) {
+    return (
+      <div>
+        <span className="badge granted">This tenant</span>
+        <div className="mono muted" style={{ fontSize: 11, marginTop: 2 }}>
+          {ownerTenantId}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="row" style={{ gap: 8 }}>
+        <span className="badge">External tenant</span>
+        {info?.displayName ? (
+          <span style={{ fontWeight: 500 }}>{info.displayName}</span>
+        ) : lookupFailed ? (
+          <span className="muted" style={{ fontSize: 12 }}>
+            (name unavailable)
+          </span>
+        ) : (
+          <span className="spinner" />
+        )}
+      </div>
+      {info?.defaultDomainName && (
+        <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+          {info.defaultDomainName}
+        </div>
+      )}
+      <div className="mono muted" style={{ fontSize: 11, marginTop: 2 }}>
+        {ownerTenantId}
+      </div>
+    </div>
   );
 }

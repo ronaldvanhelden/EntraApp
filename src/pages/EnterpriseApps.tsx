@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
+import { useCurrentTenantId } from '../auth/useCurrentTenantId';
 import { listServicePrincipals } from '../graph/servicePrincipals';
 import type { ServicePrincipal } from '../graph/types';
 
@@ -16,6 +17,7 @@ function classify(sp: ServicePrincipal): Filter {
 
 export function EnterpriseApps() {
   const token = useGraphToken();
+  const currentTenantId = useCurrentTenantId();
   const nav = useNavigate();
   const [sps, setSps] = useState<ServicePrincipal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -106,32 +108,49 @@ export function EnterpriseApps() {
                 <th>Display name</th>
                 <th>Application ID</th>
                 <th>Type</th>
+                <th>Home tenant</th>
                 <th>Enabled</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((sp) => (
-                <tr
-                  key={sp.id}
-                  onClick={() => nav(`/enterprise-apps/${sp.id}`)}
-                >
-                  <td>{sp.displayName}</td>
-                  <td className="mono">{sp.appId}</td>
-                  <td className="muted">
-                    {sp.servicePrincipalType ?? 'Application'}
-                  </td>
-                  <td>
-                    {sp.accountEnabled ? (
-                      <span className="badge granted">Enabled</span>
-                    ) : (
-                      <span className="badge">Disabled</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((sp) => {
+                const external =
+                  sp.appOwnerOrganizationId &&
+                  currentTenantId &&
+                  sp.appOwnerOrganizationId.toLowerCase() !==
+                    currentTenantId.toLowerCase();
+                return (
+                  <tr
+                    key={sp.id}
+                    onClick={() => nav(`/enterprise-apps/${sp.id}`)}
+                  >
+                    <td>{sp.displayName}</td>
+                    <td className="mono">{sp.appId}</td>
+                    <td className="muted">
+                      {sp.servicePrincipalType ?? 'Application'}
+                    </td>
+                    <td>
+                      {external ? (
+                        <span className="badge">External</span>
+                      ) : sp.appOwnerOrganizationId ? (
+                        <span className="badge granted">This tenant</span>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                    <td>
+                      {sp.accountEnabled ? (
+                        <span className="badge granted">Enabled</span>
+                      ) : (
+                        <span className="badge">Disabled</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={4}>
+                  <td colSpan={5}>
                     <div className="empty">No enterprise apps match.</div>
                   </td>
                 </tr>

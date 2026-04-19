@@ -87,6 +87,7 @@ export const GRAPH_SCOPES = [
   'Directory.AccessAsUser.All',
   'DelegatedPermissionGrant.ReadWrite.All',
   'AppRoleAssignment.ReadWrite.All',
+  'CrossTenantInformation.ReadBasic.All',
 ];
 
 export const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
