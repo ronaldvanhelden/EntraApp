@@ -15,7 +15,14 @@ import {
   listOAuth2GrantsForClient,
   updateOAuth2Grant,
 } from '../graph/servicePrincipals';
-import { AddPermissionModal } from './AddPermissionModal';
+import {
+  resolveDirectoryObjects,
+  type PrincipalRef,
+} from '../graph/directoryObjects';
+import {
+  AddPermissionModal,
+  type AddPermissionSubmitPayload,
+} from './AddPermissionModal';
 
 interface Props {
   clientSp: ServicePrincipal;
@@ -25,18 +32,25 @@ interface RowBase {
   key: string;
   resourceId: string;
   resourceName: string;
+  resourceAppId?: string;
   name: string;
+  roleDisplayName?: string;
   description: string;
 }
 interface AppRow extends RowBase {
   kind: 'app';
   assignmentId: string;
+  principalId: string;
+  principalName?: string;
+  principalType?: string;
 }
 interface DelegatedRow extends RowBase {
   kind: 'delegated';
   grantId: string;
   scope: string;
   consentType: 'AllPrincipals' | 'Principal';
+  principalId?: string | null;
+  principalName?: string;
 }
 type Row = AppRow | DelegatedRow;
 
@@ -49,6 +63,7 @@ export function PermissionsManager({ clientSp }: Props) {
   const [resources, setResources] = useState<Record<string, ServicePrincipal>>(
     {},
   );
+  const [principals, setPrincipals] = useState<Record<string, PrincipalRef>>({});
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -65,19 +80,38 @@ export function PermissionsManager({ clientSp }: Props) {
       setAssignments(a);
       setGrants(g);
 
-      const ids = new Set<string>();
-      a.forEach((x) => ids.add(x.resourceId));
-      g.forEach((x) => ids.add(x.resourceId));
-      const missing = [...ids].filter((id) => !resources[id]);
-      if (missing.length) {
+      const resourceIds = new Set<string>();
+      a.forEach((x) => resourceIds.add(x.resourceId));
+      g.forEach((x) => resourceIds.add(x.resourceId));
+      const missingResources = [...resourceIds].filter((id) => !resources[id]);
+      if (missingResources.length) {
         const fetched = await Promise.all(
-          missing.map((id) => getServicePrincipal(token, id).catch(() => null)),
+          missingResources.map((id) =>
+            getServicePrincipal(token, id).catch(() => null),
+          ),
         );
-        const next: Record<string, ServicePrincipal> = { ...resources };
-        fetched.forEach((sp) => {
-          if (sp) next[sp.id] = sp;
+        setResources((prev) => {
+          const next: Record<string, ServicePrincipal> = { ...prev };
+          fetched.forEach((sp) => {
+            if (sp) next[sp.id] = sp;
+          });
+          return next;
         });
-        setResources(next);
+      }
+
+      const principalIds = new Set<string>();
+      a.forEach((x) => {
+        if (x.principalId && x.principalId !== clientSp.id)
+          principalIds.add(x.principalId);
+      });
+      g.forEach((x) => {
+        if (x.consentType === 'Principal' && x.principalId)
+          principalIds.add(x.principalId);
+      });
+      const missingPrincipals = [...principalIds].filter((id) => !principals[id]);
+      if (missingPrincipals.length) {
+        const resolved = await resolveDirectoryObjects(token, missingPrincipals);
+        setPrincipals((prev) => ({ ...prev, ...resolved }));
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -95,14 +129,31 @@ export function PermissionsManager({ clientSp }: Props) {
       for (const a of assignments) {
         const res = resources[a.resourceId];
         const role = res?.appRoles?.find((r) => r.id === a.appRoleId);
+        const principal =
+          a.principalId === clientSp.id
+            ? {
+                id: clientSp.id,
+                displayName: clientSp.displayName,
+                kind: 'sp' as const,
+                subtitle: clientSp.appId,
+              }
+            : principals[a.principalId];
         out.push({
           kind: 'app',
           key: `app:${a.id}`,
           assignmentId: a.id,
           resourceId: a.resourceId,
           resourceName: res?.displayName ?? a.resourceDisplayName ?? a.resourceId,
+          resourceAppId: res?.appId,
           name: role?.value ?? a.appRoleId,
+          roleDisplayName: role?.displayName,
           description: role?.description ?? '',
+          principalId: a.principalId,
+          principalName:
+            principal?.displayName ??
+            a.principalDisplayName ??
+            a.principalId,
+          principalType: a.principalType ?? principal?.kind,
         });
       }
     }
@@ -113,6 +164,10 @@ export function PermissionsManager({ clientSp }: Props) {
           .split(/\s+/)
           .map((s) => s.trim())
           .filter(Boolean);
+        const principal =
+          g.consentType === 'Principal' && g.principalId
+            ? principals[g.principalId]
+            : undefined;
         for (const scope of scopes) {
           const def = res?.oauth2PermissionScopes?.find(
             (s) => s.value === scope,
@@ -123,9 +178,13 @@ export function PermissionsManager({ clientSp }: Props) {
             grantId: g.id,
             scope,
             consentType: g.consentType,
+            principalId: g.principalId ?? null,
+            principalName: principal?.displayName,
             resourceId: g.resourceId,
             resourceName: res?.displayName ?? g.resourceId,
+            resourceAppId: res?.appId,
             name: scope,
+            roleDisplayName: def?.adminConsentDisplayName,
             description: def?.adminConsentDescription ?? '',
           });
         }
@@ -136,14 +195,14 @@ export function PermissionsManager({ clientSp }: Props) {
         a.resourceName.localeCompare(b.resourceName) ||
         a.name.localeCompare(b.name),
     );
-  }, [assignments, grants, resources]);
+  }, [assignments, grants, resources, principals, clientSp]);
 
   const revoke = async (row: Row) => {
     setError(null);
     setWorking(row.key);
     try {
       if (row.kind === 'app') {
-        await deleteAppRoleAssignment(token, clientSp.id, row.assignmentId);
+        await deleteAppRoleAssignment(token, row.principalId, row.assignmentId);
       } else {
         const grant = grants?.find((g) => g.id === row.grantId);
         if (!grant) throw new Error('Grant not found');
@@ -165,25 +224,19 @@ export function PermissionsManager({ clientSp }: Props) {
     }
   };
 
-  const addPermissions = async (payload: {
-    resource: ServicePrincipal;
-    appRoleIds: string[];
-    delegatedScopes: string[];
-    consentType: 'AllPrincipals' | 'Principal';
-    principalId?: string;
-  }) => {
+  const addPermissions = async (payload: AddPermissionSubmitPayload) => {
     setError(null);
     try {
-      // App-only: one appRoleAssignment per selected role
+      const appPrincipalId = payload.applicationPrincipalId ?? clientSp.id;
+
       for (const roleId of payload.appRoleIds) {
-        await createAppRoleAssignment(token, clientSp.id, {
+        await createAppRoleAssignment(token, appPrincipalId, {
           appRoleId: roleId,
-          principalId: clientSp.id,
+          principalId: appPrincipalId,
           resourceId: payload.resource.id,
         });
       }
 
-      // Delegated: merge into existing grant for (clientId,resourceId,consentType)
       if (payload.delegatedScopes.length) {
         const existing = grants?.find(
           (g) =>
@@ -216,7 +269,6 @@ export function PermissionsManager({ clientSp }: Props) {
         }
       }
 
-      // Keep resource in cache
       setResources((r) => ({ ...r, [payload.resource.id]: payload.resource }));
       setShowAdd(false);
       await reload();
@@ -235,8 +287,8 @@ export function PermissionsManager({ clientSp }: Props) {
           <div>
             <h3 style={{ margin: 0 }}>Configured API permissions</h3>
             <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-              Granted permissions for this enterprise app. Delegated grants use{' '}
-              <code>AllPrincipals</code> (admin consent) by default.
+              Permissions this enterprise app holds on other APIs. Delegated
+              grants default to <code>AllPrincipals</code> (admin consent).
             </div>
           </div>
           <button className="primary" onClick={() => setShowAdd(true)}>
@@ -261,9 +313,10 @@ export function PermissionsManager({ clientSp }: Props) {
           <table className="table">
             <thead>
               <tr>
-                <th>API</th>
+                <th>Resource (app registration)</th>
                 <th>Permission</th>
                 <th>Type</th>
+                <th>Granted to</th>
                 <th>Description</th>
                 <th style={{ width: 100 }}></th>
               </tr>
@@ -271,8 +324,24 @@ export function PermissionsManager({ clientSp }: Props) {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.key} style={{ cursor: 'default' }}>
-                  <td>{r.resourceName}</td>
-                  <td className="mono">{r.name}</td>
+                  <td>
+                    <div style={{ fontWeight: 500 }}>{r.resourceName}</div>
+                    {r.resourceAppId && (
+                      <div className="mono muted" style={{ fontSize: 11 }}>
+                        {r.resourceAppId}
+                      </div>
+                    )}
+                  </td>
+                  <td>
+                    <div className="mono" style={{ fontWeight: 600 }}>
+                      {r.name}
+                    </div>
+                    {r.roleDisplayName && (
+                      <div className="muted" style={{ fontSize: 12 }}>
+                        {r.roleDisplayName}
+                      </div>
+                    )}
+                  </td>
                   <td>
                     {r.kind === 'app' ? (
                       <span className="badge app">Application</span>
@@ -283,9 +352,30 @@ export function PermissionsManager({ clientSp }: Props) {
                       </span>
                     )}
                   </td>
+                  <td>
+                    {r.kind === 'app' ? (
+                      <>
+                        <div>{r.principalName ?? r.principalId}</div>
+                        {r.principalType && (
+                          <div className="muted" style={{ fontSize: 11 }}>
+                            {r.principalType}
+                          </div>
+                        )}
+                      </>
+                    ) : r.consentType === 'Principal' ? (
+                      <>
+                        <div>{r.principalName ?? r.principalId}</div>
+                        <div className="muted" style={{ fontSize: 11 }}>
+                          Single principal
+                        </div>
+                      </>
+                    ) : (
+                      <div className="muted">All users (admin consent)</div>
+                    )}
+                  </td>
                   <td
                     className="muted"
-                    style={{ maxWidth: 420, fontSize: 12 }}
+                    style={{ maxWidth: 380, fontSize: 12 }}
                   >
                     {r.description}
                   </td>
@@ -307,6 +397,7 @@ export function PermissionsManager({ clientSp }: Props) {
 
       {showAdd && (
         <AddPermissionModal
+          clientSp={clientSp}
           onClose={() => setShowAdd(false)}
           onSubmit={addPermissions}
         />

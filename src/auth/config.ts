@@ -81,9 +81,12 @@ export function buildMsalConfig(config: AuthConfig): Configuration {
 // DelegatedPermissionGrant.ReadWrite.All is used for oauth2PermissionGrants.
 export const GRAPH_SCOPES = [
   'User.Read',
+  'User.Read.All',
+  'Group.Read.All',
   'Application.ReadWrite.All',
   'Directory.AccessAsUser.All',
   'DelegatedPermissionGrant.ReadWrite.All',
+  'AppRoleAssignment.ReadWrite.All',
 ];
 
 export const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
