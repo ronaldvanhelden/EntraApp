@@ -88,6 +88,8 @@ export const GRAPH_SCOPES = [
   'DelegatedPermissionGrant.ReadWrite.All',
   'AppRoleAssignment.ReadWrite.All',
   'CrossTenantInformation.ReadBasic.All',
+  'AuditLog.Read.All',
 ];
 
 export const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
+export const GRAPH_BASE_BETA = 'https://graph.microsoft.com/beta';

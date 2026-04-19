@@ -10,6 +10,49 @@ export interface Application {
   notes?: string;
   identifierUris?: string[];
   requiredResourceAccess?: RequiredResourceAccess[];
+  passwordCredentials?: PasswordCredential[];
+  keyCredentials?: KeyCredential[];
+}
+
+export interface KeyCredential {
+  keyId: string;
+  type?: string;
+  usage?: string;
+  displayName?: string | null;
+  startDateTime?: string;
+  endDateTime?: string;
+  customKeyIdentifier?: string | null;
+}
+
+export interface PasswordCredential {
+  keyId: string;
+  displayName?: string | null;
+  hint?: string | null;
+  startDateTime?: string;
+  endDateTime?: string;
+  secretText?: string | null;
+}
+
+export interface FederatedIdentityCredential {
+  id: string;
+  name: string;
+  issuer: string;
+  subject: string;
+  audiences: string[];
+  description?: string | null;
+}
+
+export interface AppCredentialSignInActivity {
+  keyId: string;
+  keyType: 'clientSecret' | 'certificate';
+  keyUsage?: 'Sign' | 'Verify';
+  createdDateTime?: string;
+  signInActivity?: {
+    lastSignInDateTime?: string;
+    requestId?: string;
+    resourceId?: string;
+    resourceDisplayName?: string;
+  };
 }
 
 export interface ServicePrincipal {
