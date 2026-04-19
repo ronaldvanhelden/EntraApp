@@ -20,11 +20,16 @@
   --radius-sm: 4px;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 
+  --header-height: 48px;
+  --sidebar-width: 240px;
+
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   font-size: 14px;
   line-height: 1.5;
   color: var(--text);
   background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 
 * {
@@ -41,6 +46,7 @@ body,
 body {
   background: var(--bg);
   color: var(--text);
+  overflow-wrap: break-word;
 }
 
 a {
@@ -60,7 +66,9 @@ button {
   background: var(--bg-elevated);
   color: var(--text);
   padding: 6px 12px;
+  min-height: 32px;
   transition: background 120ms, border-color 120ms;
+  touch-action: manipulation;
 }
 button:hover:not(:disabled) {
   background: var(--bg-hover);
@@ -101,12 +109,15 @@ input,
 select,
 textarea {
   font: inherit;
+  /* iOS Safari zooms in when the focused input's font-size is < 16px. */
+  font-size: 16px;
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 6px 10px;
+  padding: 8px 10px;
   width: 100%;
+  max-width: 100%;
 }
 input:focus,
 select:focus,
@@ -120,16 +131,19 @@ code,
 pre {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Liberation Mono', monospace;
   font-size: 12.5px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .layout {
   display: grid;
-  grid-template-columns: 240px 1fr;
-  grid-template-rows: 48px 1fr;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-rows: var(--header-height) 1fr;
   grid-template-areas:
     'header header'
     'sidebar main';
   height: 100vh;
+  height: 100dvh;
 }
 
 .header {
@@ -137,19 +151,59 @@ pre {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  gap: 12px;
+  padding: 0 12px;
   background: var(--bg-elevated);
   border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+.header .header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 .header .brand {
   font-weight: 600;
   letter-spacing: 0.2px;
+  white-space: nowrap;
 }
 .header .user {
   display: flex;
   align-items: center;
   gap: 10px;
   color: var(--text-muted);
+  min-width: 0;
+}
+.header .user-email {
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+}
+.menu-icon {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 18px;
+  height: 12px;
+}
+.menu-icon span {
+  display: block;
+  height: 2px;
+  width: 100%;
+  background: var(--text);
+  border-radius: 2px;
 }
 
 .sidebar {
@@ -158,10 +212,11 @@ pre {
   border-right: 1px solid var(--border);
   padding: 12px 8px;
   overflow-y: auto;
+  min-width: 0;
 }
 .sidebar a {
   display: block;
-  padding: 8px 12px;
+  padding: 10px 12px;
   color: var(--text-muted);
   border-radius: var(--radius-sm);
   margin-bottom: 2px;
@@ -183,10 +238,16 @@ pre {
   margin: 16px 12px 6px;
 }
 
+.nav-backdrop {
+  display: none;
+}
+
 .main {
   grid-area: main;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 24px 32px;
+  min-width: 0;
 }
 
 .page-header {
@@ -195,16 +256,23 @@ pre {
   justify-content: space-between;
   margin-bottom: 20px;
   gap: 16px;
+  flex-wrap: wrap;
+}
+.page-header > div:first-child {
+  min-width: 0;
+  flex: 1 1 240px;
 }
 .page-header h1 {
   margin: 0;
   font-size: 22px;
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 .page-header .subtitle {
   color: var(--text-muted);
   font-size: 13px;
   margin-top: 4px;
+  overflow-wrap: anywhere;
 }
 
 .card {
@@ -218,6 +286,15 @@ pre {
   margin: 0 0 12px;
   font-size: 14px;
   font-weight: 600;
+}
+
+/* Tables become horizontally scrollable inside their card wrapper so columns
+   don't get squashed unreadably on narrow viewports. The :has() rule catches
+   card wrappers whose immediate child is a table; a mobile-wide fallback
+   below also enables horizontal scrolling for all cards. */
+.card:has(> .table) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .table {
@@ -238,6 +315,7 @@ pre {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 .table tbody tr:hover {
   background: var(--bg-hover);
@@ -251,9 +329,10 @@ pre {
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 .toolbar .search {
-  flex: 1;
+  flex: 1 1 220px;
   max-width: 320px;
 }
 
@@ -308,10 +387,13 @@ pre {
 }
 .error {
   color: var(--danger);
+  overflow-wrap: anywhere;
 }
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
   font-size: 12.5px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .spinner {
@@ -338,7 +420,7 @@ pre {
   flex-direction: column;
   gap: 16px;
   text-align: center;
-  padding: 32px;
+  padding: 32px 20px;
 }
 
 .modal-backdrop {
@@ -359,8 +441,10 @@ pre {
   max-width: 720px;
   width: 100%;
   max-height: 85vh;
+  max-height: 85dvh;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 .modal-header {
   padding: 14px 18px;
@@ -368,14 +452,17 @@ pre {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
 }
 .modal-header h2 {
   margin: 0;
   font-size: 16px;
+  overflow-wrap: anywhere;
 }
 .modal-body {
   padding: 18px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 .modal-footer {
   padding: 12px 18px;
@@ -383,6 +470,7 @@ pre {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .tabs {
@@ -390,6 +478,11 @@ pre {
   border-bottom: 1px solid var(--border);
   margin-bottom: 16px;
   gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 .tabs button {
   background: transparent;
@@ -398,6 +491,7 @@ pre {
   border-radius: 0;
   padding: 8px 14px;
   color: var(--text-muted);
+  white-space: nowrap;
 }
 .tabs button.active {
   color: var(--text);
@@ -434,4 +528,211 @@ label.field span {
 }
 .kv .k {
   color: var(--text-muted);
+}
+.kv > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* --- Tablet breakpoint ----------------------------------------------- */
+@media (max-width: 900px) {
+  .main {
+    padding: 20px 20px;
+  }
+  .kv {
+    grid-template-columns: 140px 1fr;
+    column-gap: 12px;
+  }
+  .header .user-email {
+    max-width: 18ch;
+  }
+}
+
+/* --- Mobile breakpoint (phones like Samsung Note 5, 360px wide) ------ */
+@media (max-width: 640px) {
+  :root {
+    --sidebar-width: 260px;
+  }
+
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'header'
+      'main';
+  }
+
+  .menu-toggle {
+    display: inline-flex;
+  }
+
+  .header {
+    padding: 0 10px;
+  }
+  .header .brand {
+    font-size: 15px;
+  }
+  .header .user-email {
+    display: none;
+  }
+
+  /* Turn the sidebar into an off-canvas drawer. */
+  .sidebar {
+    position: fixed;
+    top: var(--header-height);
+    left: 0;
+    bottom: 0;
+    width: var(--sidebar-width);
+    max-width: 85vw;
+    z-index: 90;
+    transform: translateX(-100%);
+    transition: transform 180ms ease;
+    padding: 16px 10px;
+    box-shadow: var(--shadow);
+  }
+  .layout.nav-open .sidebar {
+    transform: translateX(0);
+  }
+  .sidebar a {
+    padding: 12px 14px;
+    font-size: 15px;
+  }
+
+  .nav-backdrop {
+    display: block;
+    position: fixed;
+    top: var(--header-height);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 80;
+  }
+
+  .main {
+    padding: 16px 12px;
+  }
+
+  .page-header {
+    margin-bottom: 16px;
+    gap: 12px;
+  }
+  .page-header h1 {
+    font-size: 19px;
+  }
+  .page-header > button,
+  .page-header .row {
+    width: 100%;
+  }
+  .page-header .row > a,
+  .page-header .row > button {
+    flex: 1;
+  }
+  .page-header .row > a > button {
+    width: 100%;
+  }
+
+  .toolbar {
+    gap: 6px;
+  }
+  .toolbar .search {
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
+
+  .card {
+    padding: 14px;
+    border-radius: var(--radius);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table {
+    /* Keep columns from collapsing into unreadable widths; card scrolls. */
+    min-width: 560px;
+  }
+  .table th,
+  .table td {
+    padding: 10px;
+    font-size: 12.5px;
+  }
+
+  /* Single-column key/value layout is far more readable on a narrow phone. */
+  .kv {
+    grid-template-columns: 1fr;
+    row-gap: 2px;
+  }
+  .kv .k {
+    margin-top: 8px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .kv > .k:first-child {
+    margin-top: 0;
+  }
+
+  /* Danger-zone / similar `row` layouts with flex justify-content set inline
+     collapse nicely to a stack on mobile so the button isn't crammed next to
+     the description. */
+  .card .row {
+    flex-wrap: wrap;
+  }
+  .card .row > .muted {
+    flex: 1 1 100%;
+    margin-bottom: 8px;
+  }
+
+  .modal-backdrop {
+    padding: 0;
+    align-items: stretch;
+  }
+  .modal {
+    max-width: 100%;
+    max-height: 100vh;
+    max-height: 100dvh;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+  .modal-header {
+    padding: 12px 14px;
+  }
+  .modal-body {
+    padding: 14px;
+  }
+  .modal-footer {
+    padding: 10px 14px;
+  }
+  .modal-footer button {
+    flex: 1;
+  }
+
+  .tabs button {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  button {
+    min-height: 40px;
+  }
+
+  .center h1 {
+    font-size: 24px;
+  }
+}
+
+@media (max-width: 380px) {
+  .main {
+    padding: 14px 10px;
+  }
+  .header .brand {
+    font-size: 14px;
+  }
+  .page-header h1 {
+    font-size: 18px;
+  }
+  .table th,
+  .table td {
+    padding: 8px;
+  }
 }
