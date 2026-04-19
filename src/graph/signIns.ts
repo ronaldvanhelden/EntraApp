@@ -45,6 +45,35 @@ export function listAppOnlySignInsForApp(
   );
 }
 
+// App-only sign-ins for the app, narrowed to a single credential via its
+// keyId. Graph beta's servicePrincipalCredentialKeyId is the GUID that
+// matches PasswordCredential.keyId and KeyCredential.keyId, so this works
+// for both secrets and certificates. Thumbprint is intentionally not part
+// of the filter — modern events populate keyId alongside it, and server-side
+// string equality on thumbprint is case-sensitive, which makes a thumbprint
+// filter fragile across tenants.
+export function listAppOnlySignInsForCredential(
+  token: TokenFn,
+  appId: string,
+  keyId: string,
+  top = 50,
+) {
+  const safeAppId = appId.replace(/'/g, "''");
+  const safeKeyId = keyId.replace(/'/g, "''");
+  return graphAll<SignIn>(
+    token,
+    '/auditLogs/signIns',
+    {
+      api: 'beta',
+      query: {
+        $filter: `appId eq '${safeAppId}' and signInEventTypes/any(t:t eq 'servicePrincipal') and servicePrincipalCredentialKeyId eq '${safeKeyId}'`,
+        $top: top,
+      },
+    },
+    2,
+  );
+}
+
 // Fetch a single sign-in event by id (== signInActivity.lastSignInRequestId
 // from the credential activity report). Requires AuditLog.Read.All.
 export function getSignIn(token: TokenFn, id: string) {
