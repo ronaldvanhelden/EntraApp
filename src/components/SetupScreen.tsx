@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { saveAuthConfig } from '../auth/config';
+import { computeRedirectUri, saveAuthConfig } from '../auth/config';
 import { useAuthConfig } from '../auth/context';
 
 export function SetupScreen() {
@@ -79,7 +79,7 @@ export function SetupScreen() {
               wordBreak: 'break-all',
             }}
           >
-            {window.location.origin + window.location.pathname}
+            {computeRedirectUri()}
           </div>
         </div>
       </div>

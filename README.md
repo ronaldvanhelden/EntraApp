@@ -38,26 +38,21 @@ Open the URL Vite prints, then either accept the default app registration
 ## App registration requirements
 
 The default client is the multi-tenant app registration
-`438ccf20-d1a2-4027-baf3-0104d018357e` (`Debble Permission Manager`). To use a
-different client you must register an application in Entra ID with:
+`285e9c19-6642-4f20-af26-489b47636cc9` (`Debble EntraApp`) with SPA redirect
+URI `https://ronaldvanhelden.github.io/EntraApp`. To use a different client you
+must register an application in Entra ID with:
 
 - **Platform**: Single-page application (SPA)
-- **Redirect URI**: the exact URL the SPA is served from (e.g.
-  `https://<user>.github.io/EntraApp/`). The URL shown on the Setup screen is
-  the one to copy.
+- **Redirect URI**: the exact URL the SPA is served from (no trailing slash).
+  The Setup screen computes and shows this URL — copy it into the app
+  registration.
 - **Supported account types**: any (single-tenant or multi-tenant)
 - **API permissions (Microsoft Graph, Delegated)**:
   - `User.Read`
   - `Application.ReadWrite.All`
-  - `AppRoleAssignment.ReadWrite.All`
-  - `Directory.AccessAsUser.All`
-- **Admin consent** granted for the tenant (most of these require it)
-
-> The default client's manifest currently has an empty `spa.redirectUris` and
-> declares the same Graph scopes listed above. When deploying to your own URL
-> (e.g. a fork on GitHub Pages), you must either add that URL to the default
-> client's `spa.redirectUris` or configure your own client on the Settings
-> page.
+  - `Directory.ReadWrite.All`
+  - `DelegatedPermissionGrant.ReadWrite.All`
+- **Admin consent** granted for the tenant (the `.All` scopes all require it)
 
 ## Deploy to GitHub Pages
 

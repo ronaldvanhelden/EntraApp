@@ -8,10 +8,10 @@ export interface AuthConfig {
   tenantId: string;
 }
 
-// Default to the "Debble Permission Manager" multi-tenant app registration.
+// Default to the "Debble EntraApp" multi-tenant app registration.
 // Override in Settings for tenants that register their own client.
 const DEFAULT_CONFIG: AuthConfig = {
-  clientId: '438ccf20-d1a2-4027-baf3-0104d018357e',
+  clientId: '285e9c19-6642-4f20-af26-489b47636cc9',
   tenantId: 'organizations',
 };
 
@@ -41,13 +41,22 @@ export function isConfigured(config: AuthConfig): boolean {
   return /^[0-9a-f-]{36}$/i.test(config.clientId);
 }
 
+// Normalize to the URL MSAL will compare against the app registration's
+// SPA redirectUris — strip the trailing slash so "/EntraApp/" and
+// "/EntraApp" both reduce to the same canonical URI.
+export function computeRedirectUri(): string {
+  const raw = window.location.origin + window.location.pathname;
+  return raw.length > 1 ? raw.replace(/\/$/, '') : raw;
+}
+
 export function buildMsalConfig(config: AuthConfig): Configuration {
+  const redirectUri = computeRedirectUri();
   return {
     auth: {
       clientId: config.clientId,
       authority: `https://login.microsoftonline.com/${config.tenantId || 'common'}`,
-      redirectUri: window.location.origin + window.location.pathname,
-      postLogoutRedirectUri: window.location.origin + window.location.pathname,
+      redirectUri,
+      postLogoutRedirectUri: redirectUri,
       navigateToLoginRequestUrl: false,
     },
     cache: {
@@ -66,14 +75,15 @@ export function buildMsalConfig(config: AuthConfig): Configuration {
   };
 }
 
-// Scopes must match those declared on the app registration. Directory.AccessAsUser.All
-// is broad enough to cover oauth2PermissionGrants on behalf of an admin user, which
-// is why DelegatedPermissionGrant.ReadWrite.All is not required separately.
+// Scopes must match those declared on the app registration (Debble EntraApp).
+// Directory.ReadWrite.All covers creating appRoleAssignments on service
+// principals; DelegatedPermissionGrant.ReadWrite.All is used explicitly for
+// oauth2PermissionGrants so the principle of least privilege applies.
 export const GRAPH_SCOPES = [
   'User.Read',
   'Application.ReadWrite.All',
-  'AppRoleAssignment.ReadWrite.All',
-  'Directory.AccessAsUser.All',
+  'Directory.ReadWrite.All',
+  'DelegatedPermissionGrant.ReadWrite.All',
 ];
 
 export const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
