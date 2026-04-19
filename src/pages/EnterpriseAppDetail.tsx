@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
 import { useCurrentTenantId } from '../auth/useCurrentTenantId';
 import {
@@ -7,6 +7,7 @@ import {
   getServicePrincipal,
   updateServicePrincipal,
 } from '../graph/servicePrincipals';
+import { getApplicationByAppId } from '../graph/applications';
 import {
   listAppOnlySignInsForApp,
   listUserSignInsForApp,
@@ -39,7 +40,13 @@ export function EnterpriseAppDetail() {
   const { id = '' } = useParams();
   const token = useGraphToken();
   const nav = useNavigate();
+  const currentTenantId = useCurrentTenantId();
   const [sp, setSp] = useState<ServicePrincipal | null>(null);
+  // Directory-object id of the underlying app registration, resolved only
+  // when the SP lives in this tenant. null = not yet resolved or not
+  // applicable; undefined isn't used. Drives the "View app registration"
+  // link in the header.
+  const [appRegId, setAppRegId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('overview');
   const [togglingEnabled, setTogglingEnabled] = useState(false);
@@ -63,6 +70,7 @@ export function EnterpriseAppDetail() {
   useEffect(() => {
     setSp(null);
     setError(null);
+    setAppRegId(null);
     setLastDelegated('loading');
     setLastAppOnly('loading');
     setSignInError(null);
@@ -92,6 +100,29 @@ export function EnterpriseAppDetail() {
       })
       .catch((e) => setError(e.message));
   }, [token, id]);
+
+  // Resolve the underlying app registration's directory-object id so the
+  // header can link to /applications/:id. Only attempted when the SP is
+  // registered in this tenant — foreign-tenant SPs won't have a readable
+  // application object. Silently gives up on failure (e.g. missing
+  // Application.Read.All).
+  useEffect(() => {
+    setAppRegId(null);
+    if (!sp) return;
+    if (sp.servicePrincipalType !== 'Application') return;
+    const owner = sp.appOwnerOrganizationId;
+    if (!owner || !currentTenantId) return;
+    if (owner.toLowerCase() !== currentTenantId.toLowerCase()) return;
+    let cancelled = false;
+    getApplicationByAppId(token, sp.appId)
+      .then((app) => {
+        if (!cancelled && app) setAppRegId(app.id);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token, sp, currentTenantId]);
 
   const toggleEnabled = async () => {
     if (!sp) return;
@@ -147,6 +178,16 @@ export function EnterpriseAppDetail() {
             </div>
           </div>
         </div>
+        {appRegId && (
+          <div className="row">
+            <Link
+              to={`/applications/${appRegId}`}
+              style={{ textDecoration: 'none' }}
+            >
+              <button>View app registration →</button>
+            </Link>
+          </div>
+        )}
       </div>
 
       <div className="tabs">
