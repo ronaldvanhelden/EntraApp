@@ -78,6 +78,7 @@ export function PrincipalPicker({
             subtitle: sp.appId,
           }));
         }
+        refs.sort((a, b) => a.displayName.localeCompare(b.displayName));
         setResults(refs);
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : String(e));

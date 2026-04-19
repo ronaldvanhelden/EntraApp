@@ -16,7 +16,6 @@ export function listServicePrincipals(token: TokenFn, search?: string) {
       $select:
         'id,appId,displayName,servicePrincipalType,accountEnabled,tags,publisherName,appOwnerOrganizationId',
       $top: 100,
-      $orderby: 'displayName',
       $filter: filter,
     },
   });

@@ -21,7 +21,6 @@ export function listApplications(token: TokenFn, search?: string) {
       $select:
         'id,appId,displayName,createdDateTime,signInAudience,publisherDomain',
       $top: 100,
-      $orderby: 'displayName',
       $filter: filter,
     },
   });

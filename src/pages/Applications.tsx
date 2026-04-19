@@ -25,7 +25,13 @@ export function Applications() {
     setApps(null);
     setError(null);
     listApplications(token)
-      .then(setApps)
+      .then((list) =>
+        setApps(
+          [...list].sort((a, b) =>
+            (a.displayName ?? '').localeCompare(b.displayName ?? ''),
+          ),
+        ),
+      )
       .catch((e) => setError(e.message));
   }, [token]);
 

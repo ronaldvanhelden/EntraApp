@@ -37,7 +37,6 @@ export function searchUsers(token: TokenFn, q: string) {
       $select: 'id,displayName,userPrincipalName,mail',
       $top: 25,
       $filter: `startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')`,
-      $orderby: 'displayName',
     },
   });
 }
@@ -49,7 +48,6 @@ export function searchGroups(token: TokenFn, q: string) {
       $select: 'id,displayName,mailNickname,mail,securityEnabled',
       $top: 25,
       $filter: `startswith(displayName,'${f}')`,
-      $orderby: 'displayName',
     },
   });
 }

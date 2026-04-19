@@ -26,7 +26,13 @@ export function EnterpriseApps() {
     setSps(null);
     setError(null);
     listServicePrincipals(token)
-      .then(setSps)
+      .then((list) =>
+        setSps(
+          [...list].sort((a, b) =>
+            (a.displayName ?? '').localeCompare(b.displayName ?? ''),
+          ),
+        ),
+      )
       .catch((e) => setError(e.message));
   }, [token]);
 
