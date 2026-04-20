@@ -40,7 +40,11 @@ import { CopyButton } from '../components/CopyButton';
 import { PrivilegeBadge, useScopeCatalog } from '../components/PrivilegeBadge';
 import { ScopeDetailsModal } from '../components/ScopeDetailsModal';
 import { AddRequiredPermissionModal } from '../components/AddRequiredPermissionModal';
-import { getSignIn } from '../graph/signIns';
+import {
+  getSignIn,
+  listAppOnlySignInsForCredential,
+} from '../graph/signIns';
+import { GraphError } from '../graph/client';
 import type { SignIn } from '../graph/types';
 
 const AUDIENCES = [
@@ -1600,6 +1604,7 @@ function CredentialsCard({
 
       {selectedSecret && (
         <SecretAuditModal
+          appId={app.appId}
           secret={selectedSecret}
           activity={activityByKeyId.get(selectedSecret.keyId)}
           activityError={activityError}
@@ -1609,6 +1614,7 @@ function CredentialsCard({
       )}
       {selectedCert && (
         <CertificateAuditModal
+          appId={app.appId}
           cert={selectedCert}
           activity={activityByKeyId.get(selectedCert.keyId)}
           activityError={activityError}
@@ -1719,12 +1725,14 @@ function AuditRow({
 }
 
 function SecretAuditModal({
+  appId,
   secret,
   activity,
   activityError,
   onClose,
   onDelete,
 }: {
+  appId: string;
   secret: PasswordCredential;
   activity?: AppCredentialSignInActivity;
   activityError: string | null;
@@ -1795,17 +1803,20 @@ function SecretAuditModal({
       )}
       {deleteError && <p className="error">{deleteError}</p>}
       <SignInEventSection activity={activity} activityError={activityError} />
+      <CredentialSignInHistorySection appId={appId} keyId={secret.keyId} />
     </Modal>
   );
 }
 
 function CertificateAuditModal({
+  appId,
   cert,
   activity,
   activityError,
   onClose,
   onDelete,
 }: {
+  appId: string;
   cert: KeyCredential;
   activity?: AppCredentialSignInActivity;
   activityError: string | null;
@@ -1879,6 +1890,7 @@ function CertificateAuditModal({
       )}
       {deleteError && <p className="error">{deleteError}</p>}
       <SignInEventSection activity={activity} activityError={activityError} />
+      <CredentialSignInHistorySection appId={appId} keyId={cert.keyId} />
     </Modal>
   );
 }
@@ -2041,6 +2053,133 @@ function SignInEventSection({
 function isAppOnlyEvent(s: SignIn): boolean {
   return (s.signInEventTypes ?? []).some(
     (t) => t === 'servicePrincipal' || t === 'managedIdentity',
+  );
+}
+
+function CredentialSignInHistorySection({
+  appId,
+  keyId,
+}: {
+  appId: string;
+  keyId: string;
+}) {
+  const token = useGraphToken();
+  const [state, setState] = useState<
+    | { kind: 'loading' }
+    | { kind: 'loaded'; rows: SignIn[] }
+    | { kind: 'forbidden' }
+    | { kind: 'error'; message: string }
+  >({ kind: 'loading' });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ kind: 'loading' });
+    listAppOnlySignInsForCredential(token, appId, keyId)
+      .then((rows) => {
+        if (cancelled) return;
+        rows.sort((a, b) =>
+          (b.createdDateTime ?? '').localeCompare(a.createdDateTime ?? ''),
+        );
+        setState({ kind: 'loaded', rows });
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        if (
+          e instanceof GraphError &&
+          (e.status === 403 || e.status === 404)
+        ) {
+          setState({ kind: 'forbidden' });
+          return;
+        }
+        setState({
+          kind: 'error',
+          message: e instanceof Error ? e.message : String(e),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, appId, keyId]);
+
+  return (
+    <>
+      <h4 style={{ marginTop: 20, marginBottom: 4 }}>
+        Sign-ins · last 30 days
+      </h4>
+      <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+        App-only sign-ins that used this credential. Microsoft Entra retains
+        30 days of sign-in activity.
+      </div>
+      {state.kind === 'loading' && <span className="spinner" />}
+      {state.kind === 'forbidden' && (
+        <div className="muted" style={{ fontSize: 13 }}>
+          Requires <span className="mono">AuditLog.Read.All</span>.
+        </div>
+      )}
+      {state.kind === 'error' && (
+        <p className="error" style={{ fontSize: 13 }}>
+          {state.message}
+        </p>
+      )}
+      {state.kind === 'loaded' && state.rows.length === 0 && (
+        <div className="muted" style={{ fontSize: 13 }}>
+          No sign-ins recorded in the last 30 days.
+        </div>
+      )}
+      {state.kind === 'loaded' && state.rows.length > 0 && (
+        <table className="table">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Actor</th>
+              <th>From IP</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {state.rows.map((s) => {
+              const ok = !s.status?.errorCode;
+              const actor =
+                s.servicePrincipalName ??
+                s.appDisplayName ??
+                s.userDisplayName ??
+                s.userPrincipalName;
+              return (
+                <tr key={s.id}>
+                  <td>{formatDateTime(s.createdDateTime)}</td>
+                  <td>
+                    <div>{actor ?? <span className="muted">—</span>}</div>
+                    {s.servicePrincipalId && (
+                      <div className="muted mono" style={{ fontSize: 11 }}>
+                        {s.servicePrincipalId}
+                      </div>
+                    )}
+                  </td>
+                  <td className="mono">
+                    {s.ipAddress ?? <span className="muted">—</span>}
+                  </td>
+                  <td>
+                    {ok ? (
+                      <span className="badge granted">Success</span>
+                    ) : (
+                      <>
+                        <span className="badge expired">Failed</span>
+                        {(s.status?.failureReason || s.status?.errorCode) && (
+                          <div className="muted" style={{ fontSize: 11 }}>
+                            {s.status?.failureReason ??
+                              `code ${s.status?.errorCode}`}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </>
   );
 }
 
