@@ -1,5 +1,7 @@
 # EntraApp
 
+[WebApp](https://ronaldvanhelden.github.io/EntraApp)
+
 A dark-mode, dedicated React SPA for managing **Microsoft Entra ID** app registrations
 and enterprise apps, with a focus on **managing API permissions** (both application
 and delegated) on enterprise apps. Authenticates with MSAL using delegated permissions

@@ -1,7 +1,7 @@
-import type { Configuration } from '@azure/msal-browser';
-import { LogLevel } from '@azure/msal-browser';
+import type { Configuration } from "@azure/msal-browser";
+import { LogLevel } from "@azure/msal-browser";
 
-const STORAGE_KEY = 'entraapp.authConfig';
+const STORAGE_KEY = "entraapp.authConfig";
 
 export interface AuthConfig {
   clientId: string;
@@ -11,8 +11,8 @@ export interface AuthConfig {
 // Default to the "Debble EntraApp" multi-tenant app registration.
 // Override in Settings for tenants that register their own client.
 const DEFAULT_CONFIG: AuthConfig = {
-  clientId: '285e9c19-6642-4f20-af26-489b47636cc9',
-  tenantId: 'organizations',
+  clientId: "438ccf20-d1a2-4027-baf3-0104d018357e",
+  tenantId: "organizations",
 };
 
 export function loadAuthConfig(): AuthConfig {
@@ -54,13 +54,13 @@ export function buildMsalConfig(config: AuthConfig): Configuration {
   return {
     auth: {
       clientId: config.clientId,
-      authority: `https://login.microsoftonline.com/${config.tenantId || 'common'}`,
+      authority: `https://login.microsoftonline.com/${config.tenantId || "common"}`,
       redirectUri,
       postLogoutRedirectUri: redirectUri,
       navigateToLoginRequestUrl: false,
     },
     cache: {
-      cacheLocation: 'sessionStorage',
+      cacheLocation: "sessionStorage",
       storeAuthStateInCookie: false,
     },
     system: {
@@ -80,16 +80,15 @@ export function buildMsalConfig(config: AuthConfig): Configuration {
 // covers creating appRoleAssignments on service principals for admins;
 // DelegatedPermissionGrant.ReadWrite.All is used for oauth2PermissionGrants.
 export const GRAPH_SCOPES = [
-  'User.Read',
-  'User.Read.All',
-  'Group.Read.All',
-  'Application.ReadWrite.All',
-  'Directory.AccessAsUser.All',
-  'DelegatedPermissionGrant.ReadWrite.All',
-  'AppRoleAssignment.ReadWrite.All',
-  'CrossTenantInformation.ReadBasic.All',
-  'AuditLog.Read.All',
+  "User.Read",
+  "User.Read.All",
+  "Group.Read.All",
+  "Application.ReadWrite.All",
+  "DelegatedPermissionGrant.ReadWrite.All",
+  "AppRoleAssignment.ReadWrite.All",
+  "CrossTenantInformation.ReadBasic.All",
+  "AuditLog.Read.All",
 ];
 
-export const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
-export const GRAPH_BASE_BETA = 'https://graph.microsoft.com/beta';
+export const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
+export const GRAPH_BASE_BETA = "https://graph.microsoft.com/beta";
