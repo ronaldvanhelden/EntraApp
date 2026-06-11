@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
+import { SCOPES } from '../auth/config';
 import { useCurrentTenantId } from '../auth/useCurrentTenantId';
 import {
   deleteServicePrincipal,
@@ -38,7 +39,12 @@ type Tab = 'overview' | 'permissions' | 'assignments' | 'audit';
 
 export function EnterpriseAppDetail() {
   const { id = '' } = useParams();
-  const token = useGraphToken();
+  // Read scopes power the overview tab and the underlying-app-registration
+  // resolve. Audit and write scopes are requested separately so the page
+  // still renders for non-admin browse and only escalates on action.
+  const token = useGraphToken(SCOPES.appsRead);
+  const auditToken = useGraphToken(SCOPES.auditLogs);
+  const writeToken = useGraphToken(SCOPES.appsWrite);
   const nav = useNavigate();
   const currentTenantId = useCurrentTenantId();
   const [sp, setSp] = useState<ServicePrincipal | null>(null);
@@ -79,27 +85,27 @@ export function EnterpriseAppDetail() {
       .then((full) => {
         setSp(full);
 
-        listUserSignInsForApp(token, full.appId, 1)
+        listUserSignInsForApp(auditToken, full.appId, 1)
           .then((rows) => setLastDelegated(rows[0] ?? null))
           .catch((e: unknown) => {
             setLastDelegated(null);
             setSignInError(e instanceof Error ? e.message : String(e));
           });
-        listAppOnlySignInsForApp(token, full.appId, 1)
+        listAppOnlySignInsForApp(auditToken, full.appId, 1)
           .then((rows) => setLastAppOnly(rows[0] ?? null))
           .catch((e: unknown) => {
             setLastAppOnly(null);
             setSignInError(e instanceof Error ? e.message : String(e));
           });
 
-        listAppCredentialSignInActivities(token, full.appId)
+        listAppCredentialSignInActivities(auditToken, full.appId)
           .then((rows) => setCredActivity(buildCredentialActivityMap(rows)))
           .catch(() => {
             /* AuditLog.Read.All absent — credentials render without "last used" */
           });
       })
       .catch((e) => setError(e.message));
-  }, [token, id]);
+  }, [token, auditToken, id]);
 
   // Resolve the underlying app registration's directory-object id so the
   // header can link to /applications/:id. Only attempted when the SP is
@@ -130,7 +136,7 @@ export function EnterpriseAppDetail() {
     setError(null);
     try {
       const next = !sp.accountEnabled;
-      await updateServicePrincipal(token, sp.id, { accountEnabled: next });
+      await updateServicePrincipal(writeToken, sp.id, { accountEnabled: next });
       setSp({ ...sp, accountEnabled: next });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -144,7 +150,7 @@ export function EnterpriseAppDetail() {
     setDeleting(true);
     setError(null);
     try {
-      await deleteServicePrincipal(token, sp.id);
+      await deleteServicePrincipal(writeToken, sp.id);
       nav('/enterprise-apps');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -335,7 +341,7 @@ export function EnterpriseAppDetail() {
 }
 
 function HomeTenantCell({ ownerTenantId }: { ownerTenantId?: string }) {
-  const token = useGraphToken();
+  const token = useGraphToken(SCOPES.crossTenant);
   const currentTenantId = useCurrentTenantId();
   const [info, setInfo] = useState<TenantInformation | null>(null);
   const [lookupFailed, setLookupFailed] = useState(false);

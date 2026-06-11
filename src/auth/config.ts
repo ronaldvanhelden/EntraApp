@@ -75,20 +75,40 @@ export function buildMsalConfig(config: AuthConfig): Configuration {
   };
 }
 
-// Scopes must match those declared on the app registration (Debble EntraApp).
-// Directory.AccessAsUser.All lets the app act as the signed-in user, which
-// covers creating appRoleAssignments on service principals for admins;
-// DelegatedPermissionGrant.ReadWrite.All is used for oauth2PermissionGrants.
-export const GRAPH_SCOPES = [
-  "User.Read",
-  "User.Read.All",
-  "Group.Read.All",
-  "Application.ReadWrite.All",
-  "DelegatedPermissionGrant.ReadWrite.All",
-  "AppRoleAssignment.ReadWrite.All",
-  "CrossTenantInformation.ReadBasic.All",
-  "AuditLog.Read.All",
-];
+// Incremental consent: sign-in only asks for User.Read so first-run users
+// (including non-admins) get a normal user-consent screen. Every other scope
+// is requested lazily by the feature that needs it; MSAL caches tokens per
+// scope superset so repeat reads don't re-prompt. Admin consent is still
+// required for the .All scopes below, but it is now scoped to the moment the
+// feature is first used instead of forced at sign-in, and split read vs write
+// so read-only admins never have to consent to the write scopes.
+export const LOGIN_SCOPES = ["User.Read"];
+
+export const SCOPES = {
+  // Read-only app registration / service principal browsing.
+  appsRead: ["Application.Read.All"],
+  // Create / update / delete app registrations and service principals,
+  // including credential operations.
+  appsWrite: ["Application.ReadWrite.All"],
+  // Principal-picker user search. User-consentable — no admin prompt.
+  userSearch: ["User.ReadBasic.All"],
+  // Principal-picker group search.
+  groupSearch: ["Group.Read.All"],
+  // Mixed-type principal resolution (users + groups + SPs) for grant lists.
+  directoryRead: ["Directory.Read.All"],
+  // Read existing oauth2PermissionGrants (delegated consents) for an SP.
+  delegatedGrantsRead: ["DelegatedPermissionGrant.Read.All"],
+  // Create / update / delete oauth2PermissionGrants.
+  delegatedGrantsWrite: ["DelegatedPermissionGrant.ReadWrite.All"],
+  // Read appRoleAssignments and appRoleAssignedTo on a service principal.
+  appRolesRead: ["AppRoleAssignment.Read.All"],
+  // Create / delete appRoleAssignments and appRoleAssignedTo.
+  appRolesWrite: ["AppRoleAssignment.ReadWrite.All"],
+  // /auditLogs/* and /reports/appCredentialSignInActivities.
+  auditLogs: ["AuditLog.Read.All"],
+  // findTenantInformationByTenantId for resolving external tenant names.
+  crossTenant: ["CrossTenantInformation.ReadBasic.All"],
+} as const;
 
 export const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 export const GRAPH_BASE_BETA = "https://graph.microsoft.com/beta";

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
+import { LOGIN_SCOPES, SCOPES } from '../auth/config';
 import { getMe, type MeResponse } from '../graph/me';
 import {
   listRecentDirectoryAudits,
@@ -30,7 +31,10 @@ const AUDIT_ACTIVITIES = [
 ];
 
 export function Home() {
-  const token = useGraphToken();
+  // /me is covered by the User.Read scope acquired at sign-in. Audit logs are
+  // requested separately so a non-admin user can still load this page.
+  const meToken = useGraphToken(LOGIN_SCOPES);
+  const auditToken = useGraphToken(SCOPES.auditLogs);
   const [me, setMe] = useState<MeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [audits, setAudits] = useState<DirectoryAuditEvent[] | 'loading'>(
@@ -38,17 +42,17 @@ export function Home() {
   );
 
   useEffect(() => {
-    getMe(token)
+    getMe(meToken)
       .then(setMe)
       .catch((e) => setError(e.message));
-  }, [token]);
+  }, [meToken]);
 
   useEffect(() => {
     setAudits('loading');
-    listRecentDirectoryAudits(token, AUDIT_ACTIVITIES, 25)
+    listRecentDirectoryAudits(auditToken, AUDIT_ACTIVITIES, 25)
       .then(setAudits)
       .catch(() => setAudits([]));
-  }, [token]);
+  }, [auditToken]);
 
   return (
     <>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useGraphToken } from '../auth/useGraphToken';
+import { SCOPES } from '../auth/config';
 import {
   getServicePrincipal,
   getServicePrincipalByAppId,
@@ -48,7 +49,9 @@ export function AddRequiredPermissionModal({
   onClose,
   onSubmit,
 }: Props) {
-  const token = useGraphToken();
+  // Everything in this modal is a read — the manifest patch happens upstream
+  // via the appsWrite scope in RequiredResourceAccessCard.
+  const token = useGraphToken(SCOPES.appsRead);
 
   const [resource, setResource] = useState<ServicePrincipal | null>(null);
   const [resourceLoading, setResourceLoading] = useState(false);

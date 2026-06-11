@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useGraphToken } from '../auth/useGraphToken';
+import { SCOPES } from '../auth/config';
 import {
   extractKeyIdFromSignIn,
   listAppOnlySignInsForApp,
@@ -21,7 +22,10 @@ interface Props {
 type Filter = 'all' | 'delegated' | 'app';
 
 export function SignInAuditTab({ sp }: Props) {
-  const token = useGraphToken();
+  const auditToken = useGraphToken(SCOPES.auditLogs);
+  // Resolving the backing app registration (to label credential keys) only
+  // needs the read scope and is best-effort.
+  const appsReadToken = useGraphToken(SCOPES.appsRead);
   const [delegated, setDelegated] = useState<SignIn[] | null>(null);
   const [appOnly, setAppOnly] = useState<SignIn[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,13 +42,13 @@ export function SignInAuditTab({ sp }: Props) {
     setAppOnly(null);
     setError(null);
 
-    listUserSignInsForApp(token, sp.appId)
+    listUserSignInsForApp(auditToken, sp.appId)
       .then(setDelegated)
       .catch((e: unknown) => {
         setDelegated([]);
         setError(e instanceof Error ? e.message : String(e));
       });
-    listAppOnlySignInsForApp(token, sp.appId)
+    listAppOnlySignInsForApp(auditToken, sp.appId)
       .then(setAppOnly)
       .catch((e: unknown) => {
         setAppOnly([]);
@@ -54,7 +58,7 @@ export function SignInAuditTab({ sp }: Props) {
     // Best-effort: fetch credentials of the underlying app registration so we
     // can label keyIds the sign-in log references. Not all tenants have the
     // app object visible to the caller — swallow failure.
-    getApplicationByAppId(token, sp.appId)
+    getApplicationByAppId(appsReadToken, sp.appId)
       .then((app) => {
         if (!app) return;
         const map: Record<string, { keyId: string; label: string }> = {};
@@ -77,7 +81,7 @@ export function SignInAuditTab({ sp }: Props) {
         setCredentialHint(map);
       })
       .catch(() => {});
-  }, [token, sp.appId]);
+  }, [auditToken, appsReadToken, sp.appId]);
 
   const rows: SignIn[] = useMemo(() => {
     const merged = [...(delegated ?? []), ...(appOnly ?? [])];

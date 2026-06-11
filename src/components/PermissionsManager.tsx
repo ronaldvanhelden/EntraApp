@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useGraphToken } from '../auth/useGraphToken';
+import { SCOPES } from '../auth/config';
 import type {
   AppRoleAssignment,
   OAuth2PermissionGrant,
@@ -59,7 +60,15 @@ interface DelegatedRow extends RowBase {
 type Row = AppRow | DelegatedRow;
 
 export function PermissionsManager({ clientSp }: Props) {
-  const token = useGraphToken();
+  // Per-call scopes: each Graph endpoint gets the minimum it needs. MSAL
+  // caches across overlapping scope supersets so users only see at most one
+  // prompt per scope group, regardless of how many calls fire.
+  const appRolesReadToken = useGraphToken(SCOPES.appRolesRead);
+  const grantsReadToken = useGraphToken(SCOPES.delegatedGrantsRead);
+  const appsReadToken = useGraphToken(SCOPES.appsRead);
+  const directoryToken = useGraphToken(SCOPES.directoryRead);
+  const appRolesWriteToken = useGraphToken(SCOPES.appRolesWrite);
+  const grantsWriteToken = useGraphToken(SCOPES.delegatedGrantsWrite);
   const [assignments, setAssignments] = useState<AppRoleAssignment[] | null>(
     null,
   );
@@ -95,8 +104,8 @@ export function PermissionsManager({ clientSp }: Props) {
     setGrants(null);
     try {
       const [a, g] = await Promise.all([
-        listAppRoleAssignments(token, clientSp.id),
-        listOAuth2GrantsForClient(token, clientSp.id),
+        listAppRoleAssignments(appRolesReadToken, clientSp.id),
+        listOAuth2GrantsForClient(grantsReadToken, clientSp.id),
       ]);
       setAssignments(a);
       setGrants(g);
@@ -108,7 +117,7 @@ export function PermissionsManager({ clientSp }: Props) {
       if (missingResources.length) {
         const fetched = await Promise.all(
           missingResources.map((id) =>
-            getServicePrincipal(token, id).catch(() => null),
+            getServicePrincipal(appsReadToken, id).catch(() => null),
           ),
         );
         setResources((prev) => {
@@ -131,14 +140,23 @@ export function PermissionsManager({ clientSp }: Props) {
       });
       const missingPrincipals = [...principalIds].filter((id) => !principals[id]);
       if (missingPrincipals.length) {
-        const resolved = await resolveDirectoryObjects(token, missingPrincipals);
+        const resolved = await resolveDirectoryObjects(
+          directoryToken,
+          missingPrincipals,
+        );
         setPrincipals((prev) => ({ ...prev, ...resolved }));
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, clientSp.id]);
+  }, [
+    appRolesReadToken,
+    grantsReadToken,
+    appsReadToken,
+    directoryToken,
+    clientSp.id,
+  ]);
 
   useEffect(() => {
     reload();
@@ -223,7 +241,11 @@ export function PermissionsManager({ clientSp }: Props) {
     setWorking(row.key);
     try {
       if (row.kind === 'app') {
-        await deleteAppRoleAssignment(token, row.principalId, row.assignmentId);
+        await deleteAppRoleAssignment(
+          appRolesWriteToken,
+          row.principalId,
+          row.assignmentId,
+        );
       } else {
         const grant = grants?.find((g) => g.id === row.grantId);
         if (!grant) throw new Error('Grant not found');
@@ -232,9 +254,11 @@ export function PermissionsManager({ clientSp }: Props) {
           .filter((s) => s && s !== row.scope)
           .join(' ');
         if (remaining) {
-          await updateOAuth2Grant(token, grant.id, { scope: remaining });
+          await updateOAuth2Grant(grantsWriteToken, grant.id, {
+            scope: remaining,
+          });
         } else {
-          await deleteOAuth2Grant(token, grant.id);
+          await deleteOAuth2Grant(grantsWriteToken, grant.id);
         }
       }
       await reload();
@@ -251,7 +275,7 @@ export function PermissionsManager({ clientSp }: Props) {
       const appPrincipalId = payload.applicationPrincipalId ?? clientSp.id;
 
       for (const roleId of payload.appRoleIds) {
-        await createAppRoleAssignment(token, appPrincipalId, {
+        await createAppRoleAssignment(appRolesWriteToken, appPrincipalId, {
           appRoleId: roleId,
           principalId: appPrincipalId,
           resourceId: payload.resource.id,
@@ -275,9 +299,11 @@ export function PermissionsManager({ clientSp }: Props) {
               ].filter(Boolean),
             ),
           ).join(' ');
-          await updateOAuth2Grant(token, existing.id, { scope: merged });
+          await updateOAuth2Grant(grantsWriteToken, existing.id, {
+            scope: merged,
+          });
         } else {
-          await createOAuth2Grant(token, {
+          await createOAuth2Grant(grantsWriteToken, {
             clientId: clientSp.id,
             consentType: payload.consentType,
             principalId:

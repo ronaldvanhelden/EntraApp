@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useGraphToken } from '../auth/useGraphToken';
+import { SCOPES } from '../auth/config';
 import {
   searchGroups,
   searchUsers,
@@ -29,7 +30,13 @@ export function PrincipalPicker({
   placeholder,
   autoFocus,
 }: Props) {
-  const token = useGraphToken();
+  // User search uses the user-consentable User.ReadBasic.All — non-admin
+  // accounts can search users without an admin-consent prompt. Group and SP
+  // search still need admin-consent scopes; prompts only fire when the user
+  // switches the picker tab to those kinds.
+  const userToken = useGraphToken(SCOPES.userSearch);
+  const groupToken = useGraphToken(SCOPES.groupSearch);
+  const spToken = useGraphToken(SCOPES.appsRead);
   const [kind, setKind] = useState<PrincipalKind>(kinds[0]);
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<PrincipalRef[]>([]);
@@ -54,7 +61,7 @@ export function PrincipalPicker({
       try {
         let refs: PrincipalRef[] = [];
         if (kind === 'user') {
-          const users = await searchUsers(token, q);
+          const users = await searchUsers(userToken, q);
           refs = users.map((u) => ({
             id: u.id,
             displayName: u.displayName,
@@ -62,7 +69,7 @@ export function PrincipalPicker({
             subtitle: u.userPrincipalName || u.mail,
           }));
         } else if (kind === 'group') {
-          const groups = await searchGroups(token, q);
+          const groups = await searchGroups(groupToken, q);
           refs = groups.map((g) => ({
             id: g.id,
             displayName: g.displayName,
@@ -70,7 +77,7 @@ export function PrincipalPicker({
             subtitle: g.mail || g.mailNickname,
           }));
         } else {
-          const sps = await listServicePrincipals(token, q);
+          const sps = await listServicePrincipals(spToken, q);
           refs = sps.slice(0, 25).map((sp) => ({
             id: sp.id,
             displayName: sp.displayName,
@@ -88,7 +95,7 @@ export function PrincipalPicker({
       }
     }, 250);
     return () => clearTimeout(handle);
-  }, [search, token, kind, selected]);
+  }, [search, userToken, groupToken, spToken, kind, selected]);
 
   const tabs = useMemo(() => kinds, [kinds]);
 

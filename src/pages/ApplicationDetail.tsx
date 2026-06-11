@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
+import { SCOPES } from '../auth/config';
 import {
   addApplicationCertificate,
   addApplicationPassword,
@@ -56,7 +57,12 @@ const AUDIENCES = [
 
 export function ApplicationDetail() {
   const { id = '' } = useParams();
-  const token = useGraphToken();
+  // Read scopes for fetching the app, its SP, and federated identity creds.
+  // Audit-log scope is needed only for the credential sign-in activity panel
+  // and is requested separately so the page still loads when audit access is
+  // declined.
+  const token = useGraphToken(SCOPES.appsRead);
+  const auditToken = useGraphToken(SCOPES.auditLogs);
   const nav = useNavigate();
   const [app, setApp] = useState<Application | null>(null);
   const [sp, setSp] = useState<ServicePrincipal | null>(null);
@@ -92,14 +98,14 @@ export function ApplicationDetail() {
         listFederatedIdentityCredentials(token, a.id)
           .then(setFic)
           .catch(() => setFic([]));
-        listAppCredentialSignInActivities(token, a.appId)
+        listAppCredentialSignInActivities(auditToken, a.appId)
           .then((rows) => setActivityByKeyId(buildCredentialActivityMap(rows)))
           .catch((e: unknown) =>
             setActivityError(e instanceof Error ? e.message : String(e)),
           );
       })
       .catch((e) => setError(e.message));
-  }, [token, id]);
+  }, [token, auditToken, id]);
 
   useEffect(() => {
     if (!app?.requiredResourceAccess?.length) return;
@@ -261,7 +267,7 @@ function EditCard({
   onCancel: () => void;
   onSaved: (patch: Partial<Application>) => void;
 }) {
-  const token = useGraphToken();
+  const token = useGraphToken(SCOPES.appsWrite);
   const [displayName, setDisplayName] = useState(app.displayName);
   const [audience, setAudience] = useState(app.signInAudience ?? AUDIENCES[0]);
   const [notes, setNotes] = useState(app.notes ?? '');
@@ -359,7 +365,7 @@ function DeleteModal({
   onClose: () => void;
   onDeleted: () => void;
 }) {
-  const token = useGraphToken();
+  const token = useGraphToken(SCOPES.appsWrite);
   const [alsoDeleteSp, setAlsoDeleteSp] = useState(Boolean(sp));
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -584,7 +590,7 @@ function AuthenticationCard({
   app: Application;
   onAppChange: (next: Application) => void;
 }) {
-  const token = useGraphToken();
+  const token = useGraphToken(SCOPES.appsWrite);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editPlatform, setEditPlatform] = useState<null | 'web' | 'spa' | 'publicClient'>(null);
@@ -939,7 +945,8 @@ function RequiredResourceAccessCard({
   resourceSps: Record<string, ServicePrincipal | null>;
   onChange: (next: Application) => void;
 }) {
-  const token = useGraphToken();
+  // Editing the manifest's requiredResourceAccess uses the write scope.
+  const token = useGraphToken(SCOPES.appsWrite);
   const [showAdd, setShowAdd] = useState(false);
   const [working, setWorking] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -1257,7 +1264,10 @@ function CredentialsCard({
   activityError: string | null;
   onAppChange: (next: Application) => void;
 }) {
-  const token = useGraphToken();
+  // Every action in this card (add/remove secret, cert, bulk cleanup) is a
+  // write — and the refresh-after-create also runs as a write so MSAL doesn't
+  // need to juggle two tokens for the same flow.
+  const token = useGraphToken(SCOPES.appsWrite);
   const secrets: PasswordCredential[] = app.passwordCredentials ?? [];
   const certs: KeyCredential[] = app.keyCredentials ?? [];
   const [selectedSecret, setSelectedSecret] = useState<PasswordCredential | null>(
@@ -1902,7 +1912,7 @@ function SignInEventSection({
   activity?: AppCredentialSignInActivity;
   activityError: string | null;
 }) {
-  const token = useGraphToken();
+  const token = useGraphToken(SCOPES.auditLogs);
   const si = activity?.signInActivity;
   const requestId = si?.requestId;
   const [event, setEvent] = useState<SignIn | null>(null);
@@ -2063,7 +2073,7 @@ function CredentialSignInHistorySection({
   appId: string;
   keyId: string;
 }) {
-  const token = useGraphToken();
+  const token = useGraphToken(SCOPES.auditLogs);
   const [state, setState] = useState<
     | { kind: 'loading' }
     | { kind: 'loaded'; rows: SignIn[] }

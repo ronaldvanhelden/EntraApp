@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
+import { SCOPES } from '../auth/config';
 import { createApplication, listApplications } from '../graph/applications';
 import { createServicePrincipalFromAppId } from '../graph/servicePrincipals';
 import type { Application } from '../graph/types';
@@ -15,7 +16,7 @@ const AUDIENCES = [
 ];
 
 export function Applications() {
-  const token = useGraphToken();
+  const token = useGraphToken(SCOPES.appsRead);
   const nav = useNavigate();
   const [apps, setApps] = useState<Application[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -152,7 +153,9 @@ function CreateAppModal({
   onClose: () => void;
   onCreated: (objectId: string) => void;
 }) {
-  const token = useGraphToken();
+  // Creating an app registration (and optionally its SP) needs the write scope.
+  // The interactive consent prompt only fires here, not on the list view.
+  const token = useGraphToken(SCOPES.appsWrite);
   const [displayName, setDisplayName] = useState('');
   const [audience, setAudience] = useState(AUDIENCES[0]);
   const [createSp, setCreateSp] = useState(true);

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useGraphToken } from '../auth/useGraphToken';
+import { SCOPES } from '../auth/config';
 import {
   getServicePrincipal,
   getServicePrincipalByAppId,
@@ -53,7 +54,9 @@ const COMMON_APIS: Array<{ appId: string; name: string }> = [
 ];
 
 export function AddPermissionModal({ clientSp, onClose, onSubmit }: Props) {
-  const token = useGraphToken();
+  // All Graph calls inside the modal (resource search, common-API lookup,
+  // resource SP detail fetch) are reads.
+  const token = useGraphToken(SCOPES.appsRead);
 
   const [resource, setResource] = useState<ServicePrincipal | null>(null);
   const [resourceLoading, setResourceLoading] = useState(false);

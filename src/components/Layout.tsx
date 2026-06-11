@@ -6,7 +6,7 @@ import {
   UnauthenticatedTemplate,
   useMsal,
 } from '@azure/msal-react';
-import { GRAPH_SCOPES } from '../auth/config';
+import { LOGIN_SCOPES } from '../auth/config';
 
 interface Props {
   children: ReactNode;
@@ -171,10 +171,10 @@ function SignInScreen() {
   const { instance } = useMsal();
   const signIn = () => {
     instance
-      .loginPopup({ scopes: GRAPH_SCOPES, prompt: 'select_account' })
+      .loginPopup({ scopes: LOGIN_SCOPES, prompt: 'select_account' })
       .catch(() =>
         instance
-          .loginRedirect({ scopes: GRAPH_SCOPES, prompt: 'select_account' })
+          .loginRedirect({ scopes: LOGIN_SCOPES, prompt: 'select_account' })
           .catch(() => {}),
       );
   };

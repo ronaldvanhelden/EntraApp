@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
+import { SCOPES } from '../auth/config';
 import { useCurrentTenantId } from '../auth/useCurrentTenantId';
 import { listServicePrincipals } from '../graph/servicePrincipals';
 import type { ServicePrincipal } from '../graph/types';
@@ -27,7 +28,7 @@ function isExternal(
 }
 
 export function EnterpriseApps() {
-  const token = useGraphToken();
+  const token = useGraphToken(SCOPES.appsRead);
   const currentTenantId = useCurrentTenantId();
   const nav = useNavigate();
   const [sps, setSps] = useState<ServicePrincipal[] | null>(null);

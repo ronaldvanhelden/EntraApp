@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useGraphToken } from '../auth/useGraphToken';
+import { SCOPES } from '../auth/config';
 import {
   createAppRoleAssignedTo,
   deleteAppRoleAssignedTo,
@@ -22,7 +23,9 @@ interface Props {
 const DEFAULT_ACCESS_ROLE_ID = '00000000-0000-0000-0000-000000000000';
 
 export function AssignedUsersManager({ sp }: Props) {
-  const token = useGraphToken();
+  const readToken = useGraphToken(SCOPES.appRolesRead);
+  const directoryToken = useGraphToken(SCOPES.directoryRead);
+  const writeToken = useGraphToken(SCOPES.appRolesWrite);
   const [assignments, setAssignments] = useState<AppRoleAssignment[] | null>(
     null,
   );
@@ -35,20 +38,20 @@ export function AssignedUsersManager({ sp }: Props) {
     setError(null);
     setAssignments(null);
     try {
-      const list = await listAppRoleAssignedTo(token, sp.id);
+      const list = await listAppRoleAssignedTo(readToken, sp.id);
       setAssignments(list);
       const missing = list
         .map((a) => a.principalId)
         .filter((id) => id && !principals[id]);
       if (missing.length) {
-        const resolved = await resolveDirectoryObjects(token, missing);
+        const resolved = await resolveDirectoryObjects(directoryToken, missing);
         setPrincipals((prev) => ({ ...prev, ...resolved }));
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, sp.id]);
+  }, [readToken, directoryToken, sp.id]);
 
   useEffect(() => {
     reload();
@@ -75,7 +78,7 @@ export function AssignedUsersManager({ sp }: Props) {
     setError(null);
     setWorking(a.id);
     try {
-      await deleteAppRoleAssignedTo(token, sp.id, a.id);
+      await deleteAppRoleAssignedTo(writeToken, sp.id, a.id);
       await reload();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -85,7 +88,7 @@ export function AssignedUsersManager({ sp }: Props) {
   };
 
   const add = async (p: PrincipalRef, roleId: string) => {
-    await createAppRoleAssignedTo(token, sp.id, {
+    await createAppRoleAssignedTo(writeToken, sp.id, {
       appRoleId: roleId,
       principalId: p.id,
       resourceId: sp.id,
