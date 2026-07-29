@@ -7,6 +7,8 @@ import {
   useMsal,
 } from '@azure/msal-react';
 import { GRAPH_SCOPES } from '../auth/config';
+import { useAuthConfig } from '../auth/context';
+import { TenantChip } from './TenantChip';
 
 interface Props {
   children: ReactNode;
@@ -107,12 +109,12 @@ function Header({
   const { instance, accounts } = useMsal();
   const active = instance.getActiveAccount() ?? accounts[0];
   const signOut = () => {
-    // Popup logout isn't supported on mobile browsers; fall back to redirect.
+    // Come back to this exact URL so a ?tenant= pin (and the /EntraApp/ base
+    // path) survive the round trip. Popup logout isn't supported on mobile
+    // browsers; fall back to redirect, which uses postLogoutRedirectUri.
     instance
-      .logoutPopup({ mainWindowRedirectUri: '/' })
-      .catch(() =>
-        instance.logoutRedirect({ postLogoutRedirectUri: '/' }).catch(() => {}),
-      );
+      .logoutPopup({ mainWindowRedirectUri: window.location.href })
+      .catch(() => instance.logoutRedirect().catch(() => {}));
   };
   return (
     <header className="header">
@@ -131,6 +133,7 @@ function Header({
           </span>
         </button>
         <div className="brand">EntraApp</div>
+        <TenantChip />
       </div>
       <div className="user">
         <span className="user-email" title={active?.username}>
@@ -169,6 +172,7 @@ function Sidebar() {
 
 function SignInScreen() {
   const { instance } = useMsal();
+  const { config, tenantOverride } = useAuthConfig();
   const signIn = () => {
     instance
       .loginPopup({ scopes: GRAPH_SCOPES, prompt: 'select_account' })
@@ -182,6 +186,17 @@ function SignInScreen() {
     <div className="center">
       <h1>EntraApp</h1>
       <p className="muted">Sign in with your Entra ID account to continue.</p>
+      {tenantOverride ? (
+        <p className="muted" style={{ fontSize: 13 }}>
+          Signing in to tenant <strong className="mono">{tenantOverride}</strong>{' '}
+          (pinned by this URL). Pick the account that has access there — a guest
+          account works.
+        </p>
+      ) : (
+        <p className="muted" style={{ fontSize: 13 }}>
+          Tenant: <span className="mono">{config.tenantId}</span>
+        </p>
+      )}
       <button className="primary" onClick={signIn}>
         Sign in with Microsoft
       </button>

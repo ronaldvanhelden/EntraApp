@@ -188,6 +188,39 @@ pre {
   white-space: nowrap;
 }
 
+/* Header indicator for the directory the session points at. Highlighted when
+   the tenant is pinned by ?tenant= in the URL rather than the saved default. */
+.tenant-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 24ch;
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.tenant-chip:hover {
+  color: var(--text);
+  border-color: var(--text-dim);
+  text-decoration: none;
+}
+.tenant-chip.pinned {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tenant-chip.pinned:hover {
+  color: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.tenant-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .menu-toggle {
   display: inline-flex;
   align-items: center;
@@ -557,6 +590,82 @@ button.link:hover .mono {
   color: var(--danger);
 }
 
+/* Directory tags (application.tags). "Favorite" is a reserved tag rendered as
+   a star, so favourites and tags stay one mechanism. */
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  font-size: 11px;
+  overflow: hidden;
+}
+.tag-chip.favorite {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+/* Tags written by Entra or other tooling (no debble: prefix) — shown for
+   context, never edited here. */
+.tag-chip.foreign {
+  border-style: dashed;
+  border-color: var(--border-subtle);
+  color: var(--text-dim);
+}
+.tag-chip .tag-chip-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  border-radius: 0;
+}
+.tag-chip button.tag-chip-main {
+  cursor: pointer;
+}
+.tag-chip button.tag-chip-main:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.tag-chip .tag-chip-remove {
+  padding: 0 6px 1px;
+  border: none;
+  border-left: 1px solid var(--border);
+  border-radius: 0;
+  background: none;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.tag-chip .tag-chip-remove:hover:not(:disabled) {
+  background: var(--danger);
+  color: #fff;
+}
+
+.favorite-star {
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.favorite-star:hover:not(:disabled) {
+  color: var(--warning);
+  background: none;
+}
+.favorite-star.on {
+  color: var(--warning);
+}
+
 .stack {
   display: flex;
   flex-direction: column;
@@ -713,6 +822,34 @@ label.field span {
   margin-bottom: 4px;
 }
 
+/* Saved per-tenant bookmark links in Settings. */
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+.shortcut-main {
+  min-width: 0;
+  flex: 1;
+}
+.shortcut-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+.shortcut-url {
+  font-size: 11px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .kv {
   display: grid;
   grid-template-columns: 200px 1fr;
@@ -764,6 +901,9 @@ label.field span {
   }
   .header .user-email {
     display: none;
+  }
+  .tenant-chip {
+    max-width: 14ch;
   }
 
   /* Turn the sidebar into an off-canvas drawer. */

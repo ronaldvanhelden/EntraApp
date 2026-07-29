@@ -37,6 +37,9 @@ import type {
 import { Modal } from '../components/Modal';
 import { AppIcon } from '../components/AppIcon';
 import { CopyButton } from '../components/CopyButton';
+import { TagEditor } from '../components/TagEditor';
+import { FavoriteStar } from '../components/TagChip';
+import { isFavorite, withFavorite } from '../lib/tags';
 import { PrivilegeBadge, useScopeCatalog } from '../components/PrivilegeBadge';
 import { ScopeDetailsModal } from '../components/ScopeDetailsModal';
 import { AddRequiredPermissionModal } from '../components/AddRequiredPermissionModal';
@@ -134,7 +137,10 @@ export function ApplicationDetail() {
             title={app.displayName}
           />
           <div>
-            <h1 style={{ margin: 0 }}>{app.displayName}</h1>
+            <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+              <h1 style={{ margin: 0 }}>{app.displayName}</h1>
+              <FavoriteToggle app={app} onAppChange={setApp} />
+            </div>
             <div className="subtitle mono">
               {app.appId}
               <CopyButton value={app.appId} label="application (client) ID" />
@@ -183,6 +189,21 @@ export function ApplicationDetail() {
             <div>{app.displayName}</div>
             <div className="k">Sign-in audience</div>
             <div>{app.signInAudience}</div>
+            <div className="k">Unique name</div>
+            <div className="mono">
+              {app.uniqueName ? (
+                <>
+                  {app.uniqueName}
+                  <CopyButton value={app.uniqueName} label="unique name" />
+                </>
+              ) : (
+                <span className="muted">—</span>
+              )}
+            </div>
+            <div className="k">Tags</div>
+            <div>
+              <TagsRow app={app} onAppChange={setApp} />
+            </div>
             <div className="k">Publisher domain</div>
             <div>{app.publisherDomain ?? '—'}</div>
             <div className="k">Identifier URIs</div>
@@ -194,6 +215,10 @@ export function ApplicationDetail() {
                     </div>
                   ))
                 : '—'}
+            </div>
+            <div className="k">Redirect URIs</div>
+            <div>
+              <RedirectUriSummary app={app} />
             </div>
             <div className="k">Notes</div>
             <div className="muted">{app.notes || '—'}</div>
@@ -268,6 +293,10 @@ function EditCard({
   const [identifierUris, setIdentifierUris] = useState(
     (app.identifierUris ?? []).join('\n'),
   );
+  // Graph accepts uniqueName only while it is null; it is immutable afterwards,
+  // so the field is offered exactly once.
+  const canSetUniqueName = !app.uniqueName;
+  const [uniqueName, setUniqueName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -279,11 +308,15 @@ function EditCard({
         .split(/\r?\n/)
         .map((s) => s.trim())
         .filter(Boolean);
+      const trimmedUniqueName = uniqueName.trim();
       const patch = {
         displayName: displayName.trim(),
         signInAudience: audience,
         notes: notes.trim() || undefined,
         identifierUris: uris,
+        ...(canSetUniqueName && trimmedUniqueName
+          ? { uniqueName: trimmedUniqueName }
+          : {}),
       };
       await updateApplication(token, app.id, patch);
       onSaved(patch);
@@ -314,6 +347,32 @@ function EditCard({
           ))}
         </select>
       </label>
+      {canSetUniqueName ? (
+        <label className="field">
+          <span>
+            Unique name (optional alternate key — can only be set once)
+          </span>
+          <input
+            value={uniqueName}
+            onChange={(e) => setUniqueName(e.target.value)}
+            placeholder="e.g. contoso-payments-api"
+          />
+        </label>
+      ) : (
+        <div className="field">
+          <span
+            style={{
+              display: 'block',
+              fontSize: 12,
+              color: 'var(--text-muted)',
+              marginBottom: 4,
+            }}
+          >
+            Unique name (immutable)
+          </span>
+          <div className="mono">{app.uniqueName}</div>
+        </div>
+      )}
       <label className="field">
         <span>Identifier URIs (one per line)</span>
         <textarea
@@ -498,6 +557,115 @@ function ResourceCell({
 }) {
   const name = activity?.signInActivity?.resourceDisplayName;
   return name ? <span>{name}</span> : <span className="muted">—</span>;
+}
+
+// Tags are stored on the directory object, so every write is a PATCH of the
+// whole collection. Each caller gets its own instance (and its own error slot).
+function useTagWriter(
+  app: Application,
+  onAppChange: (next: Application) => void,
+) {
+  const token = useGraphToken();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async (tags: string[]) => {
+    setSaving(true);
+    setError(null);
+    try {
+      await updateApplication(token, app.id, { tags });
+      onAppChange({ ...app, tags });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+      throw e;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return { saving, error, save };
+}
+
+function FavoriteToggle({
+  app,
+  onAppChange,
+}: {
+  app: Application;
+  onAppChange: (next: Application) => void;
+}) {
+  const { saving, error, save } = useTagWriter(app, onAppChange);
+  const favorite = isFavorite(app.tags);
+  return (
+    <>
+      <FavoriteStar
+        favorite={favorite}
+        disabled={saving}
+        onToggle={() => {
+          void save(withFavorite(app.tags, !favorite)).catch(() => {});
+        }}
+      />
+      {error && (
+        <span className="error" style={{ fontSize: 12 }} title={error}>
+          tag save failed
+        </span>
+      )}
+    </>
+  );
+}
+
+function TagsRow({
+  app,
+  onAppChange,
+}: {
+  app: Application;
+  onAppChange: (next: Application) => void;
+}) {
+  const { saving, save } = useTagWriter(app, onAppChange);
+  return <TagEditor tags={app.tags} onSave={save} disabled={saving} />;
+}
+
+// Every redirect URI on the app, tagged with the platform it is registered
+// under. Read-only — editing lives in the Authentication card below.
+function RedirectUriSummary({ app }: { app: Application }) {
+  const entries: Array<{ platform: string; badge: string; uri: string }> = [
+    ...(app.web?.redirectUris ?? []).map((uri) => ({
+      platform: 'Web',
+      badge: 'badge',
+      uri,
+    })),
+    ...(app.spa?.redirectUris ?? []).map((uri) => ({
+      platform: 'SPA',
+      badge: 'badge delegated',
+      uri,
+    })),
+    ...(app.publicClient?.redirectUris ?? []).map((uri) => ({
+      platform: 'Public',
+      badge: 'badge app',
+      uri,
+    })),
+  ];
+
+  if (entries.length === 0) return <span className="muted">—</span>;
+
+  return (
+    <div className="stack" style={{ gap: 4 }}>
+      {entries.map((e) => (
+        <div
+          key={`${e.platform}:${e.uri}`}
+          className="row"
+          style={{ gap: 6, alignItems: 'flex-start' }}
+        >
+          <span className={e.badge} title={`Registered as ${e.platform}`}>
+            {e.platform}
+          </span>
+          <span className="mono" style={{ fontSize: 12, minWidth: 0 }}>
+            {e.uri}
+          </span>
+          <CopyButton value={e.uri} label="redirect URI" />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 // Compact read-only summary of which OAuth 2.0 grant types the app is wired

@@ -1,4 +1,5 @@
 import { graph, graphAll } from './client';
+import { toStoredTag } from '../lib/tags';
 import type { Application, KeyCredential } from './types';
 
 type TokenFn = () => Promise<string>;
@@ -14,6 +15,8 @@ export type UpdateApplicationPatch = Partial<
     | 'displayName'
     | 'signInAudience'
     | 'notes'
+    | 'uniqueName'
+    | 'tags'
     | 'identifierUris'
     | 'requiredResourceAccess'
     | 'keyCredentials'
@@ -28,20 +31,21 @@ export type UpdateApplicationPatch = Partial<
 // rather than a display-name search term.
 const GUID_LIKE = /^[0-9a-f-]+$/i;
 
-export function listApplications(token: TokenFn, search?: string) {
+// passwordCredentials and keyCredentials are inline properties so they ship
+// with the list response at no extra round-trip cost. Federated credentials
+// are a navigation property and require $expand — we include them so the
+// list can surface a FIC badge and expiry warnings per app.
+const LIST_SELECT =
+  'id,appId,displayName,createdDateTime,signInAudience,publisherDomain,info,' +
+  'uniqueName,tags,passwordCredentials,keyCredentials';
+const LIST_EXPAND = 'federatedIdentityCredentials($select=id)';
+
+export async function listApplications(token: TokenFn, search?: string) {
   const q = search?.trim();
-  // passwordCredentials and keyCredentials are inline properties so they ship
-  // with the list response at no extra round-trip cost. Federated credentials
-  // are a navigation property and require $expand — we include them so the
-  // list can surface a FIC badge and expiry warnings per app.
-  const $select =
-    'id,appId,displayName,createdDateTime,signInAudience,publisherDomain,info,' +
-    'passwordCredentials,keyCredentials';
-  const $expand = 'federatedIdentityCredentials($select=id)';
 
   if (!q) {
     return graphAll<Application>(token, '/applications', {
-      query: { $select, $expand, $top: 100 },
+      query: { $select: LIST_SELECT, $expand: LIST_EXPAND, $top: 100 },
     });
   }
 
@@ -51,10 +55,10 @@ export function listApplications(token: TokenFn, search?: string) {
       '/applications',
       {
         query: {
-          $select,
-          $expand,
+          $select: LIST_SELECT,
+          $expand: LIST_EXPAND,
           $top: 100,
-          $filter: `startswith(appId,'${q.replace(/'/g, "''")}')`,
+          $filter: `startswith(appId,'${escapeOData(q)}')`,
         },
         advanced: true,
       },
@@ -62,14 +66,25 @@ export function listApplications(token: TokenFn, search?: string) {
     );
   }
 
+  // displayName goes through $search (substring matching); uniqueName and tags
+  // are prefix-filterable. $search and $filter can't be OR-ed in one query, so
+  // both run in parallel and the results are merged.
+  const [byName, byFilter] = await Promise.all([
+    searchApplications(token, q),
+    filterApplications(token, q),
+  ]);
+  return dedupeById([...byName, ...byFilter]);
+}
+
+function searchApplications(token: TokenFn, q: string) {
   const s = q.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   return graphAll<Application>(
     token,
     '/applications',
     {
       query: {
-        $select,
-        $expand,
+        $select: LIST_SELECT,
+        $expand: LIST_EXPAND,
         $top: 100,
         $search: `"displayName:${s}"`,
       },
@@ -79,12 +94,46 @@ export function listApplications(token: TokenFn, search?: string) {
   );
 }
 
+// Matches the unique name, or one of our own tags by label — the query is
+// prefixed so typing "prod" finds `debble:Production` without the user having
+// to know the namespace.
+function filterApplications(token: TokenFn, q: string) {
+  const run = ($filter: string, advanced: boolean) =>
+    graphAll<Application>(
+      token,
+      '/applications',
+      {
+        query: { $select: LIST_SELECT, $expand: LIST_EXPAND, $top: 100, $filter },
+        advanced,
+      },
+      1,
+    );
+
+  const byUniqueName = `startswith(uniqueName,'${escapeOData(q)}')`;
+  const byTag = `tags/any(t:startswith(t,'${escapeOData(toStoredTag(q))}'))`;
+
+  // Degrade to unique-name-only if a tenant rejects the tags/any filter, so
+  // search never breaks outright.
+  return run(`${byUniqueName} or ${byTag}`, true)
+    .catch(() => run(byUniqueName, false))
+    .catch(() => [] as Application[]);
+}
+
+function dedupeById(apps: Application[]): Application[] {
+  const seen = new Set<string>();
+  return apps.filter((a) => (seen.has(a.id) ? false : (seen.add(a.id), true)));
+}
+
+function escapeOData(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
 export function getApplication(token: TokenFn, id: string) {
   return graph<Application>(token, `/applications/${id}`, {
     query: {
       $select:
         'id,appId,displayName,createdDateTime,signInAudience,publisherDomain,info,' +
-        'notes,identifierUris,requiredResourceAccess,' +
+        'notes,uniqueName,tags,identifierUris,requiredResourceAccess,' +
         'passwordCredentials,keyCredentials,' +
         'web,spa,publicClient,isFallbackPublicClient',
     },

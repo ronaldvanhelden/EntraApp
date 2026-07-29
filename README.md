@@ -19,6 +19,34 @@ against Microsoft Graph.
   - Revoke either kind inline
   - Pick common APIs (Microsoft Graph, Exchange, SharePoint, Azure Management)
     or search all service principals
+- **Tags & favorites** on app registrations, stored in the directory
+  (`application.tags`) so they're shared with everyone managing the tenant. Tags
+  written here are namespaced `debble:<name>`; tags set by Entra or other tooling
+  (`HideApp`, …) are shown read-only and preserved on every write.
+  `debble:Favorite` is a reserved tag rendered as a star; the list filters by tag.
+- **Unique name** (`application.uniqueName`) shown on the list and detail pages,
+  searchable, and settable once for apps that don't have one yet
+- **Tenant shortcuts**: pin a tab to a specific tenant with `?tenant=…`
+
+## Tenant shortcuts (`?tenant=`)
+
+Add `?tenant=<tenant id or domain>` to the URL to point sign-in — and therefore
+every Graph call — at that directory instead of the saved default. Because the
+app uses a `HashRouter`, the parameter sits in front of the hash and survives all
+in-app navigation, so a single bookmark keeps you in that tenant:
+
+```
+https://ronaldvanhelden.github.io/EntraApp/?tenant=debble.com#/enterprise-apps
+```
+
+- Works with a tenant GUID, a verified domain, or `common` / `organizations`.
+- Useful when your home tenant differs from the one you manage: sign in with the
+  account (guest accounts included) that has access to the pinned tenant.
+- The pin is remembered per browser tab, so a redirect sign-in doesn't lose it
+  and a second tab on the plain URL is back on the default tenant.
+- The header chip shows the active directory and marks it when pinned by the URL.
+- **Settings → Tenant shortcuts** stores named links per tenant, ready to copy or
+  bookmark. Saving a new default tenant in Settings releases the pin.
 
 ## Stack
 

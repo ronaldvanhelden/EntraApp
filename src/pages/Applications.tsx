@@ -1,11 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
-import { createApplication, listApplications } from '../graph/applications';
+import {
+  createApplication,
+  listApplications,
+  updateApplication,
+} from '../graph/applications';
 import { createServicePrincipalFromAppId } from '../graph/servicePrincipals';
 import type { Application } from '../graph/types';
 import { Modal } from '../components/Modal';
 import { AppIcon } from '../components/AppIcon';
+import { FavoriteStar, TagChip } from '../components/TagChip';
+import {
+  FAVORITE_TAG,
+  hasTag,
+  isFavorite,
+  ourTags,
+  sortTags,
+  tagLabel,
+  withFavorite,
+} from '../lib/tags';
 
 const AUDIENCES = [
   'AzureADMyOrg',
@@ -22,6 +36,9 @@ export function Applications() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [tagBusyId, setTagBusyId] = useState<string | null>(null);
+  const [tagError, setTagError] = useState<string | null>(null);
 
   useEffect(() => {
     const handle = setTimeout(() => setDebouncedSearch(search.trim()), 250);
@@ -35,10 +52,15 @@ export function Applications() {
     listApplications(token, debouncedSearch || undefined)
       .then((list) => {
         if (cancelled) return;
+        // Favorites first, then alphabetical. Sorting happens only on load, so
+        // starring a row doesn't make it jump away under the cursor.
         setApps(
-          [...list].sort((a, b) =>
-            (a.displayName ?? '').localeCompare(b.displayName ?? ''),
-          ),
+          [...list].sort((a, b) => {
+            const favDelta =
+              Number(isFavorite(b.tags)) - Number(isFavorite(a.tags));
+            if (favDelta !== 0) return favDelta;
+            return (a.displayName ?? '').localeCompare(b.displayName ?? '');
+          }),
         );
       })
       .catch((e) => {
@@ -48,6 +70,55 @@ export function Applications() {
       cancelled = true;
     };
   }, [token, debouncedSearch]);
+
+  // Facets over our own (debble:-prefixed) tags in the loaded set, most-used
+  // first so the useful ones surface. Tags set outside EntraApp aren't offered
+  // as filters.
+  const tagFacets = useMemo(() => {
+    const counts = new Map<string, { tag: string; count: number }>();
+    for (const a of apps ?? []) {
+      for (const t of ourTags(a.tags)) {
+        const key = t.toLowerCase();
+        const existing = counts.get(key);
+        if (existing) existing.count += 1;
+        else counts.set(key, { tag: t, count: 1 });
+      }
+    }
+    return [...counts.values()].sort((a, b) => {
+      if (a.tag.toLowerCase() === FAVORITE_TAG.toLowerCase()) return -1;
+      if (b.tag.toLowerCase() === FAVORITE_TAG.toLowerCase()) return 1;
+      return b.count - a.count || tagLabel(a.tag).localeCompare(tagLabel(b.tag));
+    });
+  }, [apps]);
+
+  const visible = useMemo(() => {
+    if (!apps) return [];
+    if (!tagFilter) return apps;
+    return apps.filter((a) => hasTag(a.tags, tagFilter));
+  }, [apps, tagFilter]);
+
+  // Tags live on the app registration in Entra, so the star is a Graph write.
+  // Applied optimistically and rolled back if the PATCH fails.
+  const toggleFavorite = async (app: Application) => {
+    const next = withFavorite(app.tags, !isFavorite(app.tags));
+    const previous = app.tags;
+    const apply = (tags: string[] | undefined) =>
+      setApps((prev) =>
+        prev ? prev.map((a) => (a.id === app.id ? { ...a, tags } : a)) : prev,
+      );
+
+    apply(next);
+    setTagBusyId(app.id);
+    setTagError(null);
+    try {
+      await updateApplication(token, app.id, { tags: next });
+    } catch (e: unknown) {
+      apply(previous);
+      setTagError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTagBusyId(null);
+    }
+  };
 
   return (
     <>
@@ -66,18 +137,53 @@ export function Applications() {
       <div className="toolbar">
         <input
           className="search"
-          placeholder="Search by name or appId…"
+          placeholder="Search by name, unique name, appId, or tag…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
         {apps && (
           <span className="muted">
-            {apps.length} {debouncedSearch ? 'matches' : 'total'}
+            {tagFilter
+              ? `${visible.length} of ${apps.length}`
+              : `${apps.length} ${debouncedSearch ? 'matches' : 'total'}`}
           </span>
         )}
       </div>
 
+      {tagFacets.length > 0 && (
+        <div className="row wrap" style={{ gap: 6, marginBottom: 12 }}>
+          <button
+            className={tagFilter === null ? 'primary' : 'ghost'}
+            onClick={() => setTagFilter(null)}
+          >
+            All
+          </button>
+          {tagFacets.map((f) => (
+            <button
+              key={f.tag}
+              title={f.tag}
+              className={
+                tagFilter?.toLowerCase() === f.tag.toLowerCase()
+                  ? 'primary'
+                  : 'ghost'
+              }
+              onClick={() =>
+                setTagFilter(
+                  tagFilter?.toLowerCase() === f.tag.toLowerCase()
+                    ? null
+                    : f.tag,
+                )
+              }
+            >
+              {f.tag.toLowerCase() === FAVORITE_TAG.toLowerCase() && '★ '}
+              {tagLabel(f.tag)} ({f.count})
+            </button>
+          ))}
+        </div>
+      )}
+
       {error && <div className="card error">{error}</div>}
+      {tagError && <div className="card error">{tagError}</div>}
       {!apps && !error && <span className="spinner" />}
 
       {apps && (
@@ -87,15 +193,21 @@ export function Applications() {
               <tr>
                 <th>Display name</th>
                 <th>Application (client) ID</th>
+                <th>Tags</th>
                 <th>Credentials</th>
                 <th>Sign-in audience</th>
               </tr>
             </thead>
             <tbody>
-              {apps.map((a) => (
+              {visible.map((a) => (
                 <tr key={a.id} onClick={() => nav(`/applications/${a.id}`)}>
                   <td>
                     <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+                      <FavoriteStar
+                        favorite={isFavorite(a.tags)}
+                        disabled={tagBusyId === a.id}
+                        onToggle={() => toggleFavorite(a)}
+                      />
                       <AppIcon
                         id={a.appId || a.id}
                         logoUrl={a.info?.logoUrl}
@@ -109,23 +221,52 @@ export function Applications() {
                           ⚠
                         </span>
                       )}
-                      <span>{a.displayName}</span>
+                      <div style={{ minWidth: 0 }}>
+                        <div>{a.displayName}</div>
+                        {a.uniqueName && (
+                          <div
+                            className="mono muted"
+                            style={{ fontSize: 11 }}
+                            title={`Unique name: ${a.uniqueName}`}
+                          >
+                            {a.uniqueName}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="mono">{a.appId}</td>
+                  <td>
+                    {a.tags?.length ? (
+                      <div className="row wrap" style={{ gap: 4 }}>
+                        {sortTags(a.tags).map((t) => (
+                          <TagChip
+                            key={t}
+                            tag={t}
+                            title={`Filter by tag ${tagLabel(t)}`}
+                            onClick={() => setTagFilter(t)}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
                   <td>
                     <CredentialBadges app={a} />
                   </td>
                   <td className="muted">{a.signInAudience}</td>
                 </tr>
               ))}
-              {apps.length === 0 && (
+              {visible.length === 0 && (
                 <tr>
-                  <td colSpan={4}>
+                  <td colSpan={5}>
                     <div className="empty">
-                      {debouncedSearch
-                        ? 'No applications match your search.'
-                        : 'No applications found.'}
+                      {tagFilter
+                        ? `No applications tagged “${tagLabel(tagFilter)}”.`
+                        : debouncedSearch
+                          ? 'No applications match your search.'
+                          : 'No applications found.'}
                     </div>
                   </td>
                 </tr>

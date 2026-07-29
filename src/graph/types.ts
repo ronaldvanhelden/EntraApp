@@ -8,6 +8,11 @@ export interface Application {
   signInAudience?: string;
   publisherDomain?: string;
   notes?: string;
+  // Alternate key. Writable only while null — immutable once set.
+  uniqueName?: string | null;
+  // Free-form directory-side labels. Entra copies these onto the associated
+  // service principal, so they show up on the enterprise app too.
+  tags?: string[];
   identifierUris?: string[];
   requiredResourceAccess?: RequiredResourceAccess[];
   passwordCredentials?: PasswordCredential[];

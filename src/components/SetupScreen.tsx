@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { computeRedirectUri, saveAuthConfig } from '../auth/config';
+import { computeRedirectUri } from '../auth/config';
 import { useAuthConfig } from '../auth/context';
+import { isValidTenantId } from '../auth/tenantParam';
 
 export function SetupScreen() {
   const { config, setConfig } = useAuthConfig();
@@ -14,9 +15,12 @@ export function SetupScreen() {
       setError('Client ID must be a valid GUID.');
       return;
     }
-    const next = { clientId: trimmed, tenantId: tenantId.trim() || 'common' };
-    saveAuthConfig(next);
-    setConfig(next);
+    const nextTenant = tenantId.trim() || 'common';
+    if (!isValidTenantId(nextTenant)) {
+      setError('Tenant must be a GUID, a domain name, or common/organizations.');
+      return;
+    }
+    setConfig({ clientId: trimmed, tenantId: nextTenant });
   };
 
   return (
