@@ -12,6 +12,8 @@ import {
   type TenantShortcut,
 } from '../auth/tenantParam';
 import { CopyButton } from '../components/CopyButton';
+import { RemoveButton } from '../components/RemoveButton';
+import { useConfirm } from '../components/ConfirmDialog';
 
 export function Settings() {
   const { config, savedConfig, tenantOverride, setConfig } = useAuthConfig();
@@ -20,6 +22,7 @@ export function Settings() {
   const [tenantId, setTenantId] = useState(savedConfig.tenantId);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { confirm, confirmDialog } = useConfirm();
 
   const save = async () => {
     setError(null);
@@ -46,7 +49,14 @@ export function Settings() {
     }
   };
 
-  const reset = () => {
+  const reset = async () => {
+    const ok = await confirm({
+      title: 'Reset configuration?',
+      message:
+        'The stored client ID and default tenant are cleared and you will be signed out. You will need to set up EntraApp again.',
+      confirmLabel: 'Reset',
+    });
+    if (!ok) return;
     clearAuthConfig();
     // Reload without ?tenant= so nothing survives the reset.
     exitTenantOverride('/settings');
@@ -115,7 +125,7 @@ export function Settings() {
         {saved && <p style={{ color: 'var(--success)' }}>Saved.</p>}
 
         <div className="row" style={{ justifyContent: 'space-between' }}>
-          <button className="danger" onClick={reset}>
+          <button className="danger" onClick={() => void reset()}>
             Reset configuration
           </button>
           <button className="primary" onClick={save}>
@@ -123,6 +133,7 @@ export function Settings() {
           </button>
         </div>
       </div>
+      {confirmDialog}
     </>
   );
 }
@@ -134,6 +145,7 @@ function TenantShortcuts({ currentTenantId }: { currentTenantId: string }) {
   const [shortcuts, setShortcuts] = useState<TenantShortcut[]>(() => loadTenantShortcuts());
   const [label, setLabel] = useState('');
   const [tenant, setTenant] = useState('');
+  const { confirm, confirmDialog } = useConfirm();
   const [error, setError] = useState<string | null>(null);
 
   const persist = (next: TenantShortcut[]) => {
@@ -157,8 +169,13 @@ function TenantShortcuts({ currentTenantId }: { currentTenantId: string }) {
     setTenant('');
   };
 
-  const remove = (tenantId: string) => {
-    persist(shortcuts.filter((s) => s.tenantId !== tenantId));
+  const remove = async (s: TenantShortcut) => {
+    const ok = await confirm({
+      title: 'Remove shortcut?',
+      message: `The shortcut "${s.label}" is removed from this browser. The tenant itself is not affected.`,
+    });
+    if (!ok) return;
+    persist(shortcuts.filter((x) => x.tenantId !== s.tenantId));
   };
 
   return (
@@ -193,9 +210,7 @@ function TenantShortcuts({ currentTenantId }: { currentTenantId: string }) {
                   </div>
                 </div>
                 <CopyButton value={url} label="shortcut URL" />
-                <button className="ghost" onClick={() => remove(s.tenantId)}>
-                  Remove
-                </button>
+                <RemoveButton label="Remove shortcut" onClick={() => void remove(s)} />
               </div>
             );
           })}
@@ -218,6 +233,7 @@ function TenantShortcuts({ currentTenantId }: { currentTenantId: string }) {
         <button onClick={add}>Add</button>
       </div>
       {error && <p className="error">{error}</p>}
+      {confirmDialog}
     </div>
   );
 }

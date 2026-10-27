@@ -6,9 +6,10 @@ interface Props {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  className?: string;
 }
 
-export function Modal({ title, onClose, children, footer }: Props) {
+export function Modal({ title, onClose, children, footer, className }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -19,7 +20,10 @@ export function Modal({ title, onClose, children, footer }: Props) {
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`modal${className ? ` ${className}` : ''}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <h2>{title}</h2>
           <button className="ghost" onClick={onClose} aria-label="Close">
