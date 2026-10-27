@@ -375,21 +375,12 @@ pre {
   background: color-mix(in srgb, var(--danger) 8%, var(--bg-elevated));
   border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
 }
-.card.card-danger .card-header h3 {
+.card.card-danger h3 {
   color: var(--danger);
 }
 .card.card-danger .card-header .chevron {
   color: var(--danger);
 }
-.subsection-title {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-  padding: 10px 14px 4px;
-}
-
 /* Tables become horizontally scrollable inside their card wrapper so columns
    don't get squashed unreadably on narrow viewports. The :has() rule catches
    card wrappers whose immediate child is a table; a mobile-wide fallback
@@ -464,6 +455,54 @@ pre {
 }
 .group-body .table {
   margin-bottom: 0;
+}
+
+/* One block per permission kind inside a resource group, so delegated
+   scopes and application roles read as two separate tables instead of one
+   run-on list. The tinted header carries a coloured glyph (person = delegated,
+   server = application) matching the .badge.delegated / .badge.app colours. */
+.perm-section + .perm-section {
+  border-top: 1px solid var(--border);
+}
+.perm-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.perm-section.delegated .perm-section-header {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.perm-section.application .perm-section-header {
+  background: color-mix(in srgb, #a371f7 8%, transparent);
+}
+.perm-section-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+.perm-section-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.perm-kind-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.perm-kind-icon.delegated {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.perm-kind-icon.application {
+  color: #a371f7;
+  background: color-mix(in srgb, #a371f7 18%, transparent);
 }
 
 /* Microsoft publishes a 1–4 privilegeLevel for every Graph permission. The

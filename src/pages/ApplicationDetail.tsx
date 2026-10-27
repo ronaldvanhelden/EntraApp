@@ -48,7 +48,6 @@ import type {
   ServicePrincipal,
 } from '../graph/types';
 import { Modal } from '../components/Modal';
-import { CollapsibleCard } from '../components/CollapsibleCard';
 import { RemoveButton } from '../components/RemoveButton';
 import { useConfirm } from '../components/ConfirmDialog';
 import { AppIcon } from '../components/AppIcon';
@@ -204,7 +203,8 @@ export function ApplicationDetail() {
       )}
 
       {tab === 'overview' && !editing && (
-        <CollapsibleCard title="Details" storageKey="appreg.details">
+        <div className="card">
+          <h3>Details</h3>
           <div className="kv">
             <div className="k">Object ID</div>
             <div className="mono">
@@ -260,16 +260,12 @@ export function ApplicationDetail() {
               <OAuthFlowSummary app={app} />
             </div>
           </div>
-        </CollapsibleCard>
+        </div>
       )}
 
       {tab === 'overview' && (
-        <CollapsibleCard
-          title="Danger zone"
-          storageKey="appreg.danger"
-          className="card-danger"
-          defaultCollapsed
-        >
+        <div className="card card-danger">
+          <h3>Danger zone</h3>
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <div className="muted" style={{ fontSize: 13 }}>
               Deleting the app registration removes the application object. The service principal is
@@ -279,7 +275,7 @@ export function ApplicationDetail() {
               Delete app registration
             </button>
           </div>
-        </CollapsibleCard>
+        </div>
       )}
 
       {tab === 'permissions' && (
@@ -363,7 +359,8 @@ function EditCard({
   };
 
   return (
-    <CollapsibleCard title="Edit details">
+    <div className="card">
+      <h3>Edit details</h3>
       <label className="field">
         <span>Display name</span>
         <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
@@ -424,7 +421,7 @@ function EditCard({
           {saving ? 'Saving…' : 'Save'}
         </button>
       </div>
-    </CollapsibleCard>
+    </div>
   );
 }
 
@@ -832,7 +829,8 @@ function AuthenticationCard({
   };
 
   return (
-    <CollapsibleCard title="Authentication" storageKey="appreg.authentication">
+    <div className="card">
+      <h3>Authentication</h3>
       <div className="row wrap" style={{ gap: 8, marginBottom: 12 }}>
         <FlowBadge
           active={webUris.length > 0}
@@ -950,7 +948,7 @@ function AuthenticationCard({
           onSave={(uris) => saveRedirectUris(editPlatform, uris)}
         />
       )}
-    </CollapsibleCard>
+    </div>
   );
 }
 
@@ -1126,6 +1124,27 @@ function consentBlocker(
       'Administrator or Privileged Role Administrator role.'
     );
   return null;
+}
+
+// Coloured glyph that tells the two permission kinds apart at a glance:
+// a person for delegated (acts on behalf of a signed-in user), a server
+// for application (app-only, no user present). Colours match .badge.app /
+// .badge.delegated so the cue is consistent across the UI.
+function PermissionKindIcon({ kind }: { kind: 'delegated' | 'application' }) {
+  const label = kind === 'application' ? 'Application permission' : 'Delegated permission';
+  return (
+    <span className={`perm-kind-icon ${kind}`} title={label} aria-label={label} role="img">
+      {kind === 'application' ? (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+          <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v3.5C0 7.216.784 8 1.75 8h12.5A1.75 1.75 0 0 0 16 6.25v-3.5A1.75 1.75 0 0 0 14.25 1H1.75Zm0 1.5h12.5a.25.25 0 0 1 .25.25v3.5a.25.25 0 0 1-.25.25H1.75a.25.25 0 0 1-.25-.25v-3.5a.25.25 0 0 1 .25-.25ZM3 4.5a.75.75 0 1 0 1.5 0A.75.75 0 0 0 3 4.5ZM0 10.75C0 9.784.784 9 1.75 9h12.5c.966 0 1.75.784 1.75 1.75v3.5A1.75 1.75 0 0 1 14.25 16H1.75A1.75 1.75 0 0 1 0 14.25v-3.5Zm1.75-.25a.25.25 0 0 0-.25.25v3.5c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25v-3.5a.25.25 0 0 0-.25-.25H1.75ZM3 12.5a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Z" />
+        </svg>
+      ) : (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+          <path d="M10.561 8.073a6.005 6.005 0 0 1 3.432 5.142.75.75 0 1 1-1.498.07 4.5 4.5 0 0 0-8.99 0 .75.75 0 0 1-1.498-.07 6.004 6.004 0 0 1 3.431-5.142 3.999 3.999 0 1 1 5.123 0ZM10.5 5a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0Z" />
+        </svg>
+      )}
+    </span>
+  );
 }
 
 function RequiredResourceAccessCard({
@@ -1346,11 +1365,15 @@ function RequiredResourceAccessCard({
     const resolving = resSp === undefined;
     const permKind = type === 'Role' ? 'application' : 'delegated';
     return (
-      <>
-        <div className="subsection-title">
-          {type === 'Role'
-            ? `Application permissions (roles) · ${entries.length}`
-            : `Delegated permissions (scopes) · ${entries.length}`}
+      <div className={`perm-section ${permKind}`}>
+        <div className="perm-section-header">
+          <PermissionKindIcon kind={permKind} />
+          <span className="perm-section-title">
+            {type === 'Role' ? 'Application permissions' : 'Delegated permissions'}
+          </span>
+          <span className="perm-section-meta">
+            {type === 'Role' ? 'roles' : 'scopes'} · {entries.length}
+          </span>
         </div>
         <table className="table">
           <thead>
@@ -1449,7 +1472,7 @@ function RequiredResourceAccessCard({
             })}
           </tbody>
         </table>
-      </>
+      </div>
     );
   };
 
@@ -1462,11 +1485,15 @@ function RequiredResourceAccessCard({
         : null);
 
   return (
-    <CollapsibleCard
-      title="API permissions (manifest)"
-      subtitle="Permissions declared in the application manifest. To take effect, they must be consented/granted on the enterprise app."
-      storageKey="appreg.permissions"
-      action={
+    <div className="card">
+      <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
+        <div>
+          <h3 style={{ margin: 0 }}>API permissions (manifest)</h3>
+          <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+            Permissions declared in the application manifest. To take effect, they must be
+            consented/granted on the enterprise app.
+          </div>
+        </div>
         <div className="row" style={{ gap: 8 }}>
           <button
             disabled={consentDisabledReason !== null}
@@ -1484,8 +1511,7 @@ function RequiredResourceAccessCard({
             + Add a required permission
           </button>
         </div>
-      }
-    >
+      </div>
       {saveError && (
         <p className="error" style={{ marginTop: 0 }}>
           {saveError}
@@ -1589,7 +1615,7 @@ function RequiredResourceAccessCard({
         />
       )}
       {confirmDialog}
-    </CollapsibleCard>
+    </div>
   );
 }
 
@@ -1839,7 +1865,8 @@ function CredentialsCard({
   };
 
   return (
-    <CollapsibleCard title="Credentials" storageKey="appreg.credentials">
+    <div className="card">
+      <h3>Credentials</h3>
       {activityError && (
         <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
           Last-used info unavailable — grant <span className="mono">AuditLog.Read.All</span> to
@@ -2069,7 +2096,7 @@ function CredentialsCard({
       )}
       {newSecret && <NewSecretValueModal secret={newSecret} onClose={() => setNewSecret(null)} />}
       {confirmDialog}
-    </CollapsibleCard>
+    </div>
   );
 }
 
