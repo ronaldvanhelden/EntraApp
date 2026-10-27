@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
 import {
@@ -13,7 +13,24 @@ import {
   type UpdateApplicationPatch,
 } from '../graph/applications';
 import { AddCertificateModal, type CertSubmitPayload } from '../components/AddCertificateModal';
-import { deleteServicePrincipal, getServicePrincipalByAppId } from '../graph/servicePrincipals';
+import {
+  createAppRoleAssignment,
+  createOAuth2Grant,
+  createServicePrincipalFromAppId,
+  deleteServicePrincipal,
+  getServicePrincipalByAppId,
+  listAppRoleAssignments,
+  listOAuth2GrantsForClient,
+  updateOAuth2Grant,
+} from '../graph/servicePrincipals';
+import {
+  listMyActiveRoleTemplateIds,
+  PRIVILEGED_CONSENT_RESOURCES,
+  ROLE_APP_ADMIN,
+  ROLE_CLOUD_APP_ADMIN,
+  ROLE_GLOBAL_ADMIN,
+  ROLE_PRIVILEGED_ROLE_ADMIN,
+} from '../graph/directoryRoles';
 import {
   buildCredentialActivityMap,
   listAppCredentialSignInActivities,
@@ -21,14 +38,19 @@ import {
 } from '../graph/credentials';
 import type {
   AppCredentialSignInActivity,
+  AppRoleAssignment,
   Application,
   FederatedIdentityCredential,
   KeyCredential,
+  OAuth2PermissionGrant,
   PasswordCredential,
   RequiredResourceAccess,
   ServicePrincipal,
 } from '../graph/types';
 import { Modal } from '../components/Modal';
+import { CollapsibleCard } from '../components/CollapsibleCard';
+import { RemoveButton } from '../components/RemoveButton';
+import { useConfirm } from '../components/ConfirmDialog';
 import { AppIcon } from '../components/AppIcon';
 import { CopyButton } from '../components/CopyButton';
 import { TagEditor } from '../components/TagEditor';
@@ -182,8 +204,7 @@ export function ApplicationDetail() {
       )}
 
       {tab === 'overview' && !editing && (
-        <div className="card">
-          <h3>Details</h3>
+        <CollapsibleCard title="Details" storageKey="appreg.details">
           <div className="kv">
             <div className="k">Object ID</div>
             <div className="mono">
@@ -239,12 +260,16 @@ export function ApplicationDetail() {
               <OAuthFlowSummary app={app} />
             </div>
           </div>
-        </div>
+        </CollapsibleCard>
       )}
 
       {tab === 'overview' && (
-        <div className="card">
-          <h3>Danger zone</h3>
+        <CollapsibleCard
+          title="Danger zone"
+          storageKey="appreg.danger"
+          className="card-danger"
+          defaultCollapsed
+        >
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <div className="muted" style={{ fontSize: 13 }}>
               Deleting the app registration removes the application object. The service principal is
@@ -254,7 +279,17 @@ export function ApplicationDetail() {
               Delete app registration
             </button>
           </div>
-        </div>
+        </CollapsibleCard>
+      )}
+
+      {tab === 'permissions' && (
+        <RequiredResourceAccessCard
+          app={app}
+          sp={sp}
+          onSpChange={setSp}
+          resourceSps={resourceSps}
+          onChange={setApp}
+        />
       )}
 
       {tab === 'credentials' && (
@@ -268,10 +303,6 @@ export function ApplicationDetail() {
       )}
 
       {tab === 'authentication' && <AuthenticationCard app={app} onAppChange={setApp} />}
-
-      {tab === 'permissions' && (
-        <RequiredResourceAccessCard app={app} resourceSps={resourceSps} onChange={setApp} />
-      )}
 
       {confirmDelete && (
         <DeleteModal
@@ -332,8 +363,7 @@ function EditCard({
   };
 
   return (
-    <div className="card">
-      <h3>Edit details</h3>
+    <CollapsibleCard title="Edit details">
       <label className="field">
         <span>Display name</span>
         <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
@@ -394,7 +424,7 @@ function EditCard({
           {saving ? 'Saving…' : 'Save'}
         </button>
       </div>
-    </div>
+    </CollapsibleCard>
   );
 }
 
@@ -802,8 +832,7 @@ function AuthenticationCard({
   };
 
   return (
-    <div className="card">
-      <h3>Authentication</h3>
+    <CollapsibleCard title="Authentication" storageKey="appreg.authentication">
       <div className="row wrap" style={{ gap: 8, marginBottom: 12 }}>
         <FlowBadge
           active={webUris.length > 0}
@@ -921,7 +950,7 @@ function AuthenticationCard({
           onSave={(uris) => saveRedirectUris(editPlatform, uris)}
         />
       )}
-    </div>
+    </CollapsibleCard>
   );
 }
 
@@ -1052,20 +1081,78 @@ function RedirectUriEditModal({
   );
 }
 
+type ResourceAccessEntry = RequiredResourceAccess['resourceAccess'][number];
+
+// Directory roles of the signed-in user, loaded once per page. `undefined`
+// while loading, `null` when the lookup failed (we then let Graph decide).
+function useMyActiveRoles() {
+  const token = useGraphToken();
+  const [roles, setRoles] = useState<Set<string> | null | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    listMyActiveRoleTemplateIds(token)
+      .then((r) => !cancelled && setRoles(r))
+      .catch(() => !cancelled && setRoles(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+  return roles;
+}
+
+// Why the signed-in user can't grant tenant-wide consent for `pending`, or
+// null when they can. Global Admin / Privileged Role Admin can consent to
+// anything; Cloud Application Admin / Application Admin to everything except
+// Microsoft Graph (and Azure AD Graph) application permissions.
+function consentBlocker(
+  roles: Set<string> | null | undefined,
+  pending: Array<{ resourceAppId: string; ra: ResourceAccessEntry }>,
+): string | null {
+  if (roles === undefined) return 'Checking your directory roles…';
+  if (roles === null) return null;
+  if (roles.has(ROLE_GLOBAL_ADMIN) || roles.has(ROLE_PRIVILEGED_ROLE_ADMIN)) return null;
+  if (!roles.has(ROLE_CLOUD_APP_ADMIN) && !roles.has(ROLE_APP_ADMIN))
+    return (
+      'Requires an active Global Administrator, Privileged Role Administrator, ' +
+      'Cloud Application Administrator or Application Administrator role. ' +
+      'Activate one (e.g. in PIM) and reload the page.'
+    );
+  const needsPrivileged = pending.some(
+    (p) => p.ra.type === 'Role' && PRIVILEGED_CONSENT_RESOURCES.has(p.resourceAppId),
+  );
+  if (needsPrivileged)
+    return (
+      'Microsoft Graph application permissions need an active Global ' +
+      'Administrator or Privileged Role Administrator role.'
+    );
+  return null;
+}
+
 function RequiredResourceAccessCard({
   app,
+  sp,
+  onSpChange,
   resourceSps,
   onChange,
 }: {
   app: Application;
+  sp: ServicePrincipal | null;
+  onSpChange: (next: ServicePrincipal) => void;
   resourceSps: Record<string, ServicePrincipal | null>;
   onChange: (next: Application) => void;
 }) {
   const token = useGraphToken();
   const [showAdd, setShowAdd] = useState(false);
+  const [showConsent, setShowConsent] = useState(false);
   const [working, setWorking] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const { confirm, confirmDialog } = useConfirm();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Tenant-wide grants held by this app's service principal. null = unknown
+  // (still loading, or the lookup failed).
+  const [grants, setGrants] = useState<OAuth2PermissionGrant[] | null>(null);
+  const [assignments, setAssignments] = useState<AppRoleAssignment[] | null>(null);
+  const roles = useMyActiveRoles();
   const catalog = useScopeCatalog();
   const [detailsFor, setDetailsFor] = useState<{
     scope: string;
@@ -1084,6 +1171,109 @@ function RequiredResourceAccessCard({
       else next.add(key);
       return next;
     });
+
+  const loadGrantState = useCallback(
+    async (clientSpId: string) => {
+      const [g, a] = await Promise.all([
+        listOAuth2GrantsForClient(token, clientSpId),
+        listAppRoleAssignments(token, clientSpId),
+      ]);
+      setGrants(g);
+      setAssignments(a);
+      return { grants: g, assignments: a };
+    },
+    [token],
+  );
+
+  useEffect(() => {
+    setGrants(null);
+    setAssignments(null);
+    if (!sp) {
+      // No service principal in this tenant yet — nothing can be granted.
+      setGrants([]);
+      setAssignments([]);
+      return;
+    }
+    loadGrantState(sp.id).catch(() => {
+      /* status stays unknown */
+    });
+  }, [sp, loadGrantState]);
+
+  const isGranted = (resourceAppId: string, ra: ResourceAccessEntry): boolean | undefined => {
+    const resSp = resourceSps[resourceAppId];
+    if (!resSp || grants === null || assignments === null) return undefined;
+    if (ra.type === 'Role')
+      return assignments.some((a) => a.appRoleId === ra.id && a.resourceId === resSp.id);
+    const value = resSp.oauth2PermissionScopes?.find((s) => s.id === ra.id)?.value;
+    if (!value) return undefined;
+    return grants.some(
+      (g) =>
+        g.consentType === 'AllPrincipals' &&
+        g.resourceId === resSp.id &&
+        (g.scope ?? '').split(/\s+/).includes(value),
+    );
+  };
+
+  const pending = groups.flatMap((g) =>
+    g.resourceAccess
+      .filter((ra) => isGranted(g.resourceAppId, ra) !== true)
+      .map((ra) => ({ resourceAppId: g.resourceAppId, ra })),
+  );
+  const blocker = consentBlocker(roles, pending);
+
+  const grantConsent = async () => {
+    let clientSp = sp;
+    if (!clientSp) {
+      clientSp = await createServicePrincipalFromAppId(token, app.appId);
+      onSpChange(clientSp);
+    }
+    // Re-read so we merge into the latest grants rather than a stale copy.
+    const fresh = await loadGrantState(clientSp.id);
+    for (const g of groups) {
+      const resSp = resourceSps[g.resourceAppId];
+      if (!resSp) continue;
+
+      const scopes = g.resourceAccess
+        .filter((ra) => ra.type === 'Scope')
+        .map((ra) => resSp.oauth2PermissionScopes?.find((s) => s.id === ra.id)?.value)
+        .filter((v): v is string => Boolean(v));
+      if (scopes.length) {
+        const existing = fresh.grants.find(
+          (x) => x.consentType === 'AllPrincipals' && x.resourceId === resSp.id,
+        );
+        if (existing) {
+          const current = (existing.scope ?? '').split(/\s+/).filter(Boolean);
+          const merged = Array.from(new Set([...current, ...scopes]));
+          if (merged.length !== current.length)
+            await updateOAuth2Grant(token, existing.id, {
+              scope: merged.join(' '),
+            });
+        } else {
+          await createOAuth2Grant(token, {
+            clientId: clientSp.id,
+            consentType: 'AllPrincipals',
+            principalId: null,
+            resourceId: resSp.id,
+            scope: scopes.join(' '),
+          });
+        }
+      }
+
+      for (const ra of g.resourceAccess) {
+        if (ra.type !== 'Role') continue;
+        const has = fresh.assignments.some(
+          (a) => a.appRoleId === ra.id && a.resourceId === resSp.id,
+        );
+        if (!has)
+          await createAppRoleAssignment(token, clientSp.id, {
+            appRoleId: ra.id,
+            principalId: clientSp.id,
+            resourceId: resSp.id,
+          });
+      }
+    }
+    await loadGrantState(clientSp.id);
+  };
 
   const commit = async (next: RequiredResourceAccess[], workingKey: string) => {
     setSaveError(null);
@@ -1116,7 +1306,12 @@ function RequiredResourceAccessCard({
     setShowAdd(false);
   };
 
-  const removePermission = (resourceAppId: string, id: string) => {
+  const removePermission = async (resourceAppId: string, id: string, label: string) => {
+    const ok = await confirm({
+      title: 'Remove permission?',
+      message: `${label} will be removed from the manifest. Any consent already granted on the enterprise app is not revoked.`,
+    });
+    if (!ok) return;
     const next = groups
       .map((g) =>
         g.resourceAppId === resourceAppId
@@ -1130,43 +1325,189 @@ function RequiredResourceAccessCard({
     void commit(next, `perm:${resourceAppId}:${id}`).catch(() => {});
   };
 
-  const removeResource = (resourceAppId: string) => {
+  const removeResource = async (resourceAppId: string, name: string) => {
+    const ok = await confirm({
+      title: 'Remove resource?',
+      message: `All permissions for ${name} will be removed from the manifest. Any consent already granted on the enterprise app is not revoked.`,
+      confirmLabel: 'Remove resource',
+    });
+    if (!ok) return;
     const next = groups.filter((g) => g.resourceAppId !== resourceAppId);
     void commit(next, `res:${resourceAppId}`).catch(() => {});
   };
 
-  return (
-    <div className="card">
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <div>
-          <h3 style={{ margin: 0 }}>Required resource access (manifest)</h3>
-          <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-            Permissions declared in the application manifest. To take effect, they must be
-            consented/granted on the enterprise app.
-          </div>
+  const renderPermissionTable = (
+    g: RequiredResourceAccess,
+    resSp: ServicePrincipal | null | undefined,
+    type: 'Scope' | 'Role',
+  ) => {
+    const entries = g.resourceAccess.filter((ra) => ra.type === type);
+    if (entries.length === 0) return null;
+    const resolving = resSp === undefined;
+    const permKind = type === 'Role' ? 'application' : 'delegated';
+    return (
+      <>
+        <div className="subsection-title">
+          {type === 'Role'
+            ? `Application permissions (roles) · ${entries.length}`
+            : `Delegated permissions (scopes) · ${entries.length}`}
         </div>
-        <button className="primary" onClick={() => setShowAdd(true)}>
-          + Add a required permission
-        </button>
-      </div>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Permission</th>
+              <th>Description</th>
+              <th style={{ width: 120 }}>Admin consent</th>
+              <th style={{ width: 100 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((ra) => {
+              const role =
+                type === 'Role' ? resSp?.appRoles?.find((x) => x.id === ra.id) : undefined;
+              const scope =
+                type === 'Scope'
+                  ? resSp?.oauth2PermissionScopes?.find((x) => x.id === ra.id)
+                  : undefined;
+              const permValue = role?.value ?? scope?.value;
+              const permTitle = role?.displayName ?? scope?.adminConsentDisplayName;
+              const permDesc = role?.description ?? scope?.adminConsentDescription;
+              const key = `perm:${g.resourceAppId}:${ra.id}`;
+              const granted = isGranted(g.resourceAppId, ra);
+              return (
+                <tr key={ra.id}>
+                  <td>
+                    {permValue ? (
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() =>
+                          setDetailsFor({
+                            scope: permValue,
+                            kind: permKind,
+                            resourceAppId: g.resourceAppId,
+                            resourceName: resSp?.displayName,
+                            title: permTitle,
+                            description: permDesc,
+                          })
+                        }
+                        title="Show the URLs this permission unlocks"
+                      >
+                        <span className="mono" style={{ fontWeight: 600 }}>
+                          {permValue}
+                        </span>
+                      </button>
+                    ) : (
+                      <div className="mono" style={{ fontWeight: 600 }}>
+                        {resolving ? '…' : ra.id}
+                      </div>
+                    )}
+                    {permTitle && (
+                      <div className="muted" style={{ fontSize: 12 }}>
+                        {permTitle}
+                      </div>
+                    )}
+                    {!permValue && !resolving && (
+                      <div className="mono muted" style={{ fontSize: 11 }}>
+                        {ra.id}
+                      </div>
+                    )}
+                    <PrivilegeBadge
+                      catalog={catalog}
+                      resourceAppId={g.resourceAppId}
+                      scope={permValue}
+                      kind={permKind}
+                    />
+                  </td>
+                  <td className="muted" style={{ maxWidth: 380, fontSize: 12 }}>
+                    {permDesc ?? ''}
+                  </td>
+                  <td>
+                    {granted === undefined ? (
+                      <span className="muted">—</span>
+                    ) : granted ? (
+                      <span className="badge granted">Granted</span>
+                    ) : (
+                      <span className="badge pending">Not granted</span>
+                    )}
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <RemoveButton
+                      label="Remove permission"
+                      busy={working === key}
+                      onClick={() =>
+                        void removePermission(
+                          g.resourceAppId,
+                          ra.id,
+                          permValue ?? permTitle ?? ra.id,
+                        )
+                      }
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </>
+    );
+  };
 
+  const consentDisabledReason =
+    blocker ??
+    (groups.length === 0
+      ? 'No permissions to consent to'
+      : pending.length === 0
+        ? 'All permissions already have admin consent'
+        : null);
+
+  return (
+    <CollapsibleCard
+      title="API permissions (manifest)"
+      subtitle="Permissions declared in the application manifest. To take effect, they must be consented/granted on the enterprise app."
+      storageKey="appreg.permissions"
+      action={
+        <div className="row" style={{ gap: 8 }}>
+          <button
+            disabled={consentDisabledReason !== null}
+            title={
+              consentDisabledReason ??
+              (roles === null
+                ? "Couldn't verify your directory roles — Graph will reject the request if you lack them."
+                : `Grant tenant-wide consent for ${pending.length} permission${pending.length === 1 ? '' : 's'}`)
+            }
+            onClick={() => setShowConsent(true)}
+          >
+            Grant admin consent
+          </button>
+          <button className="primary" onClick={() => setShowAdd(true)}>
+            + Add a required permission
+          </button>
+        </div>
+      }
+    >
       {saveError && (
-        <p className="error" style={{ marginTop: 12 }}>
+        <p className="error" style={{ marginTop: 0 }}>
           {saveError}
+        </p>
+      )}
+      {blocker && roles !== undefined && groups.length > 0 && pending.length > 0 && (
+        <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+          Admin consent unavailable: {blocker}
         </p>
       )}
 
       {groups.length === 0 ? (
-        <div className="muted" style={{ marginTop: 12 }}>
-          No required resource access declared.
-        </div>
+        <div className="muted">No required resource access declared.</div>
       ) : (
-        <div style={{ marginTop: 12 }}>
+        <div>
           {groups.map((g) => {
             const resSp = resourceSps[g.resourceAppId];
             const resolving = resSp === undefined;
             const resName = resSp?.displayName ?? (resolving ? '…' : g.resourceAppId);
             const isCollapsed = collapsed.has(g.resourceAppId);
+            const scopeCount = g.resourceAccess.filter((ra) => ra.type === 'Scope').length;
+            const roleCount = g.resourceAccess.length - scopeCount;
             return (
               <div key={g.resourceAppId} className={`group-box${isCollapsed ? ' collapsed' : ''}`}>
                 <div className="group-header" onClick={() => toggleCollapsed(g.resourceAppId)}>
@@ -1180,123 +1521,37 @@ function RequiredResourceAccessCard({
                       size={24}
                       title={resName}
                     />
-                    <div>
+                    <div className="group-heading">
                       <div className="group-title">{resName}</div>
                       <div className="group-subtitle">
                         {g.resourceAppId}
                         <CopyButton value={g.resourceAppId} label="resource appId" />
                         {' · '}
-                        {g.resourceAccess.length} permission
-                        {g.resourceAccess.length === 1 ? '' : 's'}
+                        {scopeCount} scope{scopeCount === 1 ? '' : 's'}
+                        {' · '}
+                        {roleCount} role{roleCount === 1 ? '' : 's'}
                       </div>
                     </div>
                   </div>
-                  <button
-                    className="danger"
-                    disabled={working === `res:${g.resourceAppId}`}
+                  <RemoveButton
+                    label="Remove resource"
+                    busy={working === `res:${g.resourceAppId}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      removeResource(g.resourceAppId);
+                      void removeResource(g.resourceAppId, resName);
                     }}
-                  >
-                    {working === `res:${g.resourceAppId}` ? '…' : 'Remove resource'}
-                  </button>
+                  />
                 </div>
                 {!isCollapsed && (
                   <div className="group-body">
-                    <table className="table">
-                      <thead>
-                        <tr>
-                          <th>Permission</th>
-                          <th>Type</th>
-                          <th>Description</th>
-                          <th style={{ width: 100 }}></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {g.resourceAccess.map((ra) => {
-                          const role =
-                            ra.type === 'Role'
-                              ? resSp?.appRoles?.find((x) => x.id === ra.id)
-                              : undefined;
-                          const scope =
-                            ra.type === 'Scope'
-                              ? resSp?.oauth2PermissionScopes?.find((x) => x.id === ra.id)
-                              : undefined;
-                          const permValue = role?.value ?? scope?.value;
-                          const permTitle = role?.displayName ?? scope?.adminConsentDisplayName;
-                          const permDesc = role?.description ?? scope?.adminConsentDescription;
-                          const key = `perm:${g.resourceAppId}:${ra.id}`;
-                          const permKind = ra.type === 'Role' ? 'application' : 'delegated';
-                          return (
-                            <tr key={ra.id}>
-                              <td>
-                                {permValue ? (
-                                  <button
-                                    type="button"
-                                    className="link"
-                                    onClick={() =>
-                                      setDetailsFor({
-                                        scope: permValue,
-                                        kind: permKind,
-                                        resourceAppId: g.resourceAppId,
-                                        resourceName: resSp?.displayName,
-                                        title: permTitle,
-                                        description: permDesc,
-                                      })
-                                    }
-                                    title="Show the URLs this permission unlocks"
-                                  >
-                                    <span className="mono" style={{ fontWeight: 600 }}>
-                                      {permValue}
-                                    </span>
-                                  </button>
-                                ) : (
-                                  <div className="mono" style={{ fontWeight: 600 }}>
-                                    {resolving ? '…' : ra.id}
-                                  </div>
-                                )}
-                                {permTitle && (
-                                  <div className="muted" style={{ fontSize: 12 }}>
-                                    {permTitle}
-                                  </div>
-                                )}
-                                {!permValue && !resolving && (
-                                  <div className="mono muted" style={{ fontSize: 11 }}>
-                                    {ra.id}
-                                  </div>
-                                )}
-                                <PrivilegeBadge
-                                  catalog={catalog}
-                                  resourceAppId={g.resourceAppId}
-                                  scope={permValue}
-                                  kind={permKind}
-                                />
-                              </td>
-                              <td>
-                                {ra.type === 'Role' ? (
-                                  <span className="badge app">Application</span>
-                                ) : (
-                                  <span className="badge delegated">Delegated</span>
-                                )}
-                              </td>
-                              <td className="muted" style={{ maxWidth: 380, fontSize: 12 }}>
-                                {permDesc ?? ''}
-                              </td>
-                              <td style={{ textAlign: 'right' }}>
-                                <button
-                                  className="danger"
-                                  disabled={working === key}
-                                  onClick={() => removePermission(g.resourceAppId, ra.id)}
-                                >
-                                  {working === key ? '…' : 'Remove'}
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                    {resSp === null && (
+                      <div className="muted" style={{ fontSize: 12, padding: '8px 14px 0' }}>
+                        This API has no service principal in this tenant, so its permissions can't
+                        be consented to here.
+                      </div>
+                    )}
+                    {renderPermissionTable(g, resSp, 'Scope')}
+                    {renderPermissionTable(g, resSp, 'Role')}
                   </div>
                 )}
               </div>
@@ -1312,6 +1567,16 @@ function RequiredResourceAccessCard({
           onSubmit={addEntry}
         />
       )}
+      {showConsent && (
+        <AdminConsentModal
+          app={app}
+          hasSp={Boolean(sp)}
+          pending={pending}
+          resourceSps={resourceSps}
+          onClose={() => setShowConsent(false)}
+          onConfirm={grantConsent}
+        />
+      )}
       {detailsFor && (
         <ScopeDetailsModal
           scope={detailsFor.scope}
@@ -1323,7 +1588,104 @@ function RequiredResourceAccessCard({
           onClose={() => setDetailsFor(null)}
         />
       )}
-    </div>
+      {confirmDialog}
+    </CollapsibleCard>
+  );
+}
+
+function AdminConsentModal({
+  app,
+  hasSp,
+  pending,
+  resourceSps,
+  onClose,
+  onConfirm,
+}: {
+  app: Application;
+  hasSp: boolean;
+  pending: Array<{ resourceAppId: string; ra: ResourceAccessEntry }>;
+  resourceSps: Record<string, ServicePrincipal | null>;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const byResource = new Map<string, ResourceAccessEntry[]>();
+  for (const p of pending) {
+    byResource.set(p.resourceAppId, [...(byResource.get(p.resourceAppId) ?? []), p.ra]);
+  }
+  const unavailable = Array.from(byResource.keys()).filter((id) => !resourceSps[id]);
+
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await onConfirm();
+      onClose();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+      setBusy(false);
+    }
+  };
+
+  const label = (resSp: ServicePrincipal | null | undefined, ra: ResourceAccessEntry) =>
+    (ra.type === 'Role'
+      ? resSp?.appRoles?.find((x) => x.id === ra.id)?.value
+      : resSp?.oauth2PermissionScopes?.find((x) => x.id === ra.id)?.value) ?? ra.id;
+
+  return (
+    <Modal
+      title="Grant admin consent"
+      onClose={() => !busy && onClose()}
+      footer={
+        <>
+          <button disabled={busy} onClick={onClose}>
+            Cancel
+          </button>
+          <button className="primary" disabled={busy} onClick={submit}>
+            {busy ? 'Granting…' : 'Grant consent'}
+          </button>
+        </>
+      }
+    >
+      <p style={{ marginTop: 0 }}>
+        Grant tenant-wide consent to <strong>{app.displayName}</strong> for the following
+        permissions on behalf of all users in this tenant:
+      </p>
+      {!hasSp && (
+        <p className="muted" style={{ fontSize: 13 }}>
+          The app has no enterprise app (service principal) in this tenant yet — one will be created
+          first.
+        </p>
+      )}
+      {Array.from(byResource.entries()).map(([resourceAppId, entries]) => {
+        const resSp = resourceSps[resourceAppId];
+        return (
+          <div key={resourceAppId} style={{ marginBottom: 10 }}>
+            <div style={{ fontWeight: 600 }}>{resSp?.displayName ?? resourceAppId}</div>
+            <div className="row wrap" style={{ gap: 6, marginTop: 4 }}>
+              {entries.map((ra) => (
+                <span
+                  key={ra.id}
+                  className={`badge ${ra.type === 'Role' ? 'app' : 'delegated'}`}
+                  title={ra.type === 'Role' ? 'Application' : 'Delegated'}
+                >
+                  {label(resSp, ra)}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+      {unavailable.length > 0 && (
+        <p className="muted" style={{ fontSize: 13 }}>
+          Skipped — no service principal in this tenant for:{' '}
+          <span className="mono">{unavailable.join(', ')}</span>
+        </p>
+      )}
+      {error && <p className="error">{error}</p>}
+    </Modal>
   );
 }
 
@@ -1357,6 +1719,7 @@ function CredentialsCard({
   onAppChange: (next: Application) => void;
 }) {
   const token = useGraphToken();
+  const { confirm, confirmDialog } = useConfirm();
   const secrets: PasswordCredential[] = app.passwordCredentials ?? [];
   const certs: KeyCredential[] = app.keyCredentials ?? [];
   const [selectedSecret, setSelectedSecret] = useState<PasswordCredential | null>(null);
@@ -1425,7 +1788,13 @@ function CredentialsCard({
   const handleRemoveExpiredSecrets = async () => {
     if (expiredSecrets.length === 0) return;
     const n = expiredSecrets.length;
-    if (!window.confirm(`Remove ${n} expired client secret${n === 1 ? '' : 's'}?`)) return;
+    const ok = await confirm({
+      title: `Remove ${n} expired client secret${n === 1 ? '' : 's'}?`,
+      message:
+        'Expired secrets no longer work, but removing them is permanent. Secrets that are still valid are not affected.',
+      confirmLabel: 'Remove expired',
+    });
+    if (!ok) return;
     setBulkBusy('secrets');
     setBulkError(null);
     try {
@@ -1449,7 +1818,13 @@ function CredentialsCard({
   const handleRemoveExpiredCerts = async () => {
     if (expiredCerts.length === 0) return;
     const n = expiredCerts.length;
-    if (!window.confirm(`Remove ${n} expired certificate${n === 1 ? '' : 's'}?`)) return;
+    const ok = await confirm({
+      title: `Remove ${n} expired certificate${n === 1 ? '' : 's'}?`,
+      message:
+        'Expired certificates no longer work, but removing them is permanent. Certificates that are still valid are not affected.',
+      confirmLabel: 'Remove expired',
+    });
+    if (!ok) return;
     setBulkBusy('certs');
     setBulkError(null);
     try {
@@ -1464,8 +1839,7 @@ function CredentialsCard({
   };
 
   return (
-    <div className="card">
-      <h3>Credentials</h3>
+    <CollapsibleCard title="Credentials" storageKey="appreg.credentials">
       {activityError && (
         <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
           Last-used info unavailable — grant <span className="mono">AuditLog.Read.All</span> to
@@ -1694,7 +2068,8 @@ function CredentialsCard({
         <AddCertificateModal onClose={() => setShowAddCert(false)} onSubmit={handleAddCert} />
       )}
       {newSecret && <NewSecretValueModal secret={newSecret} onClose={() => setNewSecret(null)} />}
-    </div>
+      {confirmDialog}
+    </CollapsibleCard>
   );
 }
 

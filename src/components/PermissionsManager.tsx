@@ -16,6 +16,8 @@ import { AddPermissionModal, type AddPermissionSubmitPayload } from './AddPermis
 import { PrivilegeBadge, useScopeCatalog } from './PrivilegeBadge';
 import { ScopeDetailsModal } from './ScopeDetailsModal';
 import { CopyButton } from './CopyButton';
+import { RemoveButton } from './RemoveButton';
+import { useConfirm } from './ConfirmDialog';
 import { AppIcon } from './AppIcon';
 
 interface Props {
@@ -59,6 +61,7 @@ export function PermissionsManager({ clientSp }: Props) {
   const [showAdd, setShowAdd] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const catalog = useScopeCatalog();
+  const { confirm, confirmDialog } = useConfirm();
   const [detailsFor, setDetailsFor] = useState<{
     scope: string;
     kind: 'delegated' | 'application';
@@ -218,6 +221,32 @@ export function PermissionsManager({ clientSp }: Props) {
     }
   };
 
+  const revokeOne = async (row: Row) => {
+    const ok = await confirm({
+      title: 'Revoke permission?',
+      message: `${row.name} on ${row.resourceName} will be revoked${
+        row.kind === 'app' && row.principalName ? ` for ${row.principalName}` : ''
+      }. The app loses this access immediately.`,
+      confirmLabel: 'Revoke',
+    });
+    if (!ok) return;
+    await revoke(row);
+  };
+
+  const revokeAll = async (rows: Row[], resourceName: string) => {
+    const ok = await confirm({
+      title: `Revoke all ${resourceName} permissions?`,
+      message: `${rows.length} permission${
+        rows.length === 1 ? '' : 's'
+      } will be revoked. The app loses this access immediately.`,
+      confirmLabel: 'Revoke all',
+    });
+    if (!ok) return;
+    for (const r of rows) {
+      await revoke(r);
+    }
+  };
+
   const addPermissions = async (payload: AddPermissionSubmitPayload) => {
     setError(null);
     try {
@@ -314,7 +343,7 @@ export function PermissionsManager({ clientSp }: Props) {
                       size={24}
                       title={group.resourceName}
                     />
-                    <div>
+                    <div className="group-heading">
                       <div className="group-title">{group.resourceName}</div>
                       <div className="group-subtitle">
                         {group.resourceAppId ?? group.resourceId}
@@ -331,11 +360,9 @@ export function PermissionsManager({ clientSp }: Props) {
                   <button
                     className="danger"
                     disabled={working !== null}
-                    onClick={async (e) => {
+                    onClick={(e) => {
                       e.stopPropagation();
-                      for (const r of group.rows) {
-                        await revoke(r);
-                      }
+                      void revokeAll(group.rows, group.resourceName);
                     }}
                   >
                     Revoke all
@@ -423,13 +450,11 @@ export function PermissionsManager({ clientSp }: Props) {
                               {r.description}
                             </td>
                             <td style={{ textAlign: 'right' }}>
-                              <button
-                                className="danger"
-                                disabled={working === r.key}
-                                onClick={() => revoke(r)}
-                              >
-                                {working === r.key ? '…' : 'Revoke'}
-                              </button>
+                              <RemoveButton
+                                label="Revoke permission"
+                                busy={working === r.key}
+                                onClick={() => void revokeOne(r)}
+                              />
                             </td>
                           </tr>
                         ))}
@@ -461,6 +486,7 @@ export function PermissionsManager({ clientSp }: Props) {
           onClose={() => setDetailsFor(null)}
         />
       )}
+      {confirmDialog}
     </>
   );
 }

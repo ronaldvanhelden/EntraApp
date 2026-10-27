@@ -9,6 +9,8 @@ import type { AppRole, AppRoleAssignment, ServicePrincipal } from '../graph/type
 import { resolveDirectoryObjects, type PrincipalRef } from '../graph/directoryObjects';
 import { Modal } from './Modal';
 import { PrincipalPicker } from './PrincipalPicker';
+import { RemoveButton } from './RemoveButton';
+import { useConfirm } from './ConfirmDialog';
 
 interface Props {
   sp: ServicePrincipal;
@@ -20,6 +22,7 @@ const DEFAULT_ACCESS_ROLE_ID = '00000000-0000-0000-0000-000000000000';
 
 export function AssignedUsersManager({ sp }: Props) {
   const token = useGraphToken();
+  const { confirm, confirmDialog } = useConfirm();
   const [assignments, setAssignments] = useState<AppRoleAssignment[] | null>(null);
   const [principals, setPrincipals] = useState<Record<string, PrincipalRef>>({});
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +66,12 @@ export function AssignedUsersManager({ sp }: Props) {
     [sp.appRoles],
   );
 
-  const revoke = async (a: AppRoleAssignment) => {
+  const revoke = async (a: AppRoleAssignment, who: string) => {
+    const ok = await confirm({
+      title: 'Remove assignment?',
+      message: `${who} will lose access to this app immediately.`,
+    });
+    if (!ok) return;
     setError(null);
     setWorking(a.id);
     try {
@@ -158,13 +166,13 @@ export function AssignedUsersManager({ sp }: Props) {
                       {a.createdDateTime ? new Date(a.createdDateTime).toLocaleDateString() : '—'}
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <button
-                        className="danger"
-                        disabled={working === a.id}
-                        onClick={() => revoke(a)}
-                      >
-                        {working === a.id ? '…' : 'Remove'}
-                      </button>
+                      <RemoveButton
+                        label="Remove assignment"
+                        busy={working === a.id}
+                        onClick={() =>
+                          void revoke(a, p?.displayName ?? a.principalDisplayName ?? a.principalId)
+                        }
+                      />
                     </td>
                   </tr>
                 );
@@ -182,6 +190,7 @@ export function AssignedUsersManager({ sp }: Props) {
           onSubmit={add}
         />
       )}
+      {confirmDialog}
     </>
   );
 }

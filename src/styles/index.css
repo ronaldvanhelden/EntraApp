@@ -98,6 +98,20 @@ button.danger:hover:not(:disabled) {
   background: var(--danger);
   color: #fff;
 }
+button.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  line-height: 1;
+}
+button.icon-btn svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
 button.ghost {
   background: transparent;
   border-color: transparent;
@@ -329,6 +343,53 @@ pre {
   font-weight: 600;
 }
 
+/* Card with a clickable header that folds the body away (CollapsibleCard). */
+.card.collapsible .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.card.collapsible .card-header h3 {
+  margin: 0;
+}
+.card.collapsible .card-header .chevron {
+  display: inline-block;
+  width: 16px;
+  font-size: 18px;
+  line-height: 1;
+  text-align: center;
+  color: var(--text-muted);
+  transition: transform 120ms;
+}
+.card.collapsible.collapsed .card-header .chevron {
+  transform: rotate(-90deg);
+}
+.card.collapsible .card-body {
+  margin-top: 12px;
+  overflow-x: auto;
+}
+.card.card-danger {
+  background: color-mix(in srgb, var(--danger) 8%, var(--bg-elevated));
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+}
+.card.card-danger .card-header h3 {
+  color: var(--danger);
+}
+.card.card-danger .card-header .chevron {
+  color: var(--danger);
+}
+.subsection-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: 10px 14px 4px;
+}
+
 /* Tables become horizontally scrollable inside their card wrapper so columns
    don't get squashed unreadably on narrow viewports. The :has() rule catches
    card wrappers whose immediate child is a table; a mobile-wide fallback
@@ -372,12 +433,22 @@ pre {
 }
 .group-header .chevron {
   display: inline-block;
-  width: 12px;
+  width: 16px;
+  font-size: 18px;
+  line-height: 1;
+  text-align: center;
   color: var(--text-muted);
   transition: transform 120ms;
 }
 .group-box.collapsed .group-header .chevron {
   transform: rotate(-90deg);
+}
+.group-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 .group-title {
   font-weight: 600;
@@ -387,7 +458,6 @@ pre {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
   color: var(--text-muted);
-  margin-top: 2px;
 }
 .group-body {
   overflow-x: auto;
@@ -493,17 +563,17 @@ button.link:hover .mono {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   padding: 0;
-  margin-left: 4px;
+  margin: -3px 0 -3px 4px;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 3px;
-  color: var(--text-dim);
+  color: var(--accent);
   cursor: pointer;
   vertical-align: middle;
-  opacity: 0.55;
+  opacity: 0.85;
   transition:
     opacity 120ms,
     background 120ms,
@@ -512,7 +582,7 @@ button.link:hover .mono {
 }
 .copy-btn:hover {
   opacity: 1;
-  color: var(--text);
+  color: var(--accent-hover);
   background: var(--bg-hover);
   border-color: var(--border-subtle);
 }
@@ -521,8 +591,9 @@ button.link:hover .mono {
   opacity: 1;
 }
 .copy-btn svg {
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
+  display: block;
 }
 
 .table {
@@ -753,6 +824,9 @@ button.link:hover .mono {
   display: flex;
   flex-direction: column;
   min-width: 0;
+}
+.modal.modal-sm {
+  max-width: 460px;
 }
 .modal-header {
   padding: 14px 18px;
