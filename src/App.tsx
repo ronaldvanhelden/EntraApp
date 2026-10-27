@@ -17,10 +17,7 @@ export default function App() {
           <Route path="/applications" element={<Applications />} />
           <Route path="/applications/:id" element={<ApplicationDetail />} />
           <Route path="/enterprise-apps" element={<EnterpriseApps />} />
-          <Route
-            path="/enterprise-apps/:id"
-            element={<EnterpriseAppDetail />}
-          />
+          <Route path="/enterprise-apps/:id" element={<EnterpriseAppDetail />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -7,10 +7,7 @@ import {
 } from '../graph/servicePrincipals';
 import type { RequiredResourceAccess, ServicePrincipal } from '../graph/types';
 import { Modal } from './Modal';
-import {
-  PermissionChecklist,
-  toggleSet,
-} from './AddPermissionModal';
+import { PermissionChecklist, toggleSet } from './AddPermissionModal';
 import { ScopeLookupPanel } from './ScopeLookupPanel';
 import { useScopeCatalog } from './PrivilegeBadge';
 import { MS_GRAPH_APP_ID, type EndpointMatch } from '../graph/scopeCatalog';
@@ -43,11 +40,7 @@ interface Props {
   onSubmit: (entry: RequiredResourceAccess) => Promise<void>;
 }
 
-export function AddRequiredPermissionModal({
-  existing,
-  onClose,
-  onSubmit,
-}: Props) {
+export function AddRequiredPermissionModal({ existing, onClose, onSubmit }: Props) {
   const token = useGraphToken();
 
   const [resource, setResource] = useState<ServicePrincipal | null>(null);
@@ -65,15 +58,12 @@ export function AddRequiredPermissionModal({
   // When the "By URL" flow picks a scope we remember it and apply the
   // selection as soon as the resource SP finishes loading (it exposes the
   // scope→id map we need).
-  const [pendingPick, setPendingPick] = useState<
-    | { scope: string; kind: 'delegated' | 'application' }
-    | null
-  >(null);
+  const [pendingPick, setPendingPick] = useState<{
+    scope: string;
+    kind: 'delegated' | 'application';
+  } | null>(null);
 
-  const prepareSelectionForScope = (
-    match: EndpointMatch,
-    kind: 'delegated' | 'application',
-  ) => {
+  const prepareSelectionForScope = (match: EndpointMatch, kind: 'delegated' | 'application') => {
     setPendingPick({ scope: match.scope, kind });
   };
 
@@ -111,9 +101,7 @@ export function AddRequiredPermissionModal({
     try {
       const sp = await getServicePrincipalByAppId(token, appId);
       if (!sp) {
-        setError(
-          `Service principal for "${name}" not found in this tenant. Add it first.`,
-        );
+        setError(`Service principal for "${name}" not found in this tenant. Add it first.`);
         return;
       }
       const full = await getServicePrincipal(token, sp.id);
@@ -129,15 +117,9 @@ export function AddRequiredPermissionModal({
   const seedFromExisting = (sp: ServicePrincipal) => {
     const entry = existing.find((e) => e.resourceAppId === sp.appId);
     if (!entry) return;
-    setSelectedApp(
-      new Set(
-        entry.resourceAccess.filter((a) => a.type === 'Role').map((a) => a.id),
-      ),
-    );
+    setSelectedApp(new Set(entry.resourceAccess.filter((a) => a.type === 'Role').map((a) => a.id)));
     setSelectedDel(
-      new Set(
-        entry.resourceAccess.filter((a) => a.type === 'Scope').map((a) => a.id),
-      ),
+      new Set(entry.resourceAccess.filter((a) => a.type === 'Scope').map((a) => a.id)),
     );
   };
 
@@ -146,17 +128,13 @@ export function AddRequiredPermissionModal({
   useEffect(() => {
     if (!resource || !pendingPick) return;
     if (pendingPick.kind === 'delegated') {
-      const id = resource.oauth2PermissionScopes?.find(
-        (s) => s.value === pendingPick.scope,
-      )?.id;
+      const id = resource.oauth2PermissionScopes?.find((s) => s.value === pendingPick.scope)?.id;
       if (id) {
         setSelectedDel((prev) => new Set(prev).add(id));
         setTab('delegated');
       }
     } else {
-      const id = resource.appRoles?.find(
-        (r) => r.value === pendingPick.scope,
-      )?.id;
+      const id = resource.appRoles?.find((r) => r.value === pendingPick.scope)?.id;
       if (id) {
         setSelectedApp((prev) => new Set(prev).add(id));
         setTab('app');
@@ -177,8 +155,7 @@ export function AddRequiredPermissionModal({
     [resource],
   );
 
-  const filterFn = (text: string) =>
-    !filter || text.toLowerCase().includes(filter.toLowerCase());
+  const filterFn = (text: string) => !filter || text.toLowerCase().includes(filter.toLowerCase());
 
   const submit = async () => {
     if (!resource) return;
@@ -221,16 +198,10 @@ export function AddRequiredPermissionModal({
       {!resource ? (
         <>
           <div className="tabs" style={{ marginBottom: 16 }}>
-            <button
-              className={mode === 'api' ? 'active' : ''}
-              onClick={() => setMode('api')}
-            >
+            <button className={mode === 'api' ? 'active' : ''} onClick={() => setMode('api')}>
               By API
             </button>
-            <button
-              className={mode === 'url' ? 'active' : ''}
-              onClick={() => setMode('url')}
-            >
+            <button className={mode === 'url' ? 'active' : ''} onClick={() => setMode('url')}>
               By Graph URL
             </button>
           </div>
@@ -283,17 +254,13 @@ export function AddRequiredPermissionModal({
             <>
               <h3 style={{ marginTop: 0 }}>Find scopes by Graph URL</h3>
               <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
-                Only Microsoft Graph endpoints are in the public catalog.
-                Picking a result loads the Microsoft Graph service principal
-                and pre-selects the scope.
+                Only Microsoft Graph endpoints are in the public catalog. Picking a result loads the
+                Microsoft Graph service principal and pre-selects the scope.
               </p>
               <ScopeLookupPanel
                 catalog={catalog}
                 onPick={async (match, kind) => {
-                  await pickResourceByAppId(
-                    MS_GRAPH_APP_ID,
-                    'Microsoft Graph',
-                  );
+                  await pickResourceByAppId(MS_GRAPH_APP_ID, 'Microsoft Graph');
                   prepareSelectionForScope(match, kind);
                 }}
               />
@@ -305,9 +272,7 @@ export function AddRequiredPermissionModal({
         <>
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 600 }}>
-                {resource.displayName}
-              </div>
+              <div style={{ fontSize: 15, fontWeight: 600 }}>{resource.displayName}</div>
               <div className="mono muted" style={{ fontSize: 12 }}>
                 {resource.appId}
               </div>
@@ -332,10 +297,7 @@ export function AddRequiredPermissionModal({
             >
               Delegated ({delegatedScopes.length})
             </button>
-            <button
-              className={tab === 'app' ? 'active' : ''}
-              onClick={() => setTab('app')}
-            >
+            <button className={tab === 'app' ? 'active' : ''} onClick={() => setTab('app')}>
               Application ({appRoles.length})
             </button>
           </div>
@@ -353,9 +315,7 @@ export function AddRequiredPermissionModal({
             ) : (
               <PermissionChecklist
                 items={delegatedScopes
-                  .filter((s) =>
-                    filterFn(`${s.value} ${s.adminConsentDisplayName}`),
-                  )
+                  .filter((s) => filterFn(`${s.value} ${s.adminConsentDisplayName}`))
                   .map((s) => ({
                     id: s.id,
                     title: s.value,
@@ -364,9 +324,7 @@ export function AddRequiredPermissionModal({
                     badge: s.type === 'Admin' ? 'Admin' : 'User',
                   }))}
                 selected={selectedDel}
-                onToggle={(id) =>
-                  setSelectedDel((prev) => toggleSet(prev, id))
-                }
+                onToggle={(id) => setSelectedDel((prev) => toggleSet(prev, id))}
               />
             )
           ) : appRoles.length === 0 ? (
@@ -387,9 +345,8 @@ export function AddRequiredPermissionModal({
           )}
 
           <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
-            Saving updates the application's manifest only. Permissions still
-            need to be consented/granted on the enterprise app (service
-            principal) before they take effect.
+            Saving updates the application's manifest only. Permissions still need to be
+            consented/granted on the enterprise app (service principal) before they take effect.
           </p>
 
           {error && <p className="error">{error}</p>}

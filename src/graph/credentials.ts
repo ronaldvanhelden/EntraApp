@@ -1,15 +1,9 @@
 import { graphAll } from './client';
-import type {
-  AppCredentialSignInActivity,
-  FederatedIdentityCredential,
-} from './types';
+import type { AppCredentialSignInActivity, FederatedIdentityCredential } from './types';
 
 type TokenFn = () => Promise<string>;
 
-export function listFederatedIdentityCredentials(
-  token: TokenFn,
-  applicationObjectId: string,
-) {
+export function listFederatedIdentityCredentials(token: TokenFn, applicationObjectId: string) {
   return graphAll<FederatedIdentityCredential>(
     token,
     `/applications/${applicationObjectId}/federatedIdentityCredentials`,
@@ -18,18 +12,11 @@ export function listFederatedIdentityCredentials(
 
 // appCredentialSignInActivities is only available on the beta endpoint.
 // Requires AuditLog.Read.All.
-export function listAppCredentialSignInActivities(
-  token: TokenFn,
-  appId: string,
-) {
-  return graphAll<AppCredentialSignInActivity>(
-    token,
-    '/reports/appCredentialSignInActivities',
-    {
-      api: 'beta',
-      query: { $filter: `appId eq '${appId.replace(/'/g, "''")}'` },
-    },
-  );
+export function listAppCredentialSignInActivities(token: TokenFn, appId: string) {
+  return graphAll<AppCredentialSignInActivity>(token, '/reports/appCredentialSignInActivities', {
+    api: 'beta',
+    query: { $filter: `appId eq '${appId.replace(/'/g, "''")}'` },
+  });
 }
 
 export function buildCredentialActivityMap(

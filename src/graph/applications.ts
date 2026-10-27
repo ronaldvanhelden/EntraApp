@@ -146,21 +146,14 @@ export function getApplicationByAppId(token: TokenFn, appId: string) {
   }).then((r) => r[0]);
 }
 
-export function createApplication(
-  token: TokenFn,
-  input: CreateApplicationInput,
-) {
+export function createApplication(token: TokenFn, input: CreateApplicationInput) {
   return graph<Application>(token, '/applications', {
     method: 'POST',
     body: input,
   });
 }
 
-export function updateApplication(
-  token: TokenFn,
-  id: string,
-  patch: UpdateApplicationPatch,
-) {
+export function updateApplication(token: TokenFn, id: string, patch: UpdateApplicationPatch) {
   return graph<void>(token, `/applications/${id}`, {
     method: 'PATCH',
     body: patch,
@@ -199,14 +192,10 @@ export function removeApplicationPassword(
   applicationObjectId: string,
   keyId: string,
 ) {
-  return graph<void>(
-    token,
-    `/applications/${applicationObjectId}/removePassword`,
-    {
-      method: 'POST',
-      body: { keyId },
-    },
-  );
+  return graph<void>(token, `/applications/${applicationObjectId}/removePassword`, {
+    method: 'POST',
+    body: { keyId },
+  });
 }
 
 export interface AddCertificateInput {

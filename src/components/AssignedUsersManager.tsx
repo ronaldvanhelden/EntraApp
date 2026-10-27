@@ -6,10 +6,7 @@ import {
   listAppRoleAssignedTo,
 } from '../graph/servicePrincipals';
 import type { AppRole, AppRoleAssignment, ServicePrincipal } from '../graph/types';
-import {
-  resolveDirectoryObjects,
-  type PrincipalRef,
-} from '../graph/directoryObjects';
+import { resolveDirectoryObjects, type PrincipalRef } from '../graph/directoryObjects';
 import { Modal } from './Modal';
 import { PrincipalPicker } from './PrincipalPicker';
 
@@ -23,9 +20,7 @@ const DEFAULT_ACCESS_ROLE_ID = '00000000-0000-0000-0000-000000000000';
 
 export function AssignedUsersManager({ sp }: Props) {
   const token = useGraphToken();
-  const [assignments, setAssignments] = useState<AppRoleAssignment[] | null>(
-    null,
-  );
+  const [assignments, setAssignments] = useState<AppRoleAssignment[] | null>(null);
   const [principals, setPrincipals] = useState<Record<string, PrincipalRef>>({});
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState<string | null>(null);
@@ -37,9 +32,7 @@ export function AssignedUsersManager({ sp }: Props) {
     try {
       const list = await listAppRoleAssignedTo(token, sp.id);
       setAssignments(list);
-      const missing = list
-        .map((a) => a.principalId)
-        .filter((id) => id && !principals[id]);
+      const missing = list.map((a) => a.principalId).filter((id) => id && !principals[id]);
       if (missing.length) {
         const resolved = await resolveDirectoryObjects(token, missing);
         setPrincipals((prev) => ({ ...prev, ...resolved }));
@@ -65,8 +58,7 @@ export function AssignedUsersManager({ sp }: Props) {
       (sp.appRoles ?? []).filter(
         (r) =>
           r.isEnabled &&
-          (r.allowedMemberTypes?.includes('User') ||
-            r.allowedMemberTypes?.includes('Application')),
+          (r.allowedMemberTypes?.includes('User') || r.allowedMemberTypes?.includes('Application')),
       ),
     [sp.appRoles],
   );
@@ -104,8 +96,8 @@ export function AssignedUsersManager({ sp }: Props) {
           <div>
             <h3 style={{ margin: 0 }}>Users and groups</h3>
             <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-              Principals (users, groups, service principals) assigned to this
-              enterprise app&apos;s roles.
+              Principals (users, groups, service principals) assigned to this enterprise app&apos;s
+              roles.
             </div>
           </div>
           <button className="primary" onClick={() => setShowAdd(true)}>
@@ -122,8 +114,7 @@ export function AssignedUsersManager({ sp }: Props) {
         </div>
       ) : assignments.length === 0 ? (
         <div className="card empty">
-          No principals assigned yet. Click <em>Add assignment</em> to grant
-          access.
+          No principals assigned yet. Click <em>Add assignment</em> to grant access.
         </div>
       ) : (
         <div className="card" style={{ padding: 0 }}>
@@ -145,18 +136,12 @@ export function AssignedUsersManager({ sp }: Props) {
                 const roleName =
                   a.appRoleId === DEFAULT_ACCESS_ROLE_ID
                     ? 'Default access'
-                    : role?.displayName ?? role?.value ?? a.appRoleId;
+                    : (role?.displayName ?? role?.value ?? a.appRoleId);
                 return (
                   <tr key={a.id} style={{ cursor: 'default' }}>
+                    <td>{p?.displayName ?? a.principalDisplayName ?? a.principalId}</td>
                     <td>
-                      {p?.displayName ??
-                        a.principalDisplayName ??
-                        a.principalId}
-                    </td>
-                    <td>
-                      <span className="badge">
-                        {a.principalType ?? p?.kind ?? '—'}
-                      </span>
+                      <span className="badge">{a.principalType ?? p?.kind ?? '—'}</span>
                     </td>
                     <td className="mono muted" style={{ fontSize: 12 }}>
                       {p?.subtitle ?? a.principalId}
@@ -170,9 +155,7 @@ export function AssignedUsersManager({ sp }: Props) {
                       )}
                     </td>
                     <td className="muted" style={{ fontSize: 12 }}>
-                      {a.createdDateTime
-                        ? new Date(a.createdDateTime).toLocaleDateString()
-                        : '—'}
+                      {a.createdDateTime ? new Date(a.createdDateTime).toLocaleDateString() : '—'}
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <button
@@ -215,9 +198,7 @@ function AddAssignmentModal({
   onSubmit: (p: PrincipalRef, roleId: string) => Promise<void>;
 }) {
   const [principal, setPrincipal] = useState<PrincipalRef | null>(null);
-  const [roleId, setRoleId] = useState<string>(
-    assignableRoles[0]?.id ?? DEFAULT_ACCESS_ROLE_ID,
-  );
+  const [roleId, setRoleId] = useState<string>(assignableRoles[0]?.id ?? DEFAULT_ACCESS_ROLE_ID);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -241,11 +222,7 @@ function AddAssignmentModal({
       footer={
         <>
           <button onClick={onClose}>Cancel</button>
-          <button
-            className="primary"
-            disabled={!principal || submitting}
-            onClick={submit}
-          >
+          <button className="primary" disabled={!principal || submitting} onClick={submit}>
             {submitting ? 'Assigning…' : 'Assign'}
           </button>
         </>
@@ -264,9 +241,7 @@ function AddAssignmentModal({
       <label className="field">
         <span>Role</span>
         <select value={roleId} onChange={(e) => setRoleId(e.target.value)}>
-          <option value={DEFAULT_ACCESS_ROLE_ID}>
-            Default access (no specific role)
-          </option>
+          <option value={DEFAULT_ACCESS_ROLE_ID}>Default access (no specific role)</option>
           {assignableRoles.map((r) => (
             <option key={r.id} value={r.id}>
               {r.displayName} ({r.value})
@@ -277,8 +252,7 @@ function AddAssignmentModal({
 
       {assignableRoles.length === 0 && (
         <div className="muted" style={{ fontSize: 12, marginTop: -4 }}>
-          This app exposes no assignable roles. Only &quot;Default access&quot;
-          is available.
+          This app exposes no assignable roles. Only &quot;Default access&quot; is available.
         </div>
       )}
 

@@ -2,10 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
 import { getMe, type MeResponse } from '../graph/me';
-import {
-  listRecentDirectoryAudits,
-  type DirectoryAuditEvent,
-} from '../graph/directoryAudits';
+import { listRecentDirectoryAudits, type DirectoryAuditEvent } from '../graph/directoryAudits';
 
 // Activities the Overview card surfaces. Names must match Microsoft Graph's
 // activityDisplayName values exactly — they're case-sensitive strings.
@@ -33,9 +30,7 @@ export function Home() {
   const token = useGraphToken();
   const [me, setMe] = useState<MeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [audits, setAudits] = useState<DirectoryAuditEvent[] | 'loading'>(
-    'loading',
-  );
+  const [audits, setAudits] = useState<DirectoryAuditEvent[] | 'loading'>('loading');
 
   useEffect(() => {
     getMe(token)
@@ -55,9 +50,7 @@ export function Home() {
       <div className="page-header">
         <div>
           <h1>Overview</h1>
-          <div className="subtitle">
-            Manage Entra ID app registrations and enterprise apps
-          </div>
+          <div className="subtitle">Manage Entra ID app registrations and enterprise apps</div>
         </div>
       </div>
 
@@ -89,8 +82,8 @@ export function Home() {
             Browse <strong>enterprise apps</strong> (service principals).
           </li>
           <li>
-            Add / remove / grant <strong>API permissions</strong> on enterprise
-            apps — both application (app-only) and delegated.
+            Add / remove / grant <strong>API permissions</strong> on enterprise apps — both
+            application (app-only) and delegated.
           </li>
         </ul>
       </div>
@@ -98,17 +91,13 @@ export function Home() {
   );
 }
 
-function RecentActivityCard({
-  audits,
-}: {
-  audits: DirectoryAuditEvent[] | 'loading';
-}) {
+function RecentActivityCard({ audits }: { audits: DirectoryAuditEvent[] | 'loading' }) {
   return (
     <div className="card">
       <h3>Recent activity (last 30 days)</h3>
       <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-        App registration and enterprise app changes from the directory audit
-        log. Requires <span className="mono">AuditLog.Read.All</span>.
+        App registration and enterprise app changes from the directory audit log. Requires{' '}
+        <span className="mono">AuditLog.Read.All</span>.
       </p>
       {audits === 'loading' ? (
         <span className="spinner" />
@@ -139,9 +128,7 @@ function RecentActivityCard({
 }
 
 function AuditRow({ event }: { event: DirectoryAuditEvent }) {
-  const when = event.activityDateTime
-    ? new Date(event.activityDateTime).toLocaleString()
-    : '—';
+  const when = event.activityDateTime ? new Date(event.activityDateTime).toLocaleString() : '—';
   const who = useMemo(() => {
     const user = event.initiatedBy?.user;
     if (user?.displayName || user?.userPrincipalName) {
@@ -161,7 +148,10 @@ function AuditRow({ event }: { event: DirectoryAuditEvent }) {
       return (
         <div>
           {app.displayName ?? app.appId}
-          <span className="muted" style={{ fontSize: 12 }}> (app)</span>
+          <span className="muted" style={{ fontSize: 12 }}>
+            {' '}
+            (app)
+          </span>
         </div>
       );
     }
@@ -211,7 +201,6 @@ function ResultBadge({ result }: { result?: string }) {
   if (!result) return <span className="muted">—</span>;
   const r = result.toLowerCase();
   if (r === 'success') return <span className="badge granted">success</span>;
-  if (r === 'failure' || r === 'timeout')
-    return <span className="badge expired">{result}</span>;
+  if (r === 'failure' || r === 'timeout') return <span className="badge expired">{result}</span>;
   return <span className="badge">{result}</span>;
 }

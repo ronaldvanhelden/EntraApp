@@ -1,11 +1,4 @@
-import {
-  FAVORITE_LABEL,
-  FAVORITE_TAG,
-  TAG_PREFIX,
-  hasTag,
-  isOurTag,
-  tagLabel,
-} from '../lib/tags';
+import { FAVORITE_LABEL, FAVORITE_TAG, TAG_PREFIX, hasTag, isOurTag, tagLabel } from '../lib/tags';
 
 interface Props {
   // Stored form, e.g. "debble:Production".
@@ -44,10 +37,7 @@ export function TagChip({ tag, onRemove, onClick, disabled, title }: Props) {
   }
 
   return (
-    <span
-      className={`tag-chip${favorite ? ' favorite' : ''}`}
-      title={title ?? tag}
-    >
+    <span className={`tag-chip${favorite ? ' favorite' : ''}`} title={title ?? tag}>
       {onClick ? (
         <button
           type="button"

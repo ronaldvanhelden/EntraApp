@@ -1,10 +1,6 @@
 import { useMemo } from 'react';
 import { Modal } from './Modal';
-import {
-  privilegeLabel,
-  type ScopeKind,
-  type ScopeMeta,
-} from '../graph/scopeCatalog';
+import { privilegeLabel, type ScopeKind, type ScopeMeta } from '../graph/scopeCatalog';
 
 interface Props {
   scope: string;
@@ -46,9 +42,7 @@ export function ScopeDetailsModal({
         <div className="k">Resource</div>
         <div>{resourceName ?? 'Microsoft Graph'}</div>
         <div className="k">Type</div>
-        <div>
-          {kind === 'delegated' ? 'Delegated' : 'Application (app-only)'}
-        </div>
+        <div>{kind === 'delegated' ? 'Delegated' : 'Application (app-only)'}</div>
         <div className="k">Privilege level</div>
         <div>
           {level === undefined ? (
@@ -68,22 +62,16 @@ export function ScopeDetailsModal({
             <div className="k">Description</div>
             <div>
               {fallbackTitle && (
-                <div style={{ fontWeight: 500, marginBottom: 4 }}>
-                  {fallbackTitle}
-                </div>
+                <div style={{ fontWeight: 500, marginBottom: 4 }}>{fallbackTitle}</div>
               )}
               <div className="muted" style={{ fontSize: 13 }}>
                 {scheme?.adminDescription ?? fallbackDescription ?? ''}
               </div>
-              {scheme?.userDescription &&
-                scheme.userDescription !== scheme.adminDescription && (
-                  <div
-                    className="muted"
-                    style={{ fontSize: 12, marginTop: 6, fontStyle: 'italic' }}
-                  >
-                    As shown to end users: {scheme.userDescription}
-                  </div>
-                )}
+              {scheme?.userDescription && scheme.userDescription !== scheme.adminDescription && (
+                <div className="muted" style={{ fontSize: 12, marginTop: 6, fontStyle: 'italic' }}>
+                  As shown to end users: {scheme.userDescription}
+                </div>
+              )}
             </div>
           </>
         )}
@@ -94,14 +82,12 @@ export function ScopeDetailsModal({
       </h4>
       {!catalog ? (
         <div className="muted">
-          <span className="spinner" /> Loading Microsoft Graph permissions
-          catalog…
+          <span className="spinner" /> Loading Microsoft Graph permissions catalog…
         </div>
       ) : paths.length === 0 ? (
         <div className="muted" style={{ fontSize: 13 }}>
           No path information in the public catalog for this scope.
-          {meta === null &&
-            ' (Scope may belong to an API other than Microsoft Graph.)'}
+          {meta === null && ' (Scope may belong to an API other than Microsoft Graph.)'}
         </div>
       ) : (
         <table className="table">

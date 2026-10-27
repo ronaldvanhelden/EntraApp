@@ -66,13 +66,8 @@ export async function graph<T>(
   const parsed = text ? safeJson(text) : null;
 
   if (!res.ok) {
-    const err = (parsed as { error?: { message?: string; code?: string } })
-      ?.error;
-    throw new GraphError(
-      res.status,
-      err?.message ?? `HTTP ${res.status}`,
-      err?.code,
-    );
+    const err = (parsed as { error?: { message?: string; code?: string } })?.error;
+    throw new GraphError(res.status, err?.message ?? `HTTP ${res.status}`, err?.code);
   }
   return parsed as T;
 }

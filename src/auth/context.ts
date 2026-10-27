@@ -12,9 +12,7 @@ interface AuthConfigContextValue {
   setConfig: (config: AuthConfig) => void;
 }
 
-export const AuthConfigContext = createContext<AuthConfigContextValue | null>(
-  null,
-);
+export const AuthConfigContext = createContext<AuthConfigContextValue | null>(null);
 
 export function useAuthConfig(): AuthConfigContextValue {
   const value = useContext(AuthConfigContext);

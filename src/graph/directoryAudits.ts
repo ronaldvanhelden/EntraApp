@@ -61,8 +61,7 @@ export async function listRecentDirectoryAudits(
     );
     return page.value ?? [];
   } catch (e) {
-    if (e instanceof GraphError && (e.status === 403 || e.status === 404))
-      return [];
+    if (e instanceof GraphError && (e.status === 403 || e.status === 404)) return [];
     throw e;
   }
 }

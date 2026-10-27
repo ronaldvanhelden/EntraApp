@@ -28,9 +28,9 @@ export function SetupScreen() {
       <div className="card" style={{ maxWidth: 560, width: '100%' }}>
         <h3>Configure EntraApp</h3>
         <p className="muted" style={{ marginTop: 0 }}>
-          Enter the client (application) ID and tenant ID of an app registration
-          this SPA should sign in with. The app must have <code>Single-page
-          application</code> redirect URI configured for the host page.
+          Enter the client (application) ID and tenant ID of an app registration this SPA should
+          sign in with. The app must have <code>Single-page application</code> redirect URI
+          configured for the host page.
         </p>
 
         <label className="field">
@@ -60,17 +60,12 @@ export function SetupScreen() {
           </button>
         </div>
 
-        <div
-          className="card"
-          style={{ marginTop: 16, padding: 12, background: 'var(--bg)' }}
-        >
-          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-            Before you sign in
-          </div>
+        <div className="card" style={{ marginTop: 16, padding: 12, background: 'var(--bg)' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Before you sign in</div>
           <div className="muted" style={{ fontSize: 12 }}>
-            Register this exact URL as a <strong>Single-page application</strong>{' '}
-            redirect URI on the app registration (Authentication → Platform
-            configurations → Single-page application → Add URI):
+            Register this exact URL as a <strong>Single-page application</strong> redirect URI on
+            the app registration (Authentication → Platform configurations → Single-page application
+            → Add URI):
           </div>
           <div
             className="mono"

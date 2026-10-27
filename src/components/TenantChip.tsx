@@ -48,11 +48,7 @@ export function TenantChip() {
     .join('\n');
 
   return (
-    <Link
-      to="/settings"
-      className={`tenant-chip${tenantOverride ? ' pinned' : ''}`}
-      title={title}
-    >
+    <Link to="/settings" className={`tenant-chip${tenantOverride ? ' pinned' : ''}`} title={title}>
       {tenantOverride && (
         <svg
           viewBox="0 0 16 16"

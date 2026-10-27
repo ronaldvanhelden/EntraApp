@@ -1,11 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
-import {
-  createApplication,
-  listApplications,
-  updateApplication,
-} from '../graph/applications';
+import { createApplication, listApplications, updateApplication } from '../graph/applications';
 import { createServicePrincipalFromAppId } from '../graph/servicePrincipals';
 import type { Application } from '../graph/types';
 import { Modal } from '../components/Modal';
@@ -56,8 +52,7 @@ export function Applications() {
         // starring a row doesn't make it jump away under the cursor.
         setApps(
           [...list].sort((a, b) => {
-            const favDelta =
-              Number(isFavorite(b.tags)) - Number(isFavorite(a.tags));
+            const favDelta = Number(isFavorite(b.tags)) - Number(isFavorite(a.tags));
             if (favDelta !== 0) return favDelta;
             return (a.displayName ?? '').localeCompare(b.displayName ?? '');
           }),
@@ -103,9 +98,7 @@ export function Applications() {
     const next = withFavorite(app.tags, !isFavorite(app.tags));
     const previous = app.tags;
     const apply = (tags: string[] | undefined) =>
-      setApps((prev) =>
-        prev ? prev.map((a) => (a.id === app.id ? { ...a, tags } : a)) : prev,
-      );
+      setApps((prev) => (prev ? prev.map((a) => (a.id === app.id ? { ...a, tags } : a)) : prev));
 
     apply(next);
     setTagBusyId(app.id);
@@ -125,9 +118,7 @@ export function Applications() {
       <div className="page-header">
         <div>
           <h1>App registrations</h1>
-          <div className="subtitle">
-            Identity objects representing applications in your tenant
-          </div>
+          <div className="subtitle">Identity objects representing applications in your tenant</div>
         </div>
         <button className="primary" onClick={() => setShowCreate(true)}>
           + New app registration
@@ -162,17 +153,9 @@ export function Applications() {
             <button
               key={f.tag}
               title={f.tag}
-              className={
-                tagFilter?.toLowerCase() === f.tag.toLowerCase()
-                  ? 'primary'
-                  : 'ghost'
-              }
+              className={tagFilter?.toLowerCase() === f.tag.toLowerCase() ? 'primary' : 'ghost'}
               onClick={() =>
-                setTagFilter(
-                  tagFilter?.toLowerCase() === f.tag.toLowerCase()
-                    ? null
-                    : f.tag,
-                )
+                setTagFilter(tagFilter?.toLowerCase() === f.tag.toLowerCase() ? null : f.tag)
               }
             >
               {f.tag.toLowerCase() === FAVORITE_TAG.toLowerCase() && '★ '}
@@ -338,11 +321,7 @@ function CreateAppModal({
           <button disabled={submitting} onClick={onClose}>
             Cancel
           </button>
-          <button
-            className="primary"
-            disabled={submitting || !displayName.trim()}
-            onClick={submit}
-          >
+          <button className="primary" disabled={submitting || !displayName.trim()} onClick={submit}>
             {submitting ? 'Creating…' : 'Create'}
           </button>
         </>
@@ -379,16 +358,18 @@ function CreateAppModal({
         Also create the enterprise app (service principal) in this tenant
       </label>
 
-      {error && <p className="error" style={{ marginTop: 12 }}>{error}</p>}
+      {error && (
+        <p className="error" style={{ marginTop: 12 }}>
+          {error}
+        </p>
+      )}
     </Modal>
   );
 }
 
 type ExpiryState = 'none' | 'active' | 'soon' | 'expired';
 
-function credentialGroupState(
-  creds: Array<{ endDateTime?: string }> | undefined,
-): ExpiryState {
+function credentialGroupState(creds: Array<{ endDateTime?: string }> | undefined): ExpiryState {
   if (!creds || creds.length === 0) return 'none';
   const now = Date.now();
   const soonMs = 30 * 24 * 60 * 60 * 1000;
@@ -414,11 +395,7 @@ function CredentialBadges({ app }: { app: Application }) {
   const certState = credentialGroupState(app.keyCredentials);
   const ficCount = app.federatedIdentityCredentials?.length ?? 0;
 
-  if (
-    secretState === 'none' &&
-    certState === 'none' &&
-    ficCount === 0
-  ) {
+  if (secretState === 'none' && certState === 'none' && ficCount === 0) {
     return <span className="muted">—</span>;
   }
   return (
@@ -431,15 +408,9 @@ function CredentialBadges({ app }: { app: Application }) {
         />
       )}
       {certState !== 'none' && (
-        <CredentialBadge
-          label="Cert"
-          count={app.keyCredentials?.length ?? 0}
-          state={certState}
-        />
+        <CredentialBadge label="Cert" count={app.keyCredentials?.length ?? 0} state={certState} />
       )}
-      {ficCount > 0 && (
-        <CredentialBadge label="FIC" count={ficCount} state="active" />
-      )}
+      {ficCount > 0 && <CredentialBadge label="FIC" count={ficCount} state="active" />}
     </div>
   );
 }
@@ -454,11 +425,7 @@ function CredentialBadge({
   state: ExpiryState;
 }) {
   const cls =
-    state === 'expired'
-      ? 'badge expired'
-      : state === 'soon'
-        ? 'badge pending'
-        : 'badge granted';
+    state === 'expired' ? 'badge expired' : state === 'soon' ? 'badge pending' : 'badge granted';
   const title =
     state === 'expired'
       ? `${label}: one or more expired`

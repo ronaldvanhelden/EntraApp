@@ -1,15 +1,5 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
-import {
-  PublicClientApplication,
-  EventType,
-  type AccountInfo,
-} from '@azure/msal-browser';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { PublicClientApplication, EventType, type AccountInfo } from '@azure/msal-browser';
 import { MsalProvider as InnerProvider } from '@azure/msal-react';
 import {
   buildMsalConfig,
@@ -33,9 +23,7 @@ interface Props {
 const CACHE_TENANT_KEY = 'entraapp.authTenant';
 
 export function AppMsalProvider({ children }: Props) {
-  const [savedConfig, setSavedConfig] = useState<AuthConfig>(() =>
-    loadAuthConfig(),
-  );
+  const [savedConfig, setSavedConfig] = useState<AuthConfig>(() => loadAuthConfig());
   const [tenantOverride, setTenantOverride] = useState<string | null>(() =>
     resolveTenantOverride(),
   );
@@ -43,10 +31,7 @@ export function AppMsalProvider({ children }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const config = useMemo<AuthConfig>(
-    () =>
-      tenantOverride
-        ? { ...savedConfig, tenantId: tenantOverride }
-        : savedConfig,
+    () => (tenantOverride ? { ...savedConfig, tenantId: tenantOverride } : savedConfig),
     [savedConfig, tenantOverride],
   );
 
@@ -79,8 +64,7 @@ export function AppMsalProvider({ children }: Props) {
         }
         sessionStorage.setItem(CACHE_TENANT_KEY, config.tenantId);
         if (cancelled) return;
-        const account: AccountInfo | null =
-          result?.account ?? instance.getAllAccounts()[0] ?? null;
+        const account: AccountInfo | null = result?.account ?? instance.getAllAccounts()[0] ?? null;
         if (account) instance.setActiveAccount(account);
         setReady(true);
       })

@@ -1,12 +1,5 @@
 import { useState } from 'react';
-import {
-  TAG_PREFIX,
-  addTag,
-  isOurTag,
-  removeTag,
-  sortTags,
-  toStoredTag,
-} from '../lib/tags';
+import { TAG_PREFIX, addTag, isOurTag, removeTag, sortTags, toStoredTag } from '../lib/tags';
 import { TagChip } from './TagChip';
 
 interface Props {
@@ -61,9 +54,7 @@ export function TagEditor({ tags, onSave, disabled }: Props) {
             onRemove={isOurTag(t) ? () => commit(removeTag(tags, t)) : undefined}
           />
         ))}
-        {current.length === 0 && !adding && (
-          <span className="muted">No tags</span>
-        )}
+        {current.length === 0 && !adding && <span className="muted">No tags</span>}
         {adding ? (
           <span className="row" style={{ gap: 4 }}>
             <span className="mono muted" style={{ fontSize: 12 }}>
@@ -99,11 +90,7 @@ export function TagEditor({ tags, onSave, disabled }: Props) {
             </button>
           </span>
         ) : (
-          <button
-            className="ghost"
-            disabled={locked}
-            onClick={() => setAdding(true)}
-          >
+          <button className="ghost" disabled={locked} onClick={() => setAdding(true)}>
             + Add tag
           </button>
         )}

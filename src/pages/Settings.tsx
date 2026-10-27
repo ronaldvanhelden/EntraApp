@@ -30,9 +30,7 @@ export function Settings() {
     }
     const trimmedTenant = tenantId.trim() || 'common';
     if (!isValidTenantId(trimmedTenant)) {
-      setError(
-        'Tenant must be a GUID, a domain name, or common/organizations.',
-      );
+      setError('Tenant must be a GUID, a domain name, or common/organizations.');
       return;
     }
     setConfig({ clientId: trimmedClient, tenantId: trimmedTenant });
@@ -81,10 +79,9 @@ export function Settings() {
         {tenantOverride && (
           <>
             <p className="muted" style={{ fontSize: 13 }}>
-              This tab is pinned to{' '}
-              <span className="mono">{tenantOverride}</span> by the{' '}
-              <span className="mono">?tenant=</span> parameter in the URL, so
-              sign-in and every Graph call target that directory.
+              This tab is pinned to <span className="mono">{tenantOverride}</span> by the{' '}
+              <span className="mono">?tenant=</span> parameter in the URL, so sign-in and every
+              Graph call target that directory.
             </p>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button onClick={() => exitTenantOverride('/settings')}>
@@ -106,18 +103,12 @@ export function Settings() {
 
         <label className="field">
           <span>Client ID</span>
-          <input
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-          />
+          <input value={clientId} onChange={(e) => setClientId(e.target.value)} />
         </label>
 
         <label className="field">
           <span>Default tenant (GUID, domain, or common/organizations)</span>
-          <input
-            value={tenantId}
-            onChange={(e) => setTenantId(e.target.value)}
-          />
+          <input value={tenantId} onChange={(e) => setTenantId(e.target.value)} />
         </label>
 
         {error && <p className="error">{error}</p>}
@@ -140,9 +131,7 @@ export function Settings() {
 // ?tenant=<tenant>, so it can go on the bookmark bar, the Windows start menu,
 // or a phone home screen.
 function TenantShortcuts({ currentTenantId }: { currentTenantId: string }) {
-  const [shortcuts, setShortcuts] = useState<TenantShortcut[]>(() =>
-    loadTenantShortcuts(),
-  );
+  const [shortcuts, setShortcuts] = useState<TenantShortcut[]>(() => loadTenantShortcuts());
   const [label, setLabel] = useState('');
   const [tenant, setTenant] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -176,9 +165,9 @@ function TenantShortcuts({ currentTenantId }: { currentTenantId: string }) {
     <div className="card" style={{ maxWidth: 640 }}>
       <h3>Tenant shortcuts</h3>
       <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-        Each shortcut opens EntraApp pinned to one tenant. Open it in a new tab,
-        or bookmark it to jump straight into that directory — handy when your
-        home tenant differs from the one you manage.
+        Each shortcut opens EntraApp pinned to one tenant. Open it in a new tab, or bookmark it to
+        jump straight into that directory — handy when your home tenant differs from the one you
+        manage.
       </p>
 
       {shortcuts.length === 0 ? (
@@ -189,8 +178,7 @@ function TenantShortcuts({ currentTenantId }: { currentTenantId: string }) {
         <div className="stack">
           {shortcuts.map((s) => {
             const url = buildTenantUrl(s.tenantId);
-            const active =
-              s.tenantId.toLowerCase() === currentTenantId.toLowerCase();
+            const active = s.tenantId.toLowerCase() === currentTenantId.toLowerCase();
             return (
               <div className="shortcut-row" key={s.tenantId}>
                 <div className="shortcut-main">
@@ -214,17 +202,10 @@ function TenantShortcuts({ currentTenantId }: { currentTenantId: string }) {
         </div>
       )}
 
-      <div
-        className="row wrap"
-        style={{ marginTop: 12, alignItems: 'flex-end' }}
-      >
+      <div className="row wrap" style={{ marginTop: 12, alignItems: 'flex-end' }}>
         <label className="field grow" style={{ marginBottom: 0 }}>
           <span>Name</span>
-          <input
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            placeholder="Debble"
-          />
+          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Debble" />
         </label>
         <label className="field grow" style={{ marginBottom: 0 }}>
           <span>Tenant (GUID or domain)</span>

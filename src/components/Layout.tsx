@@ -1,11 +1,7 @@
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import {
-  AuthenticatedTemplate,
-  UnauthenticatedTemplate,
-  useMsal,
-} from '@azure/msal-react';
+import { AuthenticatedTemplate, UnauthenticatedTemplate, useMsal } from '@azure/msal-react';
 import { GRAPH_SCOPES } from '../auth/config';
 import { useAuthConfig } from '../auth/context';
 import { TenantChip } from './TenantChip';
@@ -19,9 +15,7 @@ const COLLAPSE_KEY = 'entraapp:nav-collapsed';
 
 function useIsMobile(): boolean {
   const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== 'undefined'
-      ? window.matchMedia(MOBILE_QUERY).matches
-      : false,
+    typeof window !== 'undefined' ? window.matchMedia(MOBILE_QUERY).matches : false,
   );
   useEffect(() => {
     const mql = window.matchMedia(MOBILE_QUERY);
@@ -86,11 +80,7 @@ export function Layout({ children }: Props) {
           <Header onMenuClick={toggleMenu} navOpen={showingMenu} />
           <Sidebar />
           {navOpen && (
-            <div
-              className="nav-backdrop"
-              onClick={() => setNavOpen(false)}
-              aria-hidden="true"
-            />
+            <div className="nav-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />
           )}
           <main className="main">{children}</main>
         </div>
@@ -99,13 +89,7 @@ export function Layout({ children }: Props) {
   );
 }
 
-function Header({
-  onMenuClick,
-  navOpen,
-}: {
-  onMenuClick: () => void;
-  navOpen: boolean;
-}) {
+function Header({ onMenuClick, navOpen }: { onMenuClick: () => void; navOpen: boolean }) {
   const { instance, accounts } = useMsal();
   const active = instance.getActiveAccount() ?? accounts[0];
   const signOut = () => {
@@ -148,8 +132,7 @@ function Header({
 }
 
 function Sidebar() {
-  const nav = ({ isActive }: { isActive: boolean }) =>
-    isActive ? 'active' : undefined;
+  const nav = ({ isActive }: { isActive: boolean }) => (isActive ? 'active' : undefined);
   return (
     <nav className="sidebar">
       <h4>Directory</h4>
@@ -177,9 +160,7 @@ function SignInScreen() {
     instance
       .loginPopup({ scopes: GRAPH_SCOPES, prompt: 'select_account' })
       .catch(() =>
-        instance
-          .loginRedirect({ scopes: GRAPH_SCOPES, prompt: 'select_account' })
-          .catch(() => {}),
+        instance.loginRedirect({ scopes: GRAPH_SCOPES, prompt: 'select_account' }).catch(() => {}),
       );
   };
   return (
@@ -188,9 +169,8 @@ function SignInScreen() {
       <p className="muted">Sign in with your Entra ID account to continue.</p>
       {tenantOverride ? (
         <p className="muted" style={{ fontSize: 13 }}>
-          Signing in to tenant <strong className="mono">{tenantOverride}</strong>{' '}
-          (pinned by this URL). Pick the account that has access there — a guest
-          account works.
+          Signing in to tenant <strong className="mono">{tenantOverride}</strong> (pinned by this
+          URL). Pick the account that has access there — a guest account works.
         </p>
       ) : (
         <p className="muted" style={{ fontSize: 13 }}>

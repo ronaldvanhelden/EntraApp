@@ -22,13 +22,7 @@ const KIND_LABEL: Record<PrincipalKind, string> = {
   sp: 'Service principal',
 };
 
-export function PrincipalPicker({
-  kinds,
-  selected,
-  onChange,
-  placeholder,
-  autoFocus,
-}: Props) {
+export function PrincipalPicker({ kinds, selected, onChange, placeholder, autoFocus }: Props) {
   const token = useGraphToken();
   const [kind, setKind] = useState<PrincipalKind>(kinds[0]);
   const [search, setSearch] = useState('');

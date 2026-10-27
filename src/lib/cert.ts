@@ -39,8 +39,8 @@ function certToParsed(cert: forge.pki.Certificate): ParsedCertificate {
   const derBinary = forge.asn1.toDer(asn1).getBytes();
   const { b64: thumbprintB64, hex: thumbprintHex } = derToThumbprint(derBinary);
   const cn = (attrs: forge.pki.CertificateField[]) =>
-    (attrs.find((a) => a.shortName === 'CN' || a.name === 'commonName')
-      ?.value as string | undefined) ?? '';
+    (attrs.find((a) => a.shortName === 'CN' || a.name === 'commonName')?.value as
+      string | undefined) ?? '';
   return {
     certDerB64: binaryStringToBase64(derBinary),
     thumbprintB64,
@@ -77,10 +77,7 @@ export function parseDerCertificate(bytes: ArrayBuffer): ParsedCertificate {
 
 // Parse a PKCS#12 / PFX bundle. We only care about the certificate (public
 // portion) — the private key stays on the user's disk.
-export function parsePfxCertificate(
-  bytes: ArrayBuffer,
-  password: string,
-): ParsedCertificate {
+export function parsePfxCertificate(bytes: ArrayBuffer, password: string): ParsedCertificate {
   const binary = forge.util.createBuffer(new Uint8Array(bytes)).getBytes();
   const asn1 = forge.asn1.fromDer(binary);
   const p12 = forge.pkcs12.pkcs12FromAsn1(asn1, false, password);
@@ -99,9 +96,8 @@ export async function generateSelfSignedCertificate(options: {
 }): Promise<GeneratedCertBundle> {
   const { commonName, months } = options;
   const keys = await new Promise<forge.pki.rsa.KeyPair>((resolve, reject) => {
-    forge.pki.rsa.generateKeyPair(
-      { bits: 2048, workers: -1 },
-      (err, kp) => (err ? reject(err) : resolve(kp)),
+    forge.pki.rsa.generateKeyPair({ bits: 2048, workers: -1 }, (err, kp) =>
+      err ? reject(err) : resolve(kp),
     );
   });
   const cert = forge.pki.createCertificate();
@@ -109,12 +105,8 @@ export async function generateSelfSignedCertificate(options: {
   cert.serialNumber = randomSerial();
   cert.validity.notBefore = new Date();
   cert.validity.notAfter = new Date();
-  cert.validity.notAfter.setMonth(
-    cert.validity.notAfter.getMonth() + months,
-  );
-  const attrs: forge.pki.CertificateField[] = [
-    { name: 'commonName', value: commonName },
-  ];
+  cert.validity.notAfter.setMonth(cert.validity.notAfter.getMonth() + months);
+  const attrs: forge.pki.CertificateField[] = [{ name: 'commonName', value: commonName }];
   cert.setSubject(attrs);
   cert.setIssuer(attrs);
   cert.setExtensions([
@@ -151,10 +143,7 @@ function randomSerial(): string {
 }
 
 // Build a PKCS#12 / PFX file as raw bytes.
-export function exportPfx(
-  bundle: GeneratedCertBundle,
-  password: string,
-): Uint8Array {
+export function exportPfx(bundle: GeneratedCertBundle, password: string): Uint8Array {
   const privateKey = forge.pki.privateKeyFromPem(bundle.privateKeyPem);
   const cert = forge.pki.certificateFromPem(bundle.certPem);
   const p12 = forge.pkcs12.toPkcs12Asn1(privateKey, [cert], password, {

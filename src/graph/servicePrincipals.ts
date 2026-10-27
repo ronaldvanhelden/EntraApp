@@ -77,10 +77,7 @@ export function getServicePrincipalByAppId(token: TokenFn, appId: string) {
 
 // /beta report. Requires AuditLog.Read.All. Keyed by the app registration's
 // appId (not the service principal object id).
-export function getServicePrincipalSignInActivity(
-  token: TokenFn,
-  appId: string,
-) {
+export function getServicePrincipalSignInActivity(token: TokenFn, appId: string) {
   return graph<ServicePrincipalSignInActivity>(
     token,
     `/reports/servicePrincipalSignInActivities/${appId}`,
@@ -95,10 +92,7 @@ export function listOAuth2GrantsForClient(token: TokenFn, clientSpId: string) {
   });
 }
 
-export function createOAuth2Grant(
-  token: TokenFn,
-  grant: Omit<OAuth2PermissionGrant, 'id'>,
-) {
+export function createOAuth2Grant(token: TokenFn, grant: Omit<OAuth2PermissionGrant, 'id'>) {
   return graph<OAuth2PermissionGrant>(token, '/oauth2PermissionGrants', {
     method: 'POST',
     body: grant,
@@ -124,11 +118,9 @@ export function deleteOAuth2Grant(token: TokenFn, id: string) {
 
 // App-only permission assignments (appRoleAssignments) — assignments TO the SP
 export function listAppRoleAssignments(token: TokenFn, spId: string) {
-  return graphAll<AppRoleAssignment>(
-    token,
-    `/servicePrincipals/${spId}/appRoleAssignments`,
-    { query: { $top: 100 } },
-  );
+  return graphAll<AppRoleAssignment>(token, `/servicePrincipals/${spId}/appRoleAssignments`, {
+    query: { $top: 100 },
+  });
 }
 
 export function createAppRoleAssignment(
@@ -136,11 +128,10 @@ export function createAppRoleAssignment(
   principalSpId: string,
   body: { appRoleId: string; principalId: string; resourceId: string },
 ) {
-  return graph<AppRoleAssignment>(
-    token,
-    `/servicePrincipals/${principalSpId}/appRoleAssignments`,
-    { method: 'POST', body },
-  );
+  return graph<AppRoleAssignment>(token, `/servicePrincipals/${principalSpId}/appRoleAssignments`, {
+    method: 'POST',
+    body,
+  });
 }
 
 export function deleteAppRoleAssignment(
@@ -182,11 +173,9 @@ export function deleteServicePrincipal(token: TokenFn, id: string) {
 // appRoles that this SP exposes. Distinct from appRoleAssignments (roles this
 // SP holds on OTHER resources).
 export function listAppRoleAssignedTo(token: TokenFn, spId: string) {
-  return graphAll<AppRoleAssignment>(
-    token,
-    `/servicePrincipals/${spId}/appRoleAssignedTo`,
-    { query: { $top: 100 } },
-  );
+  return graphAll<AppRoleAssignment>(token, `/servicePrincipals/${spId}/appRoleAssignedTo`, {
+    query: { $top: 100 },
+  });
 }
 
 export function createAppRoleAssignedTo(
@@ -194,11 +183,10 @@ export function createAppRoleAssignedTo(
   resourceSpId: string,
   body: { appRoleId: string; principalId: string; resourceId: string },
 ) {
-  return graph<AppRoleAssignment>(
-    token,
-    `/servicePrincipals/${resourceSpId}/appRoleAssignedTo`,
-    { method: 'POST', body },
-  );
+  return graph<AppRoleAssignment>(token, `/servicePrincipals/${resourceSpId}/appRoleAssignedTo`, {
+    method: 'POST',
+    body,
+  });
 }
 
 export function deleteAppRoleAssignedTo(

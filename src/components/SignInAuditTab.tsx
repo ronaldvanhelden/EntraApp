@@ -5,12 +5,7 @@ import {
   listAppOnlySignInsForApp,
   listUserSignInsForApp,
 } from '../graph/signIns';
-import type {
-  KeyCredential,
-  PasswordCredential,
-  ServicePrincipal,
-  SignIn,
-} from '../graph/types';
+import type { KeyCredential, PasswordCredential, ServicePrincipal, SignIn } from '../graph/types';
 import { getApplicationByAppId } from '../graph/applications';
 import { Modal } from './Modal';
 
@@ -65,9 +60,7 @@ export function SignInAuditTab({ sp }: Props) {
           };
         });
         (app.keyCredentials ?? []).forEach((c: KeyCredential) => {
-          const label = c.displayName
-            ? `certificate · ${c.displayName}`
-            : 'certificate';
+          const label = c.displayName ? `certificate · ${c.displayName}` : 'certificate';
           map[c.keyId.toLowerCase()] = { keyId: c.keyId, label };
           const thumb = thumbprintFromB64(c.customKeyIdentifier);
           if (thumb) {
@@ -81,11 +74,8 @@ export function SignInAuditTab({ sp }: Props) {
 
   const rows: SignIn[] = useMemo(() => {
     const merged = [...(delegated ?? []), ...(appOnly ?? [])];
-    merged.sort((a, b) =>
-      (b.createdDateTime ?? '').localeCompare(a.createdDateTime ?? ''),
-    );
-    if (filter === 'delegated')
-      return merged.filter((s) => !isAppOnly(s));
+    merged.sort((a, b) => (b.createdDateTime ?? '').localeCompare(a.createdDateTime ?? ''));
+    if (filter === 'delegated') return merged.filter((s) => !isAppOnly(s));
     if (filter === 'app') return merged.filter(isAppOnly);
     return merged;
   }, [delegated, appOnly, filter]);
@@ -101,16 +91,12 @@ export function SignInAuditTab({ sp }: Props) {
           <div>
             <h3 style={{ margin: 0 }}>Sign-in audit</h3>
             <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-              Most recent sign-ins for this app. Microsoft Entra retains 30
-              days of sign-in activity. Requires{' '}
-              <span className="mono">AuditLog.Read.All</span>.
+              Most recent sign-ins for this app. Microsoft Entra retains 30 days of sign-in
+              activity. Requires <span className="mono">AuditLog.Read.All</span>.
             </div>
           </div>
           <div className="tabs">
-            <button
-              className={filter === 'all' ? 'active' : ''}
-              onClick={() => setFilter('all')}
-            >
+            <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>
               All ({totalDelegated + totalApp})
             </button>
             <button
@@ -119,10 +105,7 @@ export function SignInAuditTab({ sp }: Props) {
             >
               Delegated ({totalDelegated})
             </button>
-            <button
-              className={filter === 'app' ? 'active' : ''}
-              onClick={() => setFilter('app')}
-            >
+            <button className={filter === 'app' ? 'active' : ''} onClick={() => setFilter('app')}>
               App-only ({totalApp})
             </button>
           </div>
@@ -136,9 +119,7 @@ export function SignInAuditTab({ sp }: Props) {
           <span className="spinner" />
         </div>
       ) : rows.length === 0 ? (
-        <div className="card empty">
-          No sign-ins recorded in the last 30 days.
-        </div>
+        <div className="card empty">No sign-ins recorded in the last 30 days.</div>
       ) : (
         <div className="card" style={{ padding: 0 }}>
           <table className="table">
@@ -193,20 +174,16 @@ function SignInRow({
 }) {
   const appOnly = isAppOnly(signIn);
   const actorName = appOnly
-    ? signIn.servicePrincipalName ?? signIn.appDisplayName
-    : signIn.userDisplayName ?? signIn.userPrincipalName;
-  const actorSubtitle = appOnly
-    ? signIn.servicePrincipalId
-    : signIn.userPrincipalName;
+    ? (signIn.servicePrincipalName ?? signIn.appDisplayName)
+    : (signIn.userDisplayName ?? signIn.userPrincipalName);
+  const actorSubtitle = appOnly ? signIn.servicePrincipalId : signIn.userPrincipalName;
   const status = signIn.status;
   const ok = !status?.errorCode;
 
   return (
     <tr onClick={onClick} style={{ cursor: 'pointer' }}>
       <td>
-        {signIn.createdDateTime
-          ? new Date(signIn.createdDateTime).toLocaleString()
-          : '—'}
+        {signIn.createdDateTime ? new Date(signIn.createdDateTime).toLocaleString() : '—'}
         {signIn.ipAddress && (
           <div className="mono muted" style={{ fontSize: 11 }}>
             {signIn.ipAddress}
@@ -297,11 +274,7 @@ function CredentialCell({
         </div>
       )}
       {keyId ? (
-        <div
-          className="mono muted"
-          title={keyId}
-          style={{ fontSize: 11 }}
-        >
+        <div className="mono muted" title={keyId} style={{ fontSize: 11 }}>
           {hint ? `${hint.label} · ` : ''}
           {shorten(keyId)}
         </div>
@@ -372,11 +345,9 @@ function SignInDetailModal({
 }) {
   const appOnly = isAppOnly(signIn);
   const actorName = appOnly
-    ? signIn.servicePrincipalName ?? signIn.appDisplayName
-    : signIn.userDisplayName ?? signIn.userPrincipalName;
-  const actorSub = appOnly
-    ? signIn.servicePrincipalId
-    : signIn.userPrincipalName;
+    ? (signIn.servicePrincipalName ?? signIn.appDisplayName)
+    : (signIn.userDisplayName ?? signIn.userPrincipalName);
+  const actorSub = appOnly ? signIn.servicePrincipalId : signIn.userPrincipalName;
   const credKey = extractKeyIdFromSignIn(signIn);
   const credHint = credKey ? credentialHint[credKey.toLowerCase()] : undefined;
 
@@ -384,9 +355,7 @@ function SignInDetailModal({
     <Modal title="Sign-in details" onClose={onClose}>
       <div className="kv">
         <Row label="When">
-          {signIn.createdDateTime
-            ? new Date(signIn.createdDateTime).toLocaleString()
-            : '—'}
+          {signIn.createdDateTime ? new Date(signIn.createdDateTime).toLocaleString() : '—'}
         </Row>
         <Row label="Flow">
           {appOnly ? 'App-only (service principal)' : 'Delegated (user)'}
@@ -432,9 +401,7 @@ function SignInDetailModal({
               ) : credKey ? (
                 <div className="mono">{credKey}</div>
               ) : signIn.federatedCredentialId ? (
-                <div className="mono">
-                  fic {signIn.federatedCredentialId}
-                </div>
+                <div className="mono">fic {signIn.federatedCredentialId}</div>
               ) : (
                 <span className="muted">—</span>
               )}
@@ -459,8 +426,7 @@ function SignInDetailModal({
             <>
               <span className="badge expired">Failed</span>
               <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                {signIn.status.failureReason ??
-                  `code ${signIn.status.errorCode}`}
+                {signIn.status.failureReason ?? `code ${signIn.status.errorCode}`}
               </div>
               {signIn.status.additionalDetails && (
                 <div className="muted" style={{ fontSize: 12 }}>
@@ -476,9 +442,7 @@ function SignInDetailModal({
 
       {(signIn.authenticationProcessingDetails?.length ?? 0) > 0 && (
         <>
-          <h4 style={{ marginTop: 20, marginBottom: 8 }}>
-            Authentication processing details
-          </h4>
+          <h4 style={{ marginTop: 20, marginBottom: 8 }}>Authentication processing details</h4>
           <div className="kv">
             {signIn.authenticationProcessingDetails!.map((d, i) => (
               <Fragment key={i}>
@@ -518,15 +482,7 @@ function SignInDetailModal({
   );
 }
 
-function Row({
-  label,
-  mono,
-  children,
-}: {
-  label: string;
-  mono?: boolean;
-  children: ReactNode;
-}) {
+function Row({ label, mono, children }: { label: string; mono?: boolean; children: ReactNode }) {
   return (
     <>
       <div className="k">{label}</div>

@@ -68,17 +68,13 @@ export function removeTag(tags: string[] | undefined, tag: string): string[] {
   return (tags ?? []).filter((t) => !eq(t, tag));
 }
 
-export function withFavorite(
-  tags: string[] | undefined,
-  favorite: boolean,
-): string[] {
+export function withFavorite(tags: string[] | undefined, favorite: boolean): string[] {
   return favorite ? addTag(tags, FAVORITE_TAG) : removeTag(tags, FAVORITE_TAG);
 }
 
 // Display order: Favorite, then our tags alphabetically, then foreign tags.
 export function sortTags(tags: string[] | undefined): string[] {
-  const byLabel = (a: string, b: string) =>
-    tagLabel(a).localeCompare(tagLabel(b));
+  const byLabel = (a: string, b: string) => tagLabel(a).localeCompare(tagLabel(b));
   const ours = ourTags(tags).sort((a, b) => {
     if (eq(a, FAVORITE_TAG)) return -1;
     if (eq(b, FAVORITE_TAG)) return 1;

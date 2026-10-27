@@ -67,7 +67,9 @@ button {
   color: var(--text);
   padding: 6px 12px;
   min-height: 32px;
-  transition: background 120ms, border-color 120ms;
+  transition:
+    background 120ms,
+    border-color 120ms;
   touch-action: manipulation;
 }
 button:hover:not(:disabled) {
@@ -502,7 +504,10 @@ button.link:hover .mono {
   cursor: pointer;
   vertical-align: middle;
   opacity: 0.55;
-  transition: opacity 120ms, background 120ms, color 120ms;
+  transition:
+    opacity 120ms,
+    background 120ms,
+    color 120ms;
   line-height: 1;
 }
 .copy-btn:hover {

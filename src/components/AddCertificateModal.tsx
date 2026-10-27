@@ -96,20 +96,14 @@ export function AddCertificateModal({ onClose, onSubmit }: Props) {
       {generated && (
         <>
           <p className="error">
-            This is the only time the private key will be available. Download
-            it now — it cannot be retrieved later.
+            This is the only time the private key will be available. Download it now — it cannot be
+            retrieved later.
           </p>
           <div className="kv">
             <Kv label="Subject" value={generated.subjectCN} />
             <Kv label="Thumbprint" value={generated.thumbprintHex} mono />
-            <Kv
-              label="Valid from"
-              value={generated.notBefore.toLocaleDateString()}
-            />
-            <Kv
-              label="Valid until"
-              value={generated.notAfter.toLocaleDateString()}
-            />
+            <Kv label="Valid from" value={generated.notBefore.toLocaleDateString()} />
+            <Kv label="Valid until" value={generated.notAfter.toLocaleDateString()} />
           </div>
 
           <h4 style={{ marginTop: 20, marginBottom: 8 }}>Download</h4>
@@ -178,9 +172,7 @@ export function AddCertificateModal({ onClose, onSubmit }: Props) {
             >
               Download {downloadFormat.toUpperCase()}
             </button>
-            <button onClick={onClose}>
-              {downloaded ? 'Done' : 'Close'}
-            </button>
+            <button onClick={onClose}>{downloaded ? 'Done' : 'Close'}</button>
           </div>
           {downloaded && (
             <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
@@ -190,20 +182,16 @@ export function AddCertificateModal({ onClose, onSubmit }: Props) {
         </>
       )}
 
-      {error && <p className="error" style={{ marginTop: 12 }}>{error}</p>}
+      {error && (
+        <p className="error" style={{ marginTop: 12 }}>
+          {error}
+        </p>
+      )}
     </Modal>
   );
 }
 
-function Kv({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
+function Kv({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <>
       <div className="k">{label}</div>
@@ -277,10 +265,7 @@ function GenerateTab({
       </label>
       <label className="field">
         <span>Validity</span>
-        <select
-          value={months}
-          onChange={(e) => setMonths(Number(e.target.value))}
-        >
+        <select value={months} onChange={(e) => setMonths(Number(e.target.value))}>
           <option value={3}>3 months</option>
           <option value={6}>6 months</option>
           <option value={12}>12 months</option>
@@ -288,16 +273,11 @@ function GenerateTab({
         </select>
       </label>
       <p className="muted" style={{ fontSize: 12 }}>
-        A new 2048-bit RSA keypair will be generated in your browser. The
-        public certificate will be registered with Entra; the private key
-        stays in memory until you download it.
+        A new 2048-bit RSA keypair will be generated in your browser. The public certificate will be
+        registered with Entra; the private key stays in memory until you download it.
       </p>
       <div className="row" style={{ gap: 8, marginTop: 12 }}>
-        <button
-          className="primary"
-          disabled={submitting}
-          onClick={generateAndRegister}
-        >
+        <button className="primary" disabled={submitting} onClick={generateAndRegister}>
           {submitting ? 'Generating…' : 'Generate & register'}
         </button>
       </div>
@@ -416,17 +396,12 @@ function UploadTab({
       </label>
 
       <p className="muted" style={{ fontSize: 12 }}>
-        Only the public certificate is registered with Entra. For PFX uploads,
-        the private key is extracted in your browser to read the cert and then
-        discarded.
+        Only the public certificate is registered with Entra. For PFX uploads, the private key is
+        extracted in your browser to read the cert and then discarded.
       </p>
 
       <div className="row" style={{ gap: 8, marginTop: 12 }}>
-        <button
-          className="primary"
-          disabled={submitting || !file}
-          onClick={submit}
-        >
+        <button className="primary" disabled={submitting || !file} onClick={submit}>
           {submitting ? 'Uploading…' : 'Upload & register'}
         </button>
       </div>

@@ -31,9 +31,7 @@ export function ScopeLookupPanel({ catalog, onPick }: Props) {
   }, [catalog, method, path, submitted]);
 
   const delegatedMatches = matches.filter((m) => m.kinds.includes('delegated'));
-  const applicationMatches = matches.filter((m) =>
-    m.kinds.includes('application'),
-  );
+  const applicationMatches = matches.filter((m) => m.kinds.includes('application'));
 
   return (
     <div>
@@ -42,7 +40,7 @@ export function ScopeLookupPanel({ catalog, onPick }: Props) {
           <span>Method</span>
           <select
             value={method}
-            onChange={(e) => setMethod(e.target.value as typeof METHODS[number])}
+            onChange={(e) => setMethod(e.target.value as (typeof METHODS)[number])}
           >
             {METHODS.map((m) => (
               <option key={m} value={m}>
@@ -71,15 +69,13 @@ export function ScopeLookupPanel({ catalog, onPick }: Props) {
         </button>
       </div>
       <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-        Omit the <span className="mono">/v1.0</span> or{' '}
-        <span className="mono">/beta</span> prefix. Placeholders like{' '}
-        <span className="mono">{'{id}'}</span> match any single path segment.
+        Omit the <span className="mono">/v1.0</span> or <span className="mono">/beta</span> prefix.
+        Placeholders like <span className="mono">{'{id}'}</span> match any single path segment.
       </p>
 
       {!catalog && (
         <div className="muted">
-          <span className="spinner" /> Loading Microsoft Graph permissions
-          catalog…
+          <span className="spinner" /> Loading Microsoft Graph permissions catalog…
         </div>
       )}
 
@@ -92,8 +88,8 @@ export function ScopeLookupPanel({ catalog, onPick }: Props) {
                 {method} {path}
               </span>
               . Double-check the path template — segments like{' '}
-              <span className="mono">{'{id}'}</span> must align exactly with
-              Microsoft's documented paths.
+              <span className="mono">{'{id}'}</span> must align exactly with Microsoft's documented
+              paths.
             </div>
           ) : (
             <>
@@ -145,8 +141,7 @@ function ResultsBlock({
         </thead>
         <tbody>
           {matches.map((m) => {
-            const scheme =
-              kind === 'delegated' ? m.meta.delegated : m.meta.application;
+            const scheme = kind === 'delegated' ? m.meta.delegated : m.meta.application;
             const { label, tone } = privilegeLabel(scheme?.privilegeLevel);
             return (
               <tr key={`${kind}:${m.scope}`}>
@@ -155,8 +150,7 @@ function ResultsBlock({
                     {m.scope}
                   </div>
                   <div className="muted" style={{ fontSize: 11 }}>
-                    matched{' '}
-                    <span className="mono">{m.matchedPath}</span>
+                    matched <span className="mono">{m.matchedPath}</span>
                   </div>
                 </td>
                 <td>

@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useGraphToken } from '../auth/useGraphToken';
-import type {
-  AppRoleAssignment,
-  OAuth2PermissionGrant,
-  ServicePrincipal,
-} from '../graph/types';
+import type { AppRoleAssignment, OAuth2PermissionGrant, ServicePrincipal } from '../graph/types';
 import {
   createAppRoleAssignment,
   createOAuth2Grant,
@@ -15,14 +11,8 @@ import {
   listOAuth2GrantsForClient,
   updateOAuth2Grant,
 } from '../graph/servicePrincipals';
-import {
-  resolveDirectoryObjects,
-  type PrincipalRef,
-} from '../graph/directoryObjects';
-import {
-  AddPermissionModal,
-  type AddPermissionSubmitPayload,
-} from './AddPermissionModal';
+import { resolveDirectoryObjects, type PrincipalRef } from '../graph/directoryObjects';
+import { AddPermissionModal, type AddPermissionSubmitPayload } from './AddPermissionModal';
 import { PrivilegeBadge, useScopeCatalog } from './PrivilegeBadge';
 import { ScopeDetailsModal } from './ScopeDetailsModal';
 import { CopyButton } from './CopyButton';
@@ -60,13 +50,9 @@ type Row = AppRow | DelegatedRow;
 
 export function PermissionsManager({ clientSp }: Props) {
   const token = useGraphToken();
-  const [assignments, setAssignments] = useState<AppRoleAssignment[] | null>(
-    null,
-  );
+  const [assignments, setAssignments] = useState<AppRoleAssignment[] | null>(null);
   const [grants, setGrants] = useState<OAuth2PermissionGrant[] | null>(null);
-  const [resources, setResources] = useState<Record<string, ServicePrincipal>>(
-    {},
-  );
+  const [resources, setResources] = useState<Record<string, ServicePrincipal>>({});
   const [principals, setPrincipals] = useState<Record<string, PrincipalRef>>({});
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState<string | null>(null);
@@ -107,9 +93,7 @@ export function PermissionsManager({ clientSp }: Props) {
       const missingResources = [...resourceIds].filter((id) => !resources[id]);
       if (missingResources.length) {
         const fetched = await Promise.all(
-          missingResources.map((id) =>
-            getServicePrincipal(token, id).catch(() => null),
-          ),
+          missingResources.map((id) => getServicePrincipal(token, id).catch(() => null)),
         );
         setResources((prev) => {
           const next: Record<string, ServicePrincipal> = { ...prev };
@@ -122,12 +106,10 @@ export function PermissionsManager({ clientSp }: Props) {
 
       const principalIds = new Set<string>();
       a.forEach((x) => {
-        if (x.principalId && x.principalId !== clientSp.id)
-          principalIds.add(x.principalId);
+        if (x.principalId && x.principalId !== clientSp.id) principalIds.add(x.principalId);
       });
       g.forEach((x) => {
-        if (x.consentType === 'Principal' && x.principalId)
-          principalIds.add(x.principalId);
+        if (x.consentType === 'Principal' && x.principalId) principalIds.add(x.principalId);
       });
       const missingPrincipals = [...principalIds].filter((id) => !principals[id]);
       if (missingPrincipals.length) {
@@ -170,10 +152,7 @@ export function PermissionsManager({ clientSp }: Props) {
           roleDisplayName: role?.displayName,
           description: role?.description ?? '',
           principalId: a.principalId,
-          principalName:
-            principal?.displayName ??
-            a.principalDisplayName ??
-            a.principalId,
+          principalName: principal?.displayName ?? a.principalDisplayName ?? a.principalId,
           principalType: a.principalType ?? principal?.kind,
         });
       }
@@ -186,13 +165,9 @@ export function PermissionsManager({ clientSp }: Props) {
           .map((s) => s.trim())
           .filter(Boolean);
         const principal =
-          g.consentType === 'Principal' && g.principalId
-            ? principals[g.principalId]
-            : undefined;
+          g.consentType === 'Principal' && g.principalId ? principals[g.principalId] : undefined;
         for (const scope of scopes) {
-          const def = res?.oauth2PermissionScopes?.find(
-            (s) => s.value === scope,
-          );
+          const def = res?.oauth2PermissionScopes?.find((s) => s.value === scope);
           out.push({
             kind: 'delegated',
             key: `del:${g.id}:${scope}`,
@@ -212,9 +187,7 @@ export function PermissionsManager({ clientSp }: Props) {
       }
     }
     return out.sort(
-      (a, b) =>
-        a.resourceName.localeCompare(b.resourceName) ||
-        a.name.localeCompare(b.name),
+      (a, b) => a.resourceName.localeCompare(b.resourceName) || a.name.localeCompare(b.name),
     );
   }, [assignments, grants, resources, principals, clientSp]);
 
@@ -263,8 +236,7 @@ export function PermissionsManager({ clientSp }: Props) {
           (g) =>
             g.resourceId === payload.resource.id &&
             g.consentType === payload.consentType &&
-            (payload.consentType === 'AllPrincipals' ||
-              g.principalId === payload.principalId),
+            (payload.consentType === 'AllPrincipals' || g.principalId === payload.principalId),
         );
         if (existing) {
           const merged = Array.from(
@@ -280,10 +252,7 @@ export function PermissionsManager({ clientSp }: Props) {
           await createOAuth2Grant(token, {
             clientId: clientSp.id,
             consentType: payload.consentType,
-            principalId:
-              payload.consentType === 'Principal'
-                ? payload.principalId ?? null
-                : null,
+            principalId: payload.consentType === 'Principal' ? (payload.principalId ?? null) : null,
             resourceId: payload.resource.id,
             scope: payload.delegatedScopes.join(' '),
           });
@@ -308,8 +277,8 @@ export function PermissionsManager({ clientSp }: Props) {
           <div>
             <h3 style={{ margin: 0 }}>Configured API permissions</h3>
             <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-              Permissions this enterprise app holds on other APIs. Delegated
-              grants default to <code>AllPrincipals</code> (admin consent).
+              Permissions this enterprise app holds on other APIs. Delegated grants default to{' '}
+              <code>AllPrincipals</code> (admin consent).
             </div>
           </div>
           <button className="primary" onClick={() => setShowAdd(true)}>
@@ -326,159 +295,149 @@ export function PermissionsManager({ clientSp }: Props) {
         </div>
       ) : rows.length === 0 ? (
         <div className="card empty">
-          No API permissions configured. Click <em>Add a permission</em> to
-          grant one.
+          No API permissions configured. Click <em>Add a permission</em> to grant one.
         </div>
       ) : (
         <div>
           {groupByResource(rows).map((group) => {
             const isCollapsed = collapsed.has(group.resourceId);
             return (
-            <div
-              key={group.resourceId}
-              className={`group-box${isCollapsed ? ' collapsed' : ''}`}
-            >
-              <div
-                className="group-header"
-                onClick={() => toggleCollapsed(group.resourceId)}
-              >
-                <div className="row" style={{ gap: 10, alignItems: 'center' }}>
-                  <span className="chevron" aria-hidden>
-                    ▾
-                  </span>
-                  <AppIcon
-                    id={group.resourceAppId ?? group.resourceId}
-                    logoUrl={resources[group.resourceId]?.info?.logoUrl}
-                    size={24}
-                    title={group.resourceName}
-                  />
-                  <div>
-                    <div className="group-title">{group.resourceName}</div>
-                    <div className="group-subtitle">
-                      {group.resourceAppId ?? group.resourceId}
-                      <CopyButton
-                        value={group.resourceAppId ?? group.resourceId}
-                        label="resource appId"
-                      />
-                      {' · '}
-                      {group.rows.length} permission
-                      {group.rows.length === 1 ? '' : 's'}
+              <div key={group.resourceId} className={`group-box${isCollapsed ? ' collapsed' : ''}`}>
+                <div className="group-header" onClick={() => toggleCollapsed(group.resourceId)}>
+                  <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+                    <span className="chevron" aria-hidden>
+                      ▾
+                    </span>
+                    <AppIcon
+                      id={group.resourceAppId ?? group.resourceId}
+                      logoUrl={resources[group.resourceId]?.info?.logoUrl}
+                      size={24}
+                      title={group.resourceName}
+                    />
+                    <div>
+                      <div className="group-title">{group.resourceName}</div>
+                      <div className="group-subtitle">
+                        {group.resourceAppId ?? group.resourceId}
+                        <CopyButton
+                          value={group.resourceAppId ?? group.resourceId}
+                          label="resource appId"
+                        />
+                        {' · '}
+                        {group.rows.length} permission
+                        {group.rows.length === 1 ? '' : 's'}
+                      </div>
                     </div>
                   </div>
+                  <button
+                    className="danger"
+                    disabled={working !== null}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      for (const r of group.rows) {
+                        await revoke(r);
+                      }
+                    }}
+                  >
+                    Revoke all
+                  </button>
                 </div>
-                <button
-                  className="danger"
-                  disabled={working !== null}
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    for (const r of group.rows) {
-                      await revoke(r);
-                    }
-                  }}
-                >
-                  Revoke all
-                </button>
+                {!isCollapsed && (
+                  <div className="group-body">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Permission</th>
+                          <th>Type</th>
+                          <th>Granted to</th>
+                          <th>Description</th>
+                          <th style={{ width: 100 }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.rows.map((r) => (
+                          <tr key={r.key} style={{ cursor: 'default' }}>
+                            <td>
+                              <button
+                                type="button"
+                                className="link"
+                                onClick={() =>
+                                  setDetailsFor({
+                                    scope: r.name,
+                                    kind: r.kind === 'app' ? 'application' : 'delegated',
+                                    resourceAppId: r.resourceAppId,
+                                    resourceName: r.resourceName,
+                                    title: r.roleDisplayName,
+                                    description: r.description,
+                                  })
+                                }
+                                title="Show the URLs this permission unlocks"
+                              >
+                                <span className="mono" style={{ fontWeight: 600 }}>
+                                  {r.name}
+                                </span>
+                              </button>
+                              {r.roleDisplayName && (
+                                <div className="muted" style={{ fontSize: 12 }}>
+                                  {r.roleDisplayName}
+                                </div>
+                              )}
+                              <PrivilegeBadge
+                                catalog={catalog}
+                                resourceAppId={r.resourceAppId}
+                                scope={r.name}
+                                kind={r.kind === 'app' ? 'application' : 'delegated'}
+                              />
+                            </td>
+                            <td>
+                              {r.kind === 'app' ? (
+                                <span className="badge app">Application</span>
+                              ) : (
+                                <span className="badge delegated">
+                                  Delegated
+                                  {r.consentType === 'Principal' ? ' (user)' : ''}
+                                </span>
+                              )}
+                            </td>
+                            <td>
+                              {r.kind === 'app' ? (
+                                <>
+                                  <div>{r.principalName ?? r.principalId}</div>
+                                  {r.principalType && (
+                                    <div className="muted" style={{ fontSize: 11 }}>
+                                      {r.principalType}
+                                    </div>
+                                  )}
+                                </>
+                              ) : r.consentType === 'Principal' ? (
+                                <>
+                                  <div>{r.principalName ?? r.principalId}</div>
+                                  <div className="muted" style={{ fontSize: 11 }}>
+                                    Single principal
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="muted">All users (admin consent)</div>
+                              )}
+                            </td>
+                            <td className="muted" style={{ maxWidth: 380, fontSize: 12 }}>
+                              {r.description}
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <button
+                                className="danger"
+                                disabled={working === r.key}
+                                onClick={() => revoke(r)}
+                              >
+                                {working === r.key ? '…' : 'Revoke'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
-              {!isCollapsed && (
-              <div className="group-body">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Permission</th>
-                    <th>Type</th>
-                    <th>Granted to</th>
-                    <th>Description</th>
-                    <th style={{ width: 100 }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {group.rows.map((r) => (
-                    <tr key={r.key} style={{ cursor: 'default' }}>
-                      <td>
-                        <button
-                          type="button"
-                          className="link"
-                          onClick={() =>
-                            setDetailsFor({
-                              scope: r.name,
-                              kind: r.kind === 'app' ? 'application' : 'delegated',
-                              resourceAppId: r.resourceAppId,
-                              resourceName: r.resourceName,
-                              title: r.roleDisplayName,
-                              description: r.description,
-                            })
-                          }
-                          title="Show the URLs this permission unlocks"
-                        >
-                          <span className="mono" style={{ fontWeight: 600 }}>
-                            {r.name}
-                          </span>
-                        </button>
-                        {r.roleDisplayName && (
-                          <div className="muted" style={{ fontSize: 12 }}>
-                            {r.roleDisplayName}
-                          </div>
-                        )}
-                        <PrivilegeBadge
-                          catalog={catalog}
-                          resourceAppId={r.resourceAppId}
-                          scope={r.name}
-                          kind={r.kind === 'app' ? 'application' : 'delegated'}
-                        />
-                      </td>
-                      <td>
-                        {r.kind === 'app' ? (
-                          <span className="badge app">Application</span>
-                        ) : (
-                          <span className="badge delegated">
-                            Delegated
-                            {r.consentType === 'Principal' ? ' (user)' : ''}
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        {r.kind === 'app' ? (
-                          <>
-                            <div>{r.principalName ?? r.principalId}</div>
-                            {r.principalType && (
-                              <div className="muted" style={{ fontSize: 11 }}>
-                                {r.principalType}
-                              </div>
-                            )}
-                          </>
-                        ) : r.consentType === 'Principal' ? (
-                          <>
-                            <div>{r.principalName ?? r.principalId}</div>
-                            <div className="muted" style={{ fontSize: 11 }}>
-                              Single principal
-                            </div>
-                          </>
-                        ) : (
-                          <div className="muted">All users (admin consent)</div>
-                        )}
-                      </td>
-                      <td
-                        className="muted"
-                        style={{ maxWidth: 380, fontSize: 12 }}
-                      >
-                        {r.description}
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <button
-                          className="danger"
-                          disabled={working === r.key}
-                          onClick={() => revoke(r)}
-                        >
-                          {working === r.key ? '…' : 'Revoke'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              </div>
-              )}
-            </div>
             );
           })}
         </div>
@@ -528,7 +487,5 @@ function groupByResource(rows: Row[]): ResourceGroup[] {
     }
     g.rows.push(r);
   }
-  return [...byId.values()].sort((a, b) =>
-    a.resourceName.localeCompare(b.resourceName),
-  );
+  return [...byId.values()].sort((a, b) => a.resourceName.localeCompare(b.resourceName));
 }

@@ -8,14 +8,8 @@ import {
   updateServicePrincipal,
 } from '../graph/servicePrincipals';
 import { getApplicationByAppId } from '../graph/applications';
-import {
-  listAppOnlySignInsForApp,
-  listUserSignInsForApp,
-} from '../graph/signIns';
-import {
-  findTenantInformation,
-  type TenantInformation,
-} from '../graph/organization';
+import { listAppOnlySignInsForApp, listUserSignInsForApp } from '../graph/signIns';
+import { findTenantInformation, type TenantInformation } from '../graph/organization';
 import type {
   AppCredentialSignInActivity,
   KeyCredential,
@@ -56,16 +50,12 @@ export function EnterpriseAppDetail() {
   // many tenants (often empty while /auditLogs/signIns already has 100+
   // events). Query the authoritative sign-in log directly for the most
   // recent events per flow, matching what the Audit tab shows.
-  const [lastDelegated, setLastDelegated] = useState<SignIn | null | 'loading'>(
-    'loading',
-  );
-  const [lastAppOnly, setLastAppOnly] = useState<SignIn | null | 'loading'>(
-    'loading',
-  );
+  const [lastDelegated, setLastDelegated] = useState<SignIn | null | 'loading'>('loading');
+  const [lastAppOnly, setLastAppOnly] = useState<SignIn | null | 'loading'>('loading');
   const [signInError, setSignInError] = useState<string | null>(null);
-  const [credActivity, setCredActivity] = useState<
-    Map<string, AppCredentialSignInActivity>
-  >(new Map());
+  const [credActivity, setCredActivity] = useState<Map<string, AppCredentialSignInActivity>>(
+    new Map(),
+  );
 
   useEffect(() => {
     setSp(null);
@@ -180,10 +170,7 @@ export function EnterpriseAppDetail() {
         </div>
         {appRegId && (
           <div className="row">
-            <Link
-              to={`/applications/${appRegId}`}
-              style={{ textDecoration: 'none' }}
-            >
+            <Link to={`/applications/${appRegId}`} style={{ textDecoration: 'none' }}>
               <button>View app registration →</button>
             </Link>
           </div>
@@ -191,10 +178,7 @@ export function EnterpriseAppDetail() {
       </div>
 
       <div className="tabs">
-        <button
-          className={tab === 'overview' ? 'active' : ''}
-          onClick={() => setTab('overview')}
-        >
+        <button className={tab === 'overview' ? 'active' : ''} onClick={() => setTab('overview')}>
           Overview
         </button>
         <button
@@ -209,10 +193,7 @@ export function EnterpriseAppDetail() {
         >
           Users and groups
         </button>
-        <button
-          className={tab === 'audit' ? 'active' : ''}
-          onClick={() => setTab('audit')}
-        >
+        <button className={tab === 'audit' ? 'active' : ''} onClick={() => setTab('audit')}>
           Audit
         </button>
       </div>
@@ -252,20 +233,18 @@ export function EnterpriseAppDetail() {
                   disabled={togglingEnabled}
                   style={{ marginLeft: 8 }}
                 >
-                  {togglingEnabled
-                    ? '…'
-                    : sp.accountEnabled
-                      ? 'Disable'
-                      : 'Enable'}
+                  {togglingEnabled ? '…' : sp.accountEnabled ? 'Disable' : 'Enable'}
                 </button>
               </div>
               <div className="k">Tags</div>
               <div className="muted">{sp.tags?.join(', ') || '—'}</div>
               <div className="k">Created</div>
               <div>
-                {sp.createdDateTime
-                  ? new Date(sp.createdDateTime).toLocaleString()
-                  : <span className="muted">—</span>}
+                {sp.createdDateTime ? (
+                  new Date(sp.createdDateTime).toLocaleString()
+                ) : (
+                  <span className="muted">—</span>
+                )}
               </div>
               <div className="k">Last delegated sign-in</div>
               <div>
@@ -284,13 +263,10 @@ export function EnterpriseAppDetail() {
             <h3>Danger zone</h3>
             <div className="row" style={{ justifyContent: 'space-between' }}>
               <div className="muted" style={{ fontSize: 13 }}>
-                Deletes the service principal. Users lose access immediately;
-                the underlying app registration (if any) is not affected.
+                Deletes the service principal. Users lose access immediately; the underlying app
+                registration (if any) is not affected.
               </div>
-              <button
-                className="danger"
-                onClick={() => setConfirmDelete(true)}
-              >
+              <button className="danger" onClick={() => setConfirmDelete(true)}>
                 Delete enterprise app
               </button>
             </div>
@@ -308,10 +284,7 @@ export function EnterpriseAppDetail() {
           onClose={() => !deleting && setConfirmDelete(false)}
           footer={
             <>
-              <button
-                disabled={deleting}
-                onClick={() => setConfirmDelete(false)}
-              >
+              <button disabled={deleting} onClick={() => setConfirmDelete(false)}>
                 Cancel
               </button>
               <button className="danger" disabled={deleting} onClick={doDelete}>
@@ -321,9 +294,8 @@ export function EnterpriseAppDetail() {
           }
         >
           <p>
-            Delete <strong>{sp.displayName}</strong>? This removes the service
-            principal and all its role assignments and grants. This cannot be
-            undone.
+            Delete <strong>{sp.displayName}</strong>? This removes the service principal and all its
+            role assignments and grants. This cannot be undone.
           </p>
           <p className="mono muted" style={{ fontSize: 12 }}>
             {sp.id}
@@ -439,9 +411,7 @@ function LastSignInCell({
     signIn.appDisplayName;
   return (
     <>
-      <div title={when}>
-        {when ? new Date(when).toLocaleString() : '—'}
-      </div>
+      <div title={when}>{when ? new Date(when).toLocaleString() : '—'}</div>
       {actor && (
         <div className="muted" style={{ fontSize: 12 }}>
           by {actor}
@@ -465,18 +435,16 @@ function SpCredentialsCard({
   // (the old password-SSO / legacy SAML bucket). For Application,
   // ManagedIdentity, and SocialIdp types they're typically empty or internal
   // noise — hide the Certificates section there so the UI doesn't mislead.
-  const showCerts =
-    sp.servicePrincipalType === 'Legacy' && rawCerts.length > 0;
+  const showCerts = sp.servicePrincipalType === 'Legacy' && rawCerts.length > 0;
   const certs = showCerts ? rawCerts : [];
   if (secrets.length === 0 && !showCerts) {
     return (
       <div className="card">
         <h3>Credentials</h3>
         <div className="muted" style={{ fontSize: 13 }}>
-          This service principal has no secrets or certificates of its own.
-          First-party Microsoft apps and most multi-tenant apps fall in this
-          bucket — credentials live on the app registration in the home
-          tenant. SAML-federated apps and some SaaS apps keep signing certs
+          This service principal has no secrets or certificates of its own. First-party Microsoft
+          apps and most multi-tenant apps fall in this bucket — credentials live on the app
+          registration in the home tenant. SAML-federated apps and some SaaS apps keep signing certs
           here.
         </div>
       </div>
@@ -488,9 +456,7 @@ function SpCredentialsCard({
 
       {secrets.length > 0 && (
         <>
-          <h4 style={{ marginTop: 8, marginBottom: 8 }}>
-            Client secrets ({secrets.length})
-          </h4>
+          <h4 style={{ marginTop: 8, marginBottom: 8 }}>Client secrets ({secrets.length})</h4>
           <table className="table">
             <thead>
               <tr>
@@ -504,11 +470,7 @@ function SpCredentialsCard({
             </thead>
             <tbody>
               {secrets.map((s) => (
-                <SpSecretRow
-                  key={s.keyId}
-                  secret={s}
-                  activity={credActivity.get(s.keyId)}
-                />
+                <SpSecretRow key={s.keyId} secret={s} activity={credActivity.get(s.keyId)} />
               ))}
             </tbody>
           </table>
@@ -517,9 +479,7 @@ function SpCredentialsCard({
 
       {showCerts && (
         <>
-          <h4 style={{ marginTop: 20, marginBottom: 8 }}>
-            Certificates ({certs.length})
-          </h4>
+          <h4 style={{ marginTop: 20, marginBottom: 8 }}>Certificates ({certs.length})</h4>
           <table className="table">
             <thead>
               <tr>
@@ -534,11 +494,7 @@ function SpCredentialsCard({
             </thead>
             <tbody>
               {certs.map((c) => (
-                <SpCertRow
-                  key={c.keyId}
-                  cert={c}
-                  activity={credActivity.get(c.keyId)}
-                />
+                <SpCertRow key={c.keyId} cert={c} activity={credActivity.get(c.keyId)} />
               ))}
             </tbody>
           </table>
@@ -563,9 +519,7 @@ function SpSecretRow({
         {shortenId(secret.keyId)}
         <CopyButton value={secret.keyId} label="keyId" />
       </td>
-      <td className="mono">
-        {secret.hint ? `${secret.hint}…` : <span className="muted">—</span>}
-      </td>
+      <td className="mono">{secret.hint ? `${secret.hint}…` : <span className="muted">—</span>}</td>
       <td>{formatDateTime(secret.startDateTime)}</td>
       <td>
         <div className="row" style={{ gap: 6 }}>
@@ -596,11 +550,7 @@ function SpCertRow({
   return (
     <tr>
       <td>{cert.displayName || <span className="muted">—</span>}</td>
-      <td
-        className="mono"
-        title={thumb || cert.keyId}
-        style={{ fontSize: 12 }}
-      >
+      <td className="mono" title={thumb || cert.keyId} style={{ fontSize: 12 }}>
         {thumb ? shortenId(thumb) : shortenId(cert.keyId)}
         <CopyButton value={thumb || cert.keyId} label="thumbprint" />
       </td>

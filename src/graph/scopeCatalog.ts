@@ -149,14 +149,9 @@ export function getScopeMeta(
   return catalog[scope.toLowerCase()] ?? null;
 }
 
-export function getPrivilegeLevel(
-  meta: ScopeMeta | null,
-  kind: ScopeKind,
-): number | undefined {
+export function getPrivilegeLevel(meta: ScopeMeta | null, kind: ScopeKind): number | undefined {
   if (!meta) return undefined;
-  return kind === 'delegated'
-    ? meta.delegated?.privilegeLevel
-    : meta.application?.privilegeLevel;
+  return kind === 'delegated' ? meta.delegated?.privilegeLevel : meta.application?.privilegeLevel;
 }
 
 // Resource-Specific Consent scopes aren't marked in the catalog by scheme
@@ -209,9 +204,7 @@ export function findScopesForEndpoint(
     if (!meta.pathSets?.length) continue;
     for (const set of meta.pathSets) {
       if (!set.methods.includes(normMethod)) continue;
-      const matched = set.paths.find((p) =>
-        [...pathCandidates].some((c) => pathMatches(p, c)),
-      );
+      const matched = set.paths.find((p) => [...pathCandidates].some((c) => pathMatches(p, c)));
       if (!matched) continue;
       out.push({
         scope,
@@ -227,14 +220,8 @@ export function findScopesForEndpoint(
   // Sort: RSC last, then lowest privilege first, then alphabetically.
   return out.sort((a, b) => {
     if (a.isRsc !== b.isRsc) return a.isRsc ? 1 : -1;
-    const ap =
-      a.meta.delegated?.privilegeLevel ??
-      a.meta.application?.privilegeLevel ??
-      99;
-    const bp =
-      b.meta.delegated?.privilegeLevel ??
-      b.meta.application?.privilegeLevel ??
-      99;
+    const ap = a.meta.delegated?.privilegeLevel ?? a.meta.application?.privilegeLevel ?? 99;
+    const bp = b.meta.delegated?.privilegeLevel ?? b.meta.application?.privilegeLevel ?? 99;
     if (ap !== bp) return ap - bp;
     return a.scope.localeCompare(b.scope);
   });
@@ -258,9 +245,7 @@ function pathMatches(template: string, input: string): boolean {
   // Build a regex from each `{id}` → `[^/]+` while escaping everything else.
   const parts = template.split(/(\{[^}]+\})/g);
   const pattern = parts
-    .map((p) =>
-      /^\{[^}]+\}$/.test(p) ? '[^/]+' : p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
-    )
+    .map((p) => (/^\{[^}]+\}$/.test(p) ? '[^/]+' : p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
     .join('');
   return new RegExp(`^${pattern}$`, 'i').test(input);
 }

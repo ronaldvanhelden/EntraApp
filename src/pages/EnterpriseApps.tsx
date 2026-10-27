@@ -15,14 +15,11 @@ function classify(sp: ServicePrincipal): Exclude<Filter, 'all'> {
   return 'enterprise';
 }
 
-function isExternal(
-  sp: ServicePrincipal,
-  currentTenantId: string | undefined,
-): boolean {
+function isExternal(sp: ServicePrincipal, currentTenantId: string | undefined): boolean {
   return Boolean(
     sp.appOwnerOrganizationId &&
-      currentTenantId &&
-      sp.appOwnerOrganizationId.toLowerCase() !== currentTenantId.toLowerCase(),
+    currentTenantId &&
+    sp.appOwnerOrganizationId.toLowerCase() !== currentTenantId.toLowerCase(),
   );
 }
 
@@ -52,11 +49,7 @@ export function EnterpriseApps() {
     listServicePrincipals(token, debouncedSearch || undefined)
       .then((list) => {
         if (cancelled) return;
-        setSps(
-          [...list].sort((a, b) =>
-            (a.displayName ?? '').localeCompare(b.displayName ?? ''),
-          ),
-        );
+        setSps([...list].sort((a, b) => (a.displayName ?? '').localeCompare(b.displayName ?? '')));
       })
       .catch((e) => {
         if (!cancelled) setError(e.message);
@@ -70,14 +63,12 @@ export function EnterpriseApps() {
     if (!sps) return [];
     return sps.filter((sp) => {
       if (filter !== 'all' && classify(sp) !== filter) return false;
-      if (tenantFilter === 'this' && isExternal(sp, currentTenantId))
-        return false;
+      if (tenantFilter === 'this' && isExternal(sp, currentTenantId)) return false;
       if (tenantFilter === 'external') {
         if (!isExternal(sp, currentTenantId)) return false;
         if (
           externalTenantId &&
-          sp.appOwnerOrganizationId?.toLowerCase() !==
-            externalTenantId.toLowerCase()
+          sp.appOwnerOrganizationId?.toLowerCase() !== externalTenantId.toLowerCase()
         )
           return false;
       }
@@ -103,9 +94,7 @@ export function EnterpriseApps() {
       <div className="page-header">
         <div>
           <h1>Enterprise apps</h1>
-          <div className="subtitle">
-            Service principals (tenant-local application instances)
-          </div>
+          <div className="subtitle">Service principals (tenant-local application instances)</div>
         </div>
       </div>
 
@@ -117,10 +106,7 @@ export function EnterpriseApps() {
           onChange={(e) => setSearch(e.target.value)}
         />
         <div className="tabs" style={{ margin: 0, borderBottom: 'none' }}>
-          <button
-            className={filter === 'all' ? 'active' : ''}
-            onClick={() => setFilter('all')}
-          >
+          <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>
             All
           </button>
           <button
@@ -173,9 +159,7 @@ export function EnterpriseApps() {
             style={{ maxWidth: 280 }}
             title="Narrow to a specific external tenant"
           >
-            <option value="">
-              Any external tenant ({externalTenants.length})
-            </option>
+            <option value="">Any external tenant ({externalTenants.length})</option>
             {externalTenants.map((tid) => (
               <option key={tid} value={tid}>
                 {tid}
@@ -213,13 +197,9 @@ export function EnterpriseApps() {
                 const external =
                   sp.appOwnerOrganizationId &&
                   currentTenantId &&
-                  sp.appOwnerOrganizationId.toLowerCase() !==
-                    currentTenantId.toLowerCase();
+                  sp.appOwnerOrganizationId.toLowerCase() !== currentTenantId.toLowerCase();
                 return (
-                  <tr
-                    key={sp.id}
-                    onClick={() => nav(`/enterprise-apps/${sp.id}`)}
-                  >
+                  <tr key={sp.id} onClick={() => nav(`/enterprise-apps/${sp.id}`)}>
                     <td>
                       <div className="row" style={{ gap: 10, alignItems: 'center' }}>
                         <AppIcon
@@ -231,9 +211,7 @@ export function EnterpriseApps() {
                       </div>
                     </td>
                     <td className="mono">{sp.appId}</td>
-                    <td className="muted">
-                      {sp.servicePrincipalType ?? 'Application'}
-                    </td>
+                    <td className="muted">{sp.servicePrincipalType ?? 'Application'}</td>
                     <td>
                       {external ? (
                         <span className="badge">External</span>

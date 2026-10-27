@@ -25,11 +25,7 @@ export function listUserSignInsForApp(token: TokenFn, appId: string, top = 50) {
 
 // Service-principal / app-only sign-ins are a distinct event type and must be
 // requested explicitly via the signInEventTypes filter.
-export function listAppOnlySignInsForApp(
-  token: TokenFn,
-  appId: string,
-  top = 50,
-) {
+export function listAppOnlySignInsForApp(token: TokenFn, appId: string, top = 50) {
   const safe = appId.replace(/'/g, "''");
   return graphAll<SignIn>(
     token,
@@ -91,8 +87,7 @@ export function getSignIn(token: TokenFn, id: string) {
 // authenticationProcessingDetails blob, so we fall back to scanning that.
 export function extractKeyIdFromSignIn(s: SignIn): string | undefined {
   if (s.servicePrincipalCredentialKeyId) return s.servicePrincipalCredentialKeyId;
-  if (s.servicePrincipalCredentialThumbprint)
-    return s.servicePrincipalCredentialThumbprint;
+  if (s.servicePrincipalCredentialThumbprint) return s.servicePrincipalCredentialThumbprint;
   const details = s.authenticationProcessingDetails ?? [];
   for (const d of details) {
     if (!d.key || !d.value) continue;

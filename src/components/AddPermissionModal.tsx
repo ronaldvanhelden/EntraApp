@@ -64,32 +64,27 @@ export function AddPermissionModal({ clientSp, onClose, onSubmit }: Props) {
   const [tab, setTab] = useState<'delegated' | 'app'>('delegated');
   const [selectedApp, setSelectedApp] = useState<Set<string>>(new Set());
   const [selectedDel, setSelectedDel] = useState<Set<string>>(new Set());
-  const [consentType, setConsentType] =
-    useState<'AllPrincipals' | 'Principal'>('AllPrincipals');
-  const [delegatedPrincipal, setDelegatedPrincipal] =
-    useState<PrincipalRef | null>(null);
-  const [applicationPrincipal, setApplicationPrincipal] =
-    useState<PrincipalRef | null>({
-      id: clientSp.id,
-      displayName: clientSp.displayName,
-      kind: 'sp',
-      subtitle: clientSp.appId,
-    });
+  const [consentType, setConsentType] = useState<'AllPrincipals' | 'Principal'>('AllPrincipals');
+  const [delegatedPrincipal, setDelegatedPrincipal] = useState<PrincipalRef | null>(null);
+  const [applicationPrincipal, setApplicationPrincipal] = useState<PrincipalRef | null>({
+    id: clientSp.id,
+    displayName: clientSp.displayName,
+    kind: 'sp',
+    subtitle: clientSp.appId,
+  });
   const [submitting, setSubmitting] = useState(false);
   const [filter, setFilter] = useState('');
   const [mode, setMode] = useState<'api' | 'url'>('api');
   const catalog = useScopeCatalog();
-  const [pendingPick, setPendingPick] = useState<
-    | { scope: string; kind: 'delegated' | 'application' }
-    | null
-  >(null);
+  const [pendingPick, setPendingPick] = useState<{
+    scope: string;
+    kind: 'delegated' | 'application';
+  } | null>(null);
 
   useEffect(() => {
     if (!resource || !pendingPick) return;
     if (pendingPick.kind === 'delegated') {
-      const id = resource.oauth2PermissionScopes?.find(
-        (s) => s.value === pendingPick.scope,
-      )?.id;
+      const id = resource.oauth2PermissionScopes?.find((s) => s.value === pendingPick.scope)?.id;
       if (id) {
         setSelectedDel((prev) => {
           const next = new Set(prev);
@@ -99,9 +94,7 @@ export function AddPermissionModal({ clientSp, onClose, onSubmit }: Props) {
         setTab('delegated');
       }
     } else {
-      const id = resource.appRoles?.find(
-        (r) => r.value === pendingPick.scope,
-      )?.id;
+      const id = resource.appRoles?.find((r) => r.value === pendingPick.scope)?.id;
       if (id) {
         setSelectedApp((prev) => {
           const next = new Set(prev);
@@ -173,8 +166,7 @@ export function AddPermissionModal({ clientSp, onClose, onSubmit }: Props) {
     [resource],
   );
 
-  const filterFn = (text: string) =>
-    !filter || text.toLowerCase().includes(filter.toLowerCase());
+  const filterFn = (text: string) => !filter || text.toLowerCase().includes(filter.toLowerCase());
 
   const submit = async () => {
     if (!resource) return;
@@ -196,8 +188,7 @@ export function AddPermissionModal({ clientSp, onClose, onSubmit }: Props) {
           .map((id) => delegatedScopes.find((s) => s.id === id)?.value ?? '')
           .filter(Boolean),
         consentType,
-        principalId:
-          consentType === 'Principal' ? delegatedPrincipal?.id : undefined,
+        principalId: consentType === 'Principal' ? delegatedPrincipal?.id : undefined,
         applicationPrincipalId: applicationPrincipal?.id,
         applicationPrincipalName: applicationPrincipal?.displayName,
       });
@@ -230,16 +221,10 @@ export function AddPermissionModal({ clientSp, onClose, onSubmit }: Props) {
       {!resource ? (
         <>
           <div className="tabs" style={{ marginBottom: 16 }}>
-            <button
-              className={mode === 'api' ? 'active' : ''}
-              onClick={() => setMode('api')}
-            >
+            <button className={mode === 'api' ? 'active' : ''} onClick={() => setMode('api')}>
               By API
             </button>
-            <button
-              className={mode === 'url' ? 'active' : ''}
-              onClick={() => setMode('url')}
-            >
+            <button className={mode === 'url' ? 'active' : ''} onClick={() => setMode('url')}>
               By Graph URL
             </button>
           </div>
@@ -296,9 +281,8 @@ export function AddPermissionModal({ clientSp, onClose, onSubmit }: Props) {
             <>
               <h3 style={{ marginTop: 0 }}>Find scopes by Graph URL</h3>
               <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
-                Only Microsoft Graph endpoints are in the public catalog.
-                Picking a result loads the Microsoft Graph service principal
-                and pre-selects the scope.
+                Only Microsoft Graph endpoints are in the public catalog. Picking a result loads the
+                Microsoft Graph service principal and pre-selects the scope.
               </p>
               <ScopeLookupPanel
                 catalog={catalog}
@@ -315,9 +299,7 @@ export function AddPermissionModal({ clientSp, onClose, onSubmit }: Props) {
         <>
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 600 }}>
-                {resource.displayName}
-              </div>
+              <div style={{ fontSize: 15, fontWeight: 600 }}>{resource.displayName}</div>
               <div className="mono muted" style={{ fontSize: 12 }}>
                 {resource.appId}
               </div>
@@ -342,10 +324,7 @@ export function AddPermissionModal({ clientSp, onClose, onSubmit }: Props) {
             >
               Delegated ({delegatedScopes.length})
             </button>
-            <button
-              className={tab === 'app' ? 'active' : ''}
-              onClick={() => setTab('app')}
-            >
+            <button className={tab === 'app' ? 'active' : ''} onClick={() => setTab('app')}>
               Application ({appRoles.length})
             </button>
           </div>
@@ -360,15 +339,11 @@ export function AddPermissionModal({ clientSp, onClose, onSubmit }: Props) {
           {tab === 'delegated' && (
             <>
               {delegatedScopes.length === 0 ? (
-                <div className="empty">
-                  This API exposes no delegated scopes.
-                </div>
+                <div className="empty">This API exposes no delegated scopes.</div>
               ) : (
                 <PermissionChecklist
                   items={delegatedScopes
-                    .filter((s) =>
-                      filterFn(`${s.value} ${s.adminConsentDisplayName}`),
-                    )
+                    .filter((s) => filterFn(`${s.value} ${s.adminConsentDisplayName}`))
                     .map((s) => ({
                       id: s.id,
                       title: s.value,
@@ -377,16 +352,11 @@ export function AddPermissionModal({ clientSp, onClose, onSubmit }: Props) {
                       badge: s.type === 'Admin' ? 'Admin' : 'User',
                     }))}
                   selected={selectedDel}
-                  onToggle={(id) =>
-                    setSelectedDel((prev) => toggleSet(prev, id))
-                  }
+                  onToggle={(id) => setSelectedDel((prev) => toggleSet(prev, id))}
                 />
               )}
 
-              <div
-                className="card"
-                style={{ padding: 12, marginTop: 16, marginBottom: 0 }}
-              >
+              <div className="card" style={{ padding: 12, marginTop: 16, marginBottom: 0 }}>
                 <div className="row">
                   <label className="row" style={{ gap: 6 }}>
                     <input
@@ -426,9 +396,7 @@ export function AddPermissionModal({ clientSp, onClose, onSubmit }: Props) {
           {tab === 'app' && (
             <>
               {appRoles.length === 0 ? (
-                <div className="empty">
-                  This API exposes no application roles.
-                </div>
+                <div className="empty">This API exposes no application roles.</div>
               ) : (
                 <PermissionChecklist
                   items={appRoles
@@ -440,15 +408,10 @@ export function AddPermissionModal({ clientSp, onClose, onSubmit }: Props) {
                       description: r.description,
                     }))}
                   selected={selectedApp}
-                  onToggle={(id) =>
-                    setSelectedApp((prev) => toggleSet(prev, id))
-                  }
+                  onToggle={(id) => setSelectedApp((prev) => toggleSet(prev, id))}
                 />
               )}
-              <div
-                className="card"
-                style={{ padding: 12, marginTop: 16, marginBottom: 0 }}
-              >
+              <div className="card" style={{ padding: 12, marginTop: 16, marginBottom: 0 }}>
                 <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
                   Assign role to (principal service principal)
                 </div>
@@ -458,8 +421,8 @@ export function AddPermissionModal({ clientSp, onClose, onSubmit }: Props) {
                   onChange={setApplicationPrincipal}
                 />
                 <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
-                  Defaults to this enterprise app. Change to grant the role to a
-                  different service principal.
+                  Defaults to this enterprise app. Change to grant the role to a different service
+                  principal.
                 </div>
               </div>
             </>
@@ -529,10 +492,7 @@ export function PermissionChecklist({
               </div>
               <div style={{ fontSize: 13 }}>{it.subtitle}</div>
               {it.description && (
-                <div
-                  className="muted"
-                  style={{ fontSize: 12, marginTop: 2 }}
-                >
+                <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
                   {it.description}
                 </div>
               )}
@@ -540,9 +500,7 @@ export function PermissionChecklist({
           </label>
         );
       })}
-      {items.length === 0 && (
-        <div className="empty">No permissions match filter.</div>
-      )}
+      {items.length === 0 && <div className="empty">No permissions match filter.</div>}
     </div>
   );
 }

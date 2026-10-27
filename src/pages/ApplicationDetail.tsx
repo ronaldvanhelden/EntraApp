@@ -12,14 +12,8 @@ import {
   type AddPasswordInput,
   type UpdateApplicationPatch,
 } from '../graph/applications';
-import {
-  AddCertificateModal,
-  type CertSubmitPayload,
-} from '../components/AddCertificateModal';
-import {
-  deleteServicePrincipal,
-  getServicePrincipalByAppId,
-} from '../graph/servicePrincipals';
+import { AddCertificateModal, type CertSubmitPayload } from '../components/AddCertificateModal';
+import { deleteServicePrincipal, getServicePrincipalByAppId } from '../graph/servicePrincipals';
 import {
   buildCredentialActivityMap,
   listAppCredentialSignInActivities,
@@ -43,10 +37,7 @@ import { isFavorite, withFavorite } from '../lib/tags';
 import { PrivilegeBadge, useScopeCatalog } from '../components/PrivilegeBadge';
 import { ScopeDetailsModal } from '../components/ScopeDetailsModal';
 import { AddRequiredPermissionModal } from '../components/AddRequiredPermissionModal';
-import {
-  getSignIn,
-  listAppOnlySignInsForCredential,
-} from '../graph/signIns';
+import { getSignIn, listAppOnlySignInsForCredential } from '../graph/signIns';
 import { GraphError } from '../graph/client';
 import type { SignIn } from '../graph/types';
 
@@ -67,13 +58,11 @@ export function ApplicationDetail() {
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [fic, setFic] = useState<FederatedIdentityCredential[] | null>(null);
-  const [activityByKeyId, setActivityByKeyId] = useState<
-    Map<string, AppCredentialSignInActivity>
-  >(new Map());
+  const [activityByKeyId, setActivityByKeyId] = useState<Map<string, AppCredentialSignInActivity>>(
+    new Map(),
+  );
   const [activityError, setActivityError] = useState<string | null>(null);
-  const [resourceSps, setResourceSps] = useState<
-    Record<string, ServicePrincipal | null>
-  >({});
+  const [resourceSps, setResourceSps] = useState<Record<string, ServicePrincipal | null>>({});
 
   useEffect(() => {
     setApp(null);
@@ -97,9 +86,7 @@ export function ApplicationDetail() {
           .catch(() => setFic([]));
         listAppCredentialSignInActivities(token, a.appId)
           .then((rows) => setActivityByKeyId(buildCredentialActivityMap(rows)))
-          .catch((e: unknown) =>
-            setActivityError(e instanceof Error ? e.message : String(e)),
-          );
+          .catch((e: unknown) => setActivityError(e instanceof Error ? e.message : String(e)));
       })
       .catch((e) => setError(e.message));
   }, [token, id]);
@@ -111,9 +98,7 @@ export function ApplicationDetail() {
     ).filter((appId) => !(appId in resourceSps));
     toFetch.forEach((appId) => {
       getServicePrincipalByAppId(token, appId)
-        .then((resSp) =>
-          setResourceSps((prev) => ({ ...prev, [appId]: resSp ?? null })),
-        )
+        .then((resSp) => setResourceSps((prev) => ({ ...prev, [appId]: resSp ?? null })))
         .catch(() => setResourceSps((prev) => ({ ...prev, [appId]: null })));
     });
   }, [app, token, resourceSps]);
@@ -148,14 +133,9 @@ export function ApplicationDetail() {
           </div>
         </div>
         <div className="row">
-          {!editing && (
-            <button onClick={() => setEditing(true)}>Edit</button>
-          )}
+          {!editing && <button onClick={() => setEditing(true)}>Edit</button>}
           {sp && (
-            <Link
-              to={`/enterprise-apps/${sp.id}`}
-              style={{ textDecoration: 'none' }}
-            >
+            <Link to={`/enterprise-apps/${sp.id}`} style={{ textDecoration: 'none' }}>
               <button className="primary">Manage enterprise app →</button>
             </Link>
           )}
@@ -223,11 +203,7 @@ export function ApplicationDetail() {
             <div className="k">Notes</div>
             <div className="muted">{app.notes || '—'}</div>
             <div className="k">Created</div>
-            <div>
-              {app.createdDateTime
-                ? new Date(app.createdDateTime).toLocaleString()
-                : '—'}
-            </div>
+            <div>{app.createdDateTime ? new Date(app.createdDateTime).toLocaleString() : '—'}</div>
             <div className="k">OAuth flows</div>
             <div>
               <OAuthFlowSummary app={app} />
@@ -246,18 +222,14 @@ export function ApplicationDetail() {
 
       <AuthenticationCard app={app} onAppChange={setApp} />
 
-      <RequiredResourceAccessCard
-        app={app}
-        resourceSps={resourceSps}
-        onChange={setApp}
-      />
+      <RequiredResourceAccessCard app={app} resourceSps={resourceSps} onChange={setApp} />
 
       <div className="card">
         <h3>Danger zone</h3>
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <div className="muted" style={{ fontSize: 13 }}>
-            Deleting the app registration removes the application object. The
-            service principal is separate and must be deleted explicitly.
+            Deleting the app registration removes the application object. The service principal is
+            separate and must be deleted explicitly.
           </div>
           <button className="danger" onClick={() => setConfirmDelete(true)}>
             Delete app registration
@@ -290,9 +262,7 @@ function EditCard({
   const [displayName, setDisplayName] = useState(app.displayName);
   const [audience, setAudience] = useState(app.signInAudience ?? AUDIENCES[0]);
   const [notes, setNotes] = useState(app.notes ?? '');
-  const [identifierUris, setIdentifierUris] = useState(
-    (app.identifierUris ?? []).join('\n'),
-  );
+  const [identifierUris, setIdentifierUris] = useState((app.identifierUris ?? []).join('\n'));
   // Graph accepts uniqueName only while it is null; it is immutable afterwards,
   // so the field is offered exactly once.
   const canSetUniqueName = !app.uniqueName;
@@ -314,9 +284,7 @@ function EditCard({
         signInAudience: audience,
         notes: notes.trim() || undefined,
         identifierUris: uris,
-        ...(canSetUniqueName && trimmedUniqueName
-          ? { uniqueName: trimmedUniqueName }
-          : {}),
+        ...(canSetUniqueName && trimmedUniqueName ? { uniqueName: trimmedUniqueName } : {}),
       };
       await updateApplication(token, app.id, patch);
       onSaved(patch);
@@ -332,10 +300,7 @@ function EditCard({
       <h3>Edit details</h3>
       <label className="field">
         <span>Display name</span>
-        <input
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-        />
+        <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
       </label>
       <label className="field">
         <span>Sign-in audience</span>
@@ -349,9 +314,7 @@ function EditCard({
       </label>
       {canSetUniqueName ? (
         <label className="field">
-          <span>
-            Unique name (optional alternate key — can only be set once)
-          </span>
+          <span>Unique name (optional alternate key — can only be set once)</span>
           <input
             value={uniqueName}
             onChange={(e) => setUniqueName(e.target.value)}
@@ -384,22 +347,14 @@ function EditCard({
       </label>
       <label className="field">
         <span>Notes</span>
-        <textarea
-          rows={3}
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-        />
+        <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </label>
       {error && <p className="error">{error}</p>}
       <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
         <button disabled={saving} onClick={onCancel}>
           Cancel
         </button>
-        <button
-          className="primary"
-          disabled={saving || !displayName.trim()}
-          onClick={save}
-        >
+        <button className="primary" disabled={saving || !displayName.trim()} onClick={save}>
           {saving ? 'Saving…' : 'Save'}
         </button>
       </div>
@@ -432,9 +387,7 @@ function DeleteModal({
           await deleteServicePrincipal(token, sp.id);
         } catch (e: unknown) {
           setError(
-            `Failed to delete service principal: ${
-              e instanceof Error ? e.message : String(e)
-            }`,
+            `Failed to delete service principal: ${e instanceof Error ? e.message : String(e)}`,
           );
           setDeleting(false);
           return;
@@ -480,14 +433,16 @@ function DeleteModal({
           Also delete the enterprise app (service principal) in this tenant
         </label>
       )}
-      {error && <p className="error" style={{ marginTop: 12 }}>{error}</p>}
+      {error && (
+        <p className="error" style={{ marginTop: 12 }}>
+          {error}
+        </p>
+      )}
     </Modal>
   );
 }
 
-function expiryStatus(
-  end?: string,
-): 'expired' | 'soon' | 'active' | null {
+function expiryStatus(end?: string): 'expired' | 'soon' | 'active' | null {
   if (!end) return null;
   const ms = new Date(end).getTime();
   if (Number.isNaN(ms)) return null;
@@ -500,10 +455,8 @@ function expiryStatus(
 function ExpiryBadge({ end }: { end?: string }) {
   const status = expiryStatus(end);
   if (!status) return null;
-  if (status === 'expired')
-    return <span className="badge expired">Expired</span>;
-  if (status === 'soon')
-    return <span className="badge pending">Expires soon</span>;
+  if (status === 'expired') return <span className="badge expired">Expired</span>;
+  if (status === 'soon') return <span className="badge pending">Expires soon</span>;
   return <span className="badge granted">Active</span>;
 }
 
@@ -539,32 +492,21 @@ function shortenKeyId(keyId: string) {
   return keyId.length > 13 ? `${keyId.slice(0, 8)}…${keyId.slice(-4)}` : keyId;
 }
 
-function LastUsedCell({
-  activity,
-}: {
-  activity?: AppCredentialSignInActivity;
-}) {
+function LastUsedCell({ activity }: { activity?: AppCredentialSignInActivity }) {
   if (!activity) return <span className="muted">—</span>;
   const last = activity.signInActivity?.lastSignInDateTime;
   if (!last) return <span className="muted">Never</span>;
   return <span title={last}>{formatDateTime(last)}</span>;
 }
 
-function ResourceCell({
-  activity,
-}: {
-  activity?: AppCredentialSignInActivity;
-}) {
+function ResourceCell({ activity }: { activity?: AppCredentialSignInActivity }) {
   const name = activity?.signInActivity?.resourceDisplayName;
   return name ? <span>{name}</span> : <span className="muted">—</span>;
 }
 
 // Tags are stored on the directory object, so every write is a PATCH of the
 // whole collection. Each caller gets its own instance (and its own error slot).
-function useTagWriter(
-  app: Application,
-  onAppChange: (next: Application) => void,
-) {
+function useTagWriter(app: Application, onAppChange: (next: Application) => void) {
   const token = useGraphToken();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -716,21 +658,18 @@ function OAuthFlowSummary({ app }: { app: Application }) {
   // Client credentials is always available for confidential clients that
   // hold at least one secret or certificate.
   const hasCred =
-    (app.passwordCredentials?.length ?? 0) > 0 ||
-    (app.keyCredentials?.length ?? 0) > 0;
+    (app.passwordCredentials?.length ?? 0) > 0 || (app.keyCredentials?.length ?? 0) > 0;
   if (hasCred) {
     flows.push({
       label: 'Client credentials',
-      title:
-        'App-only: uses a client secret, certificate, or FIC to obtain tokens without a user',
+      title: 'App-only: uses a client secret, certificate, or FIC to obtain tokens without a user',
     });
   }
 
   if (flows.length === 0) {
     return (
       <span className="muted">
-        No flows configured — add a redirect URI or credential in the
-        Authentication section below.
+        No flows configured — add a redirect URI or credential in the Authentication section below.
       </span>
     );
   }
@@ -761,15 +700,10 @@ function AuthenticationCard({
   const webUris = app.web?.redirectUris ?? [];
   const publicUris = app.publicClient?.redirectUris ?? [];
   const idTokenIssuance = !!app.web?.implicitGrantSettings?.enableIdTokenIssuance;
-  const accessTokenIssuance =
-    !!app.web?.implicitGrantSettings?.enableAccessTokenIssuance;
+  const accessTokenIssuance = !!app.web?.implicitGrantSettings?.enableAccessTokenIssuance;
   const fallbackPublic = !!app.isFallbackPublicClient;
 
-  const patch = async (
-    body: UpdateApplicationPatch,
-    local: Partial<Application>,
-    key: string,
-  ) => {
+  const patch = async (body: UpdateApplicationPatch, local: Partial<Application>, key: string) => {
     setSaving(key);
     setError(null);
     try {
@@ -813,10 +747,7 @@ function AuthenticationCard({
     patch({ web }, { web }, 'accesstoken');
   };
 
-  const saveRedirectUris = async (
-    platform: 'web' | 'spa' | 'publicClient',
-    uris: string[],
-  ) => {
+  const saveRedirectUris = async (platform: 'web' | 'spa' | 'publicClient', uris: string[]) => {
     const local: Partial<Application> = {};
     const body: UpdateApplicationPatch = {};
     if (platform === 'web') {
@@ -948,13 +879,7 @@ function AuthenticationCard({
                 ? 'Edit SPA redirect URIs'
                 : 'Edit public-client redirect URIs'
           }
-          initial={
-            editPlatform === 'web'
-              ? webUris
-              : editPlatform === 'spa'
-                ? spaUris
-                : publicUris
-          }
+          initial={editPlatform === 'web' ? webUris : editPlatform === 'spa' ? spaUris : publicUris}
           onClose={() => setEditPlatform(null)}
           onSave={(uris) => saveRedirectUris(editPlatform, uris)}
         />
@@ -963,15 +888,7 @@ function AuthenticationCard({
   );
 }
 
-function FlowBadge({
-  active,
-  label,
-  hint,
-}: {
-  active: boolean;
-  label: string;
-  hint?: string;
-}) {
+function FlowBadge({ active, label, hint }: { active: boolean; label: string; hint?: string }) {
   return (
     <span
       className={`badge ${active ? 'granted' : ''}`}
@@ -1081,8 +998,8 @@ function RedirectUriEditModal({
       }
     >
       <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
-        One URI per line. Must be an HTTPS URL (or <code>http://localhost</code>),
-        except for public-client URIs which also allow custom schemes.
+        One URI per line. Must be an HTTPS URL (or <code>http://localhost</code>), except for
+        public-client URIs which also allow custom schemes.
       </p>
       <textarea
         value={text}
@@ -1187,8 +1104,8 @@ function RequiredResourceAccessCard({
         <div>
           <h3 style={{ margin: 0 }}>Required resource access (manifest)</h3>
           <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-            Permissions declared in the application manifest. To take effect,
-            they must be consented/granted on the enterprise app.
+            Permissions declared in the application manifest. To take effect, they must be
+            consented/granted on the enterprise app.
           </div>
         </div>
         <button className="primary" onClick={() => setShowAdd(true)}>
@@ -1197,7 +1114,9 @@ function RequiredResourceAccessCard({
       </div>
 
       {saveError && (
-        <p className="error" style={{ marginTop: 12 }}>{saveError}</p>
+        <p className="error" style={{ marginTop: 12 }}>
+          {saveError}
+        </p>
       )}
 
       {groups.length === 0 ? (
@@ -1209,18 +1128,11 @@ function RequiredResourceAccessCard({
           {groups.map((g) => {
             const resSp = resourceSps[g.resourceAppId];
             const resolving = resSp === undefined;
-            const resName =
-              resSp?.displayName ?? (resolving ? '…' : g.resourceAppId);
+            const resName = resSp?.displayName ?? (resolving ? '…' : g.resourceAppId);
             const isCollapsed = collapsed.has(g.resourceAppId);
             return (
-              <div
-                key={g.resourceAppId}
-                className={`group-box${isCollapsed ? ' collapsed' : ''}`}
-              >
-                <div
-                  className="group-header"
-                  onClick={() => toggleCollapsed(g.resourceAppId)}
-                >
+              <div key={g.resourceAppId} className={`group-box${isCollapsed ? ' collapsed' : ''}`}>
+                <div className="group-header" onClick={() => toggleCollapsed(g.resourceAppId)}>
                   <div className="row" style={{ gap: 10, alignItems: 'center' }}>
                     <span className="chevron" aria-hidden>
                       ▾
@@ -1235,10 +1147,7 @@ function RequiredResourceAccessCard({
                       <div className="group-title">{resName}</div>
                       <div className="group-subtitle">
                         {g.resourceAppId}
-                        <CopyButton
-                          value={g.resourceAppId}
-                          label="resource appId"
-                        />
+                        <CopyButton value={g.resourceAppId} label="resource appId" />
                         {' · '}
                         {g.resourceAccess.length} permission
                         {g.resourceAccess.length === 1 ? '' : 's'}
@@ -1253,120 +1162,105 @@ function RequiredResourceAccessCard({
                       removeResource(g.resourceAppId);
                     }}
                   >
-                    {working === `res:${g.resourceAppId}`
-                      ? '…'
-                      : 'Remove resource'}
+                    {working === `res:${g.resourceAppId}` ? '…' : 'Remove resource'}
                   </button>
                 </div>
                 {!isCollapsed && (
-                <div className="group-body">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Permission</th>
-                      <th>Type</th>
-                      <th>Description</th>
-                      <th style={{ width: 100 }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {g.resourceAccess.map((ra) => {
-                      const role =
-                        ra.type === 'Role'
-                          ? resSp?.appRoles?.find((x) => x.id === ra.id)
-                          : undefined;
-                      const scope =
-                        ra.type === 'Scope'
-                          ? resSp?.oauth2PermissionScopes?.find(
-                              (x) => x.id === ra.id,
-                            )
-                          : undefined;
-                      const permValue = role?.value ?? scope?.value;
-                      const permTitle =
-                        role?.displayName ?? scope?.adminConsentDisplayName;
-                      const permDesc =
-                        role?.description ?? scope?.adminConsentDescription;
-                      const key = `perm:${g.resourceAppId}:${ra.id}`;
-                      const permKind =
-                        ra.type === 'Role' ? 'application' : 'delegated';
-                      return (
-                        <tr key={ra.id}>
-                          <td>
-                            {permValue ? (
-                              <button
-                                type="button"
-                                className="link"
-                                onClick={() =>
-                                  setDetailsFor({
-                                    scope: permValue,
-                                    kind: permKind,
-                                    resourceAppId: g.resourceAppId,
-                                    resourceName: resSp?.displayName,
-                                    title: permTitle,
-                                    description: permDesc,
-                                  })
-                                }
-                                title="Show the URLs this permission unlocks"
-                              >
-                                <span
-                                  className="mono"
-                                  style={{ fontWeight: 600 }}
-                                >
-                                  {permValue}
-                                </span>
-                              </button>
-                            ) : (
-                              <div className="mono" style={{ fontWeight: 600 }}>
-                                {resolving ? '…' : ra.id}
-                              </div>
-                            )}
-                            {permTitle && (
-                              <div className="muted" style={{ fontSize: 12 }}>
-                                {permTitle}
-                              </div>
-                            )}
-                            {!permValue && !resolving && (
-                              <div className="mono muted" style={{ fontSize: 11 }}>
-                                {ra.id}
-                              </div>
-                            )}
-                            <PrivilegeBadge
-                              catalog={catalog}
-                              resourceAppId={g.resourceAppId}
-                              scope={permValue}
-                              kind={permKind}
-                            />
-                          </td>
-                          <td>
-                            {ra.type === 'Role' ? (
-                              <span className="badge app">Application</span>
-                            ) : (
-                              <span className="badge delegated">Delegated</span>
-                            )}
-                          </td>
-                          <td
-                            className="muted"
-                            style={{ maxWidth: 380, fontSize: 12 }}
-                          >
-                            {permDesc ?? ''}
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <button
-                              className="danger"
-                              disabled={working === key}
-                              onClick={() =>
-                                removePermission(g.resourceAppId, ra.id)
-                              }
-                            >
-                              {working === key ? '…' : 'Remove'}
-                            </button>
-                          </td>
+                  <div className="group-body">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Permission</th>
+                          <th>Type</th>
+                          <th>Description</th>
+                          <th style={{ width: 100 }}></th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {g.resourceAccess.map((ra) => {
+                          const role =
+                            ra.type === 'Role'
+                              ? resSp?.appRoles?.find((x) => x.id === ra.id)
+                              : undefined;
+                          const scope =
+                            ra.type === 'Scope'
+                              ? resSp?.oauth2PermissionScopes?.find((x) => x.id === ra.id)
+                              : undefined;
+                          const permValue = role?.value ?? scope?.value;
+                          const permTitle = role?.displayName ?? scope?.adminConsentDisplayName;
+                          const permDesc = role?.description ?? scope?.adminConsentDescription;
+                          const key = `perm:${g.resourceAppId}:${ra.id}`;
+                          const permKind = ra.type === 'Role' ? 'application' : 'delegated';
+                          return (
+                            <tr key={ra.id}>
+                              <td>
+                                {permValue ? (
+                                  <button
+                                    type="button"
+                                    className="link"
+                                    onClick={() =>
+                                      setDetailsFor({
+                                        scope: permValue,
+                                        kind: permKind,
+                                        resourceAppId: g.resourceAppId,
+                                        resourceName: resSp?.displayName,
+                                        title: permTitle,
+                                        description: permDesc,
+                                      })
+                                    }
+                                    title="Show the URLs this permission unlocks"
+                                  >
+                                    <span className="mono" style={{ fontWeight: 600 }}>
+                                      {permValue}
+                                    </span>
+                                  </button>
+                                ) : (
+                                  <div className="mono" style={{ fontWeight: 600 }}>
+                                    {resolving ? '…' : ra.id}
+                                  </div>
+                                )}
+                                {permTitle && (
+                                  <div className="muted" style={{ fontSize: 12 }}>
+                                    {permTitle}
+                                  </div>
+                                )}
+                                {!permValue && !resolving && (
+                                  <div className="mono muted" style={{ fontSize: 11 }}>
+                                    {ra.id}
+                                  </div>
+                                )}
+                                <PrivilegeBadge
+                                  catalog={catalog}
+                                  resourceAppId={g.resourceAppId}
+                                  scope={permValue}
+                                  kind={permKind}
+                                />
+                              </td>
+                              <td>
+                                {ra.type === 'Role' ? (
+                                  <span className="badge app">Application</span>
+                                ) : (
+                                  <span className="badge delegated">Delegated</span>
+                                )}
+                              </td>
+                              <td className="muted" style={{ maxWidth: 380, fontSize: 12 }}>
+                                {permDesc ?? ''}
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <button
+                                  className="danger"
+                                  disabled={working === key}
+                                  onClick={() => removePermission(g.resourceAppId, ra.id)}
+                                >
+                                  {working === key ? '…' : 'Remove'}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             );
@@ -1428,9 +1322,7 @@ function CredentialsCard({
   const token = useGraphToken();
   const secrets: PasswordCredential[] = app.passwordCredentials ?? [];
   const certs: KeyCredential[] = app.keyCredentials ?? [];
-  const [selectedSecret, setSelectedSecret] = useState<PasswordCredential | null>(
-    null,
-  );
+  const [selectedSecret, setSelectedSecret] = useState<PasswordCredential | null>(null);
   const [selectedCert, setSelectedCert] = useState<KeyCredential | null>(null);
   const [showAddSecret, setShowAddSecret] = useState(false);
   const [showAddCert, setShowAddCert] = useState(false);
@@ -1439,12 +1331,8 @@ function CredentialsCard({
   const [bulkBusy, setBulkBusy] = useState<'secrets' | 'certs' | null>(null);
   const [bulkError, setBulkError] = useState<string | null>(null);
 
-  const expiredSecrets = secrets.filter(
-    (s) => expiryStatus(s.endDateTime) === 'expired',
-  );
-  const expiredCerts = certs.filter(
-    (c) => expiryStatus(c.endDateTime) === 'expired',
-  );
+  const expiredSecrets = secrets.filter((s) => expiryStatus(s.endDateTime) === 'expired');
+  const expiredCerts = certs.filter((c) => expiryStatus(c.endDateTime) === 'expired');
   const toggleCollapsed = (key: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -1500,12 +1388,7 @@ function CredentialsCard({
   const handleRemoveExpiredSecrets = async () => {
     if (expiredSecrets.length === 0) return;
     const n = expiredSecrets.length;
-    if (
-      !window.confirm(
-        `Remove ${n} expired client secret${n === 1 ? '' : 's'}?`,
-      )
-    )
-      return;
+    if (!window.confirm(`Remove ${n} expired client secret${n === 1 ? '' : 's'}?`)) return;
     setBulkBusy('secrets');
     setBulkError(null);
     try {
@@ -1529,18 +1412,11 @@ function CredentialsCard({
   const handleRemoveExpiredCerts = async () => {
     if (expiredCerts.length === 0) return;
     const n = expiredCerts.length;
-    if (
-      !window.confirm(
-        `Remove ${n} expired certificate${n === 1 ? '' : 's'}?`,
-      )
-    )
-      return;
+    if (!window.confirm(`Remove ${n} expired certificate${n === 1 ? '' : 's'}?`)) return;
     setBulkBusy('certs');
     setBulkError(null);
     try {
-      const kept = certs.filter(
-        (c) => expiryStatus(c.endDateTime) !== 'expired',
-      );
+      const kept = certs.filter((c) => expiryStatus(c.endDateTime) !== 'expired');
       await updateApplication(token, app.id, { keyCredentials: kept });
       onAppChange({ ...app, keyCredentials: kept });
     } catch (e) {
@@ -1555,12 +1431,14 @@ function CredentialsCard({
       <h3>Credentials</h3>
       {activityError && (
         <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
-          Last-used info unavailable — grant{' '}
-          <span className="mono">AuditLog.Read.All</span> to enable.
+          Last-used info unavailable — grant <span className="mono">AuditLog.Read.All</span> to
+          enable.
         </p>
       )}
       {bulkError && (
-        <p className="error" style={{ marginTop: 0 }}>{bulkError}</p>
+        <p className="error" style={{ marginTop: 0 }}>
+          {bulkError}
+        </p>
       )}
 
       <CredentialSection
@@ -1574,9 +1452,7 @@ function CredentialsCard({
             <button
               className="danger"
               onClick={handleRemoveExpiredSecrets}
-              disabled={
-                expiredSecrets.length === 0 || bulkBusy === 'secrets'
-              }
+              disabled={expiredSecrets.length === 0 || bulkBusy === 'secrets'}
               title={
                 expiredSecrets.length === 0
                   ? 'No expired client secrets'
@@ -1585,11 +1461,7 @@ function CredentialsCard({
             >
               {bulkBusy === 'secrets'
                 ? 'Removing…'
-                : `Remove expired${
-                    expiredSecrets.length > 0
-                      ? ` (${expiredSecrets.length})`
-                      : ''
-                  }`}
+                : `Remove expired${expiredSecrets.length > 0 ? ` (${expiredSecrets.length})` : ''}`}
             </button>
             <button className="primary" onClick={() => setShowAddSecret(true)}>
               + New client secret
@@ -1665,11 +1537,7 @@ function CredentialsCard({
             >
               {bulkBusy === 'certs'
                 ? 'Removing…'
-                : `Remove expired${
-                    expiredCerts.length > 0
-                      ? ` (${expiredCerts.length})`
-                      : ''
-                  }`}
+                : `Remove expired${expiredCerts.length > 0 ? ` (${expiredCerts.length})` : ''}`}
             </button>
             <button className="primary" onClick={() => setShowAddCert(true)}>
               + New certificate
@@ -1696,17 +1564,9 @@ function CredentialsCard({
               const activity = activityByKeyId.get(c.keyId);
               const thumb = formatThumbprint(c.customKeyIdentifier);
               return (
-                <tr
-                  key={c.keyId}
-                  onClick={() => setSelectedCert(c)}
-                  style={{ cursor: 'pointer' }}
-                >
+                <tr key={c.keyId} onClick={() => setSelectedCert(c)} style={{ cursor: 'pointer' }}>
                   <td>{c.displayName || <span className="muted">—</span>}</td>
-                  <td
-                    className="mono"
-                    title={thumb || c.keyId}
-                    style={{ fontSize: 12 }}
-                  >
+                  <td className="mono" title={thumb || c.keyId} style={{ fontSize: 12 }}>
                     {thumb ? shortenKeyId(thumb) : shortenKeyId(c.keyId)}
                   </td>
                   <td>{c.type ?? <span className="muted">—</span>}</td>
@@ -1791,23 +1651,12 @@ function CredentialsCard({
         />
       )}
       {showAddSecret && (
-        <AddClientSecretModal
-          onClose={() => setShowAddSecret(false)}
-          onSubmit={handleAddSecret}
-        />
+        <AddClientSecretModal onClose={() => setShowAddSecret(false)} onSubmit={handleAddSecret} />
       )}
       {showAddCert && (
-        <AddCertificateModal
-          onClose={() => setShowAddCert(false)}
-          onSubmit={handleAddCert}
-        />
+        <AddCertificateModal onClose={() => setShowAddCert(false)} onSubmit={handleAddCert} />
       )}
-      {newSecret && (
-        <NewSecretValueModal
-          secret={newSecret}
-          onClose={() => setNewSecret(null)}
-        />
-      )}
+      {newSecret && <NewSecretValueModal secret={newSecret} onClose={() => setNewSecret(null)} />}
     </div>
   );
 }
@@ -1849,9 +1698,7 @@ function CredentialSection({
             </div>
           </div>
         </div>
-        {action && (
-          <div onClick={(e) => e.stopPropagation()}>{action}</div>
-        )}
+        {action && <div onClick={(e) => e.stopPropagation()}>{action}</div>}
       </div>
       {!collapsed && (
         <div className="group-body" data-section={id}>
@@ -1872,15 +1719,7 @@ function CredentialSection({
   );
 }
 
-function AuditRow({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value?: ReactNode;
-  mono?: boolean;
-}) {
+function AuditRow({ label, value, mono }: { label: string; value?: ReactNode; mono?: boolean }) {
   const empty = value === null || value === undefined || value === '';
   return (
     <>
@@ -1965,8 +1804,8 @@ function SecretAuditModal({
       </div>
       {confirming && (
         <p className="error" style={{ marginTop: 12 }}>
-          Deleting this secret invalidates it immediately. Anything still using
-          it will fail to authenticate.
+          Deleting this secret invalidates it immediately. Anything still using it will fail to
+          authenticate.
         </p>
       )}
       {deleteError && <p className="error">{deleteError}</p>}
@@ -2052,8 +1891,8 @@ function CertificateAuditModal({
       </div>
       {confirming && (
         <p className="error" style={{ marginTop: 12 }}>
-          Deleting this certificate invalidates it immediately. Anything using
-          it will fail to authenticate.
+          Deleting this certificate invalidates it immediately. Anything using it will fail to
+          authenticate.
         </p>
       )}
       {deleteError && <p className="error">{deleteError}</p>}
@@ -2086,8 +1925,7 @@ function SignInEventSection({
         if (!cancelled) setEvent(r);
       })
       .catch((e: unknown) => {
-        if (!cancelled)
-          setEventError(e instanceof Error ? e.message : String(e));
+        if (!cancelled) setEventError(e instanceof Error ? e.message : String(e));
       });
     return () => {
       cancelled = true;
@@ -2129,11 +1967,7 @@ function SignInEventSection({
       <div className="kv">
         <AuditRow
           label="When"
-          value={
-            si?.lastSignInDateTime
-              ? formatDateTime(si.lastSignInDateTime)
-              : 'Never'
-          }
+          value={si?.lastSignInDateTime ? formatDateTime(si.lastSignInDateTime) : 'Never'}
         />
         <AuditRow label="Key type" value={activity.keyType} />
         <AuditRow label="Key usage" value={activity.keyUsage} />
@@ -2181,11 +2015,7 @@ function SignInEventSection({
               label="Resource"
               value={event?.resourceDisplayName ?? si?.resourceDisplayName}
             />
-            <AuditRow
-              label="Resource ID"
-              value={event?.resourceId ?? si?.resourceId}
-              mono
-            />
+            <AuditRow label="Resource ID" value={event?.resourceId ?? si?.resourceId} mono />
             <AuditRow label="Request ID" value={requestId} mono />
             <AuditRow
               label="Status"
@@ -2194,8 +2024,7 @@ function SignInEventSection({
                   <>
                     <span className="badge expired">Failed</span>
                     <div className="muted" style={{ fontSize: 11 }}>
-                      {event.status.failureReason ??
-                        `code ${event.status.errorCode}`}
+                      {event.status.failureReason ?? `code ${event.status.errorCode}`}
                     </div>
                   </>
                 ) : (
@@ -2206,10 +2035,7 @@ function SignInEventSection({
           </>
         ) : (
           <>
-            <AuditRow
-              label="Target resource"
-              value={si?.resourceDisplayName}
-            />
+            <AuditRow label="Target resource" value={si?.resourceDisplayName} />
             <AuditRow label="Resource ID" value={si?.resourceId} mono />
           </>
         )}
@@ -2224,13 +2050,7 @@ function isAppOnlyEvent(s: SignIn): boolean {
   );
 }
 
-function CredentialSignInHistorySection({
-  appId,
-  keyId,
-}: {
-  appId: string;
-  keyId: string;
-}) {
+function CredentialSignInHistorySection({ appId, keyId }: { appId: string; keyId: string }) {
   const token = useGraphToken();
   const [state, setState] = useState<
     | { kind: 'loading' }
@@ -2245,17 +2065,12 @@ function CredentialSignInHistorySection({
     listAppOnlySignInsForCredential(token, appId, keyId)
       .then((rows) => {
         if (cancelled) return;
-        rows.sort((a, b) =>
-          (b.createdDateTime ?? '').localeCompare(a.createdDateTime ?? ''),
-        );
+        rows.sort((a, b) => (b.createdDateTime ?? '').localeCompare(a.createdDateTime ?? ''));
         setState({ kind: 'loaded', rows });
       })
       .catch((e: unknown) => {
         if (cancelled) return;
-        if (
-          e instanceof GraphError &&
-          (e.status === 403 || e.status === 404)
-        ) {
+        if (e instanceof GraphError && (e.status === 403 || e.status === 404)) {
           setState({ kind: 'forbidden' });
           return;
         }
@@ -2271,12 +2086,10 @@ function CredentialSignInHistorySection({
 
   return (
     <>
-      <h4 style={{ marginTop: 20, marginBottom: 4 }}>
-        Sign-ins · last 30 days
-      </h4>
+      <h4 style={{ marginTop: 20, marginBottom: 4 }}>Sign-ins · last 30 days</h4>
       <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
-        App-only sign-ins that used this credential. Microsoft Entra retains
-        30 days of sign-in activity.
+        App-only sign-ins that used this credential. Microsoft Entra retains 30 days of sign-in
+        activity.
       </div>
       {state.kind === 'loading' && <span className="spinner" />}
       {state.kind === 'forbidden' && (
@@ -2323,9 +2136,7 @@ function CredentialSignInHistorySection({
                       </div>
                     )}
                   </td>
-                  <td className="mono">
-                    {s.ipAddress ?? <span className="muted">—</span>}
-                  </td>
+                  <td className="mono">{s.ipAddress ?? <span className="muted">—</span>}</td>
                   <td>
                     {ok ? (
                       <span className="badge granted">Success</span>
@@ -2334,8 +2145,7 @@ function CredentialSignInHistorySection({
                         <span className="badge expired">Failed</span>
                         {(s.status?.failureReason || s.status?.errorCode) && (
                           <div className="muted" style={{ fontSize: 11 }}>
-                            {s.status?.failureReason ??
-                              `code ${s.status?.errorCode}`}
+                            {s.status?.failureReason ?? `code ${s.status?.errorCode}`}
                           </div>
                         )}
                       </>
@@ -2418,10 +2228,7 @@ function AddClientSecretModal({
       </label>
       <label className="field">
         <span>Expires in</span>
-        <select
-          value={months}
-          onChange={(e) => setMonths(Number(e.target.value))}
-        >
+        <select value={months} onChange={(e) => setMonths(Number(e.target.value))}>
           {SECRET_DURATIONS.map((d) => (
             <option key={d.months} value={d.months}>
               {d.label}
@@ -2430,8 +2237,8 @@ function AddClientSecretModal({
         </select>
       </label>
       <p className="muted" style={{ fontSize: 12 }}>
-        Entra caps client secret lifetime at 24 months. Microsoft recommends
-        certificates for production workloads.
+        Entra caps client secret lifetime at 24 months. Microsoft recommends certificates for
+        production workloads.
       </p>
       {error && <p className="error">{error}</p>}
     </Modal>
@@ -2467,8 +2274,8 @@ function NewSecretValueModal({
       }
     >
       <p className="error">
-        This is the only time the secret value will be shown. Copy it now and
-        store it somewhere safe.
+        This is the only time the secret value will be shown. Copy it now and store it somewhere
+        safe.
       </p>
       <div className="kv">
         <AuditRow label="Description" value={secret.displayName} />
