@@ -48,6 +48,8 @@ const AUDIENCES = [
   'PersonalMicrosoftAccount',
 ];
 
+type Tab = 'overview' | 'credentials' | 'authentication' | 'permissions';
+
 export function ApplicationDetail() {
   const { id = '' } = useParams();
   const token = useGraphToken();
@@ -56,6 +58,7 @@ export function ApplicationDetail() {
   const [sp, setSp] = useState<ServicePrincipal | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [tab, setTab] = useState<Tab>('overview');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [fic, setFic] = useState<FederatedIdentityCredential[] | null>(null);
   const [activityByKeyId, setActivityByKeyId] = useState<Map<string, AppCredentialSignInActivity>>(
@@ -69,6 +72,7 @@ export function ApplicationDetail() {
     setSp(null);
     setError(null);
     setEditing(false);
+    setTab('overview');
     setFic(null);
     setActivityByKeyId(new Map());
     setActivityError(null);
@@ -133,7 +137,7 @@ export function ApplicationDetail() {
           </div>
         </div>
         <div className="row">
-          {!editing && <button onClick={() => setEditing(true)}>Edit</button>}
+          {tab === 'overview' && !editing && <button onClick={() => setEditing(true)}>Edit</button>}
           {sp && (
             <Link to={`/enterprise-apps/${sp.id}`} style={{ textDecoration: 'none' }}>
               <button className="primary">Manage enterprise app →</button>
@@ -142,7 +146,31 @@ export function ApplicationDetail() {
         </div>
       </div>
 
-      {editing ? (
+      <div className="tabs">
+        <button className={tab === 'overview' ? 'active' : ''} onClick={() => setTab('overview')}>
+          Overview
+        </button>
+        <button
+          className={tab === 'permissions' ? 'active' : ''}
+          onClick={() => setTab('permissions')}
+        >
+          API permissions
+        </button>
+        <button
+          className={tab === 'credentials' ? 'active' : ''}
+          onClick={() => setTab('credentials')}
+        >
+          Credentials
+        </button>
+        <button
+          className={tab === 'authentication' ? 'active' : ''}
+          onClick={() => setTab('authentication')}
+        >
+          Authentication
+        </button>
+      </div>
+
+      {tab === 'overview' && editing && (
         <EditCard
           app={app}
           onCancel={() => setEditing(false)}
@@ -151,7 +179,9 @@ export function ApplicationDetail() {
             setEditing(false);
           }}
         />
-      ) : (
+      )}
+
+      {tab === 'overview' && !editing && (
         <div className="card">
           <h3>Details</h3>
           <div className="kv">
@@ -212,30 +242,36 @@ export function ApplicationDetail() {
         </div>
       )}
 
-      <CredentialsCard
-        app={app}
-        fic={fic}
-        activityByKeyId={activityByKeyId}
-        activityError={activityError}
-        onAppChange={setApp}
-      />
-
-      <AuthenticationCard app={app} onAppChange={setApp} />
-
-      <RequiredResourceAccessCard app={app} resourceSps={resourceSps} onChange={setApp} />
-
-      <div className="card">
-        <h3>Danger zone</h3>
-        <div className="row" style={{ justifyContent: 'space-between' }}>
-          <div className="muted" style={{ fontSize: 13 }}>
-            Deleting the app registration removes the application object. The service principal is
-            separate and must be deleted explicitly.
+      {tab === 'overview' && (
+        <div className="card">
+          <h3>Danger zone</h3>
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <div className="muted" style={{ fontSize: 13 }}>
+              Deleting the app registration removes the application object. The service principal is
+              separate and must be deleted explicitly.
+            </div>
+            <button className="danger" onClick={() => setConfirmDelete(true)}>
+              Delete app registration
+            </button>
           </div>
-          <button className="danger" onClick={() => setConfirmDelete(true)}>
-            Delete app registration
-          </button>
         </div>
-      </div>
+      )}
+
+      {tab === 'credentials' && (
+        <CredentialsCard
+          app={app}
+          fic={fic}
+          activityByKeyId={activityByKeyId}
+          activityError={activityError}
+          onAppChange={setApp}
+        />
+      )}
+
+      {tab === 'authentication' && <AuthenticationCard app={app} onAppChange={setApp} />}
+
+      {tab === 'permissions' && (
+        <RequiredResourceAccessCard app={app} resourceSps={resourceSps} onChange={setApp} />
+      )}
 
       {confirmDelete && (
         <DeleteModal
@@ -567,7 +603,7 @@ function TagsRow({
 }
 
 // Every redirect URI on the app, tagged with the platform it is registered
-// under. Read-only — editing lives in the Authentication card below.
+// under. Read-only — editing lives in the Authentication tab.
 function RedirectUriSummary({ app }: { app: Application }) {
   const entries: Array<{ platform: string; badge: string; uri: string }> = [
     ...(app.web?.redirectUris ?? []).map((uri) => ({
@@ -612,7 +648,7 @@ function RedirectUriSummary({ app }: { app: Application }) {
 
 // Compact read-only summary of which OAuth 2.0 grant types the app is wired
 // for — shown inline in the Details card. For toggling + full redirect URI
-// editing the user drops into the dedicated AuthenticationCard below.
+// editing the user switches to the dedicated Authentication tab.
 function OAuthFlowSummary({ app }: { app: Application }) {
   const flows: Array<{ label: string; title: string }> = [];
   const web = app.web;
@@ -669,7 +705,8 @@ function OAuthFlowSummary({ app }: { app: Application }) {
   if (flows.length === 0) {
     return (
       <span className="muted">
-        No flows configured — add a redirect URI or credential in the Authentication section below.
+        No flows configured — add a redirect URI or credential in the Authentication or Credentials
+        tab.
       </span>
     );
   }
