@@ -271,9 +271,7 @@ export function ApplicationDetail() {
               Deleting the app registration removes the application object. The service principal is
               separate and must be deleted explicitly.
             </div>
-            <button className="danger" onClick={() => setConfirmDelete(true)}>
-              Delete app registration
-            </button>
+            <RemoveButton label="Delete app registration" onClick={() => setConfirmDelete(true)} />
           </div>
         </div>
       )}
@@ -1505,10 +1503,10 @@ function RequiredResourceAccessCard({
             }
             onClick={() => setShowConsent(true)}
           >
-            Grant admin consent
+            Admin consent
           </button>
           <button className="primary" onClick={() => setShowAdd(true)}>
-            + Add a required permission
+            + Add
           </button>
         </div>
       </div>

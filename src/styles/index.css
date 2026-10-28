@@ -98,6 +98,11 @@ button.danger:hover:not(:disabled) {
   background: var(--danger);
   color: #fff;
 }
+/* Icon-only remove buttons: red outline with a white glyph so the bin reads
+   clearly against dark table rows. Hover fills red as usual. */
+button.danger.icon-btn {
+  color: #fff;
+}
 button.icon-btn {
   display: inline-flex;
   align-items: center;
