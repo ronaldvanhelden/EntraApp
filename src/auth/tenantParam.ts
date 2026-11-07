@@ -3,7 +3,7 @@
 // The app is served as a single static page with a HashRouter, so the query
 // string (?tenant=…) is never touched by in-app navigation — a bookmark like
 //
-//   https://ronaldvanhelden.github.io/EntraApp/?tenant=debble.com#/applications
+//   https://entra.2cloud.nl/?tenant=debble.com#/applications
 //
 // keeps pointing at that tenant no matter where the user clicks. The value is
 // used as the MSAL authority, so signing in through such a link acquires a

@@ -93,8 +93,8 @@ function Header({ onMenuClick, navOpen }: { onMenuClick: () => void; navOpen: bo
   const { instance, accounts } = useMsal();
   const active = instance.getActiveAccount() ?? accounts[0];
   const signOut = () => {
-    // Come back to this exact URL so a ?tenant= pin (and the /EntraApp/ base
-    // path) survive the round trip. Popup logout isn't supported on mobile
+    // Come back to this exact URL so a ?tenant= pin (and any base path)
+    // survives the round trip. Popup logout isn't supported on mobile
     // browsers; fall back to redirect, which uses postLogoutRedirectUri.
     instance
       .logoutPopup({ mainWindowRedirectUri: window.location.href })

@@ -27,14 +27,9 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
-      - name: Resolve Pages base path
-        id: base
-        run: |
-          repo="${GITHUB_REPOSITORY#*/}"
-          echo "base=/${repo}/" >> "$GITHUB_OUTPUT"
+      # Served from the root of the custom domain (entra.2cloud.nl), so the
+      # default base path "/" from vite.config.ts applies.
       - name: Build
-        env:
-          VITE_BASE: ${{ steps.base.outputs.base }}
         run: npm run build
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
