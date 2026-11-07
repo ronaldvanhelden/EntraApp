@@ -109,6 +109,32 @@ export async function listApplications(token: TokenFn, search?: string) {
   return dedupeById([...byName, ...byFilter]);
 }
 
+// App registrations the signed-in user is an owner of. The cast segment
+// returns only applications from /me/ownedObjects. Search is applied
+// client-side: an owner rarely has more than a handful of registrations, and
+// it keeps matching identical to the full list (name, unique name, appId,
+// tag label).
+export async function listOwnedApplications(token: TokenFn, search?: string) {
+  const path = '/me/ownedObjects/microsoft.graph.application';
+  const apps = await graphAll<Application>(token, path, {
+    query: { $select: LIST_SELECT, $expand: LIST_EXPAND, $top: 100 },
+  }).catch(() =>
+    // Some tenants reject $expand on the cast segment; the FIC badge is the
+    // only thing lost without it.
+    graphAll<Application>(token, path, { query: { $select: LIST_SELECT, $top: 100 } }),
+  );
+  const q = search?.trim().toLowerCase();
+  if (!q) return apps;
+  const tagQ = toStoredTag(q).toLowerCase();
+  return apps.filter(
+    (a) =>
+      a.displayName?.toLowerCase().includes(q) ||
+      a.uniqueName?.toLowerCase().startsWith(q) ||
+      a.appId?.toLowerCase().startsWith(q) ||
+      a.tags?.some((t) => t.toLowerCase().startsWith(tagQ) || t.toLowerCase().startsWith(q)),
+  );
+}
+
 function searchApplications(token: TokenFn, q: string) {
   const s = q.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   return graphAll<Application>(

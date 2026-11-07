@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
-import { createApplication, listApplications, updateApplication } from '../graph/applications';
+import {
+  createApplication,
+  listApplications,
+  listOwnedApplications,
+  updateApplication,
+} from '../graph/applications';
 import { createServicePrincipalFromAppId } from '../graph/servicePrincipals';
 import type { Application } from '../graph/types';
 import { Modal } from '../components/Modal';
@@ -25,7 +30,7 @@ const AUDIENCES = [
   'PersonalMicrosoftAccount',
 ];
 
-export function Applications() {
+export function Applications({ owned = false }: { owned?: boolean } = {}) {
   const token = useGraphToken();
   const nav = useNavigate();
   const [apps, setApps] = useState<Application[] | null>(null);
@@ -48,7 +53,8 @@ export function Applications() {
     let cancelled = false;
     setApps(null);
     setError(null);
-    listApplications(token, debouncedSearch || undefined)
+    const load = owned ? listOwnedApplications : listApplications;
+    load(token, debouncedSearch || undefined)
       .then((list) => {
         if (cancelled) return;
         // Favorites first, then alphabetical. Sorting happens only on load, so
@@ -67,7 +73,7 @@ export function Applications() {
     return () => {
       cancelled = true;
     };
-  }, [token, debouncedSearch]);
+  }, [token, debouncedSearch, owned]);
 
   // Facets over our own (debble:-prefixed) tags in the loaded set, most-used
   // first so the useful ones surface. Tags set outside EntraApp aren't offered
@@ -120,8 +126,12 @@ export function Applications() {
     <>
       <div className="page-header">
         <div>
-          <h1>App registrations</h1>
-          <div className="subtitle">Identity objects representing applications in your tenant</div>
+          <h1>{owned ? 'My app registrations' : 'App registrations'}</h1>
+          <div className="subtitle">
+            {owned
+              ? 'App registrations you are listed as an owner of'
+              : 'Identity objects representing applications in your tenant'}
+          </div>
         </div>
         <button className="primary" onClick={() => setShowCreate(true)}>
           + New app registration
@@ -135,18 +145,21 @@ export function Applications() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <div className="tabs" style={{ margin: 0, borderBottom: 'none' }}>
-          <button className={view === 'active' ? 'active' : ''} onClick={() => setView('active')}>
-            Active
-          </button>
-          <button
-            className={view === 'deleted' ? 'active' : ''}
-            onClick={() => setView('deleted')}
-            title="Soft-deleted app registrations in the directory recycle bin"
-          >
-            Deleted
-          </button>
-        </div>
+        {/* The recycle bin isn't scoped by owner, so the owned view has no Deleted tab. */}
+        {!owned && (
+          <div className="tabs" style={{ margin: 0, borderBottom: 'none' }}>
+            <button className={view === 'active' ? 'active' : ''} onClick={() => setView('active')}>
+              Active
+            </button>
+            <button
+              className={view === 'deleted' ? 'active' : ''}
+              onClick={() => setView('deleted')}
+              title="Soft-deleted app registrations in the directory recycle bin"
+            >
+              Deleted
+            </button>
+          </div>
+        )}
         {apps && view === 'active' && (
           <span className="muted">
             {tagFilter
@@ -266,7 +279,9 @@ export function Applications() {
                         ? `No applications tagged “${tagLabel(tagFilter)}”.`
                         : debouncedSearch
                           ? 'No applications match your search.'
-                          : 'No applications found.'}
+                          : owned
+                            ? 'You are not an owner of any app registrations.'
+                            : 'No applications found.'}
                     </div>
                   </td>
                 </tr>

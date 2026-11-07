@@ -144,6 +144,9 @@ function Sidebar() {
       <NavLink to="/applications" className={nav}>
         App registrations
       </NavLink>
+      <NavLink to="/my-applications" className={nav}>
+        Owned app registrations
+      </NavLink>
       <NavLink to="/enterprise-apps" className={nav}>
         Enterprise apps
       </NavLink>

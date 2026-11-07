@@ -14,8 +14,9 @@ export default function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/applications" element={<Applications />} />
+          <Route path="/applications" element={<Applications key="all" />} />
           <Route path="/applications/:id" element={<ApplicationDetail />} />
+          <Route path="/my-applications" element={<Applications key="owned" owned />} />
           <Route path="/enterprise-apps" element={<EnterpriseApps />} />
           <Route path="/enterprise-apps/:id" element={<EnterpriseAppDetail />} />
           <Route path="/settings" element={<Settings />} />
