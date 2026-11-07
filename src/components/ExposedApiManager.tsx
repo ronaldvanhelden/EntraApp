@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useGraphToken } from '../auth/useGraphToken';
 import { updateApplication } from '../graph/applications';
-import type { AppRole, Application, OAuth2PermissionScope } from '../graph/types';
+import { getServicePrincipalByAppId } from '../graph/servicePrincipals';
+import type { ApiApplication, AppRole, Application, OAuth2PermissionScope } from '../graph/types';
 import { CopyButton } from './CopyButton';
 import { useConfirm } from './ConfirmDialog';
 import { Modal } from './Modal';
@@ -28,16 +29,48 @@ export function ExposedApiManager({ app, onAppChange }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [scopeModal, setScopeModal] = useState<'closed' | 'new' | OAuth2PermissionScope>('closed');
   const [roleModal, setRoleModal] = useState<'closed' | 'new' | AppRole>('closed');
+  const [clientModal, setClientModal] = useState<'closed' | 'new' | PreAuthorized>('closed');
+  const [clientNames, setClientNames] = useState<Record<string, string | null>>({});
 
-  const scopes = app.api?.oauth2PermissionScopes ?? [];
+  const api: ApiApplication = app.api ?? {};
+  const scopes = api.oauth2PermissionScopes ?? [];
+  const preAuth = api.preAuthorizedApplications ?? [];
   const roles = app.appRoles ?? [];
   // Roles Entra synthesises can't be edited here — only ones defined on the app.
   const editableRole = (r: AppRole) => !r.origin || r.origin === 'Application';
 
-  const saveScopes = async (next: OAuth2PermissionScope[]) => {
-    await updateApplication(token, app.id, { api: { oauth2PermissionScopes: next } });
-    onAppChange({ ...app, api: { ...app.api, oauth2PermissionScopes: next } });
+  // Always PATCH the whole api object so a scope edit can't drop authorized
+  // clients, the token version or known clients on the way.
+  const saveApi = async (next: ApiApplication) => {
+    await updateApplication(token, app.id, { api: next });
+    onAppChange({ ...app, api: next });
   };
+  const saveScopes = (next: OAuth2PermissionScope[]) =>
+    saveApi({ ...api, oauth2PermissionScopes: next });
+  const savePreAuth = (next: PreAuthorized[]) =>
+    saveApi({ ...api, preAuthorizedApplications: next });
+
+  // Resolve client app names for the authorized-clients table (best-effort:
+  // a client from another tenant has no service principal here).
+  const preAuthKey = preAuth.map((p) => p.appId).join(',');
+  useEffect(() => {
+    let cancelled = false;
+    for (const p of preAuth) {
+      if (p.appId in clientNames) continue;
+      getServicePrincipalByAppId(token, p.appId)
+        .then((sp) => {
+          if (!cancelled)
+            setClientNames((prev) => ({ ...prev, [p.appId]: sp?.displayName ?? null }));
+        })
+        .catch(() => {
+          if (!cancelled) setClientNames((prev) => ({ ...prev, [p.appId]: null }));
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, preAuthKey]);
   const saveRoles = async (next: AppRole[]) => {
     await updateApplication(token, app.id, { appRoles: next });
     onAppChange({ ...app, appRoles: next });
@@ -67,6 +100,10 @@ export function ExposedApiManager({ app, onAppChange }: Props) {
   const toggleScope = (s: OAuth2PermissionScope) =>
     upsertScope({ ...s, isEnabled: !s.isEnabled }).catch(() => {});
   const deleteScope = async (s: OAuth2PermissionScope) => {
+    const usedBy = preAuth.filter((p) => p.delegatedPermissionIds.includes(s.id)).length;
+    const preAuthOnlyThis = preAuth.filter(
+      (p) => p.delegatedPermissionIds.length === 1 && p.delegatedPermissionIds[0] === s.id,
+    ).length;
     const ok = await confirm({
       title: `Delete scope ${s.value}?`,
       message: (
@@ -76,16 +113,41 @@ export function ExposedApiManager({ app, onAppChange }: Props) {
             with it, and any consent already granted for it is dropped.
             {s.isEnabled && ' The scope is disabled first, then removed.'}
           </p>
+          {usedBy > 0 && (
+            <p style={{ margin: 0, fontSize: 14 }}>
+              It's also removed from {usedBy} authorized client{' '}
+              {usedBy === 1 ? 'application' : 'applications'}
+              {preAuthOnlyThis > 0 &&
+                `; ${preAuthOnlyThis === 1 ? 'one of them has' : `${preAuthOnlyThis} of them have`} no other scope and ${preAuthOnlyThis === 1 ? 'is' : 'are'} removed entirely`}
+              .
+            </p>
+          )}
         </>
       ),
       confirmLabel: 'Delete scope',
     });
     if (!ok) return;
+    const stripped = preAuth
+      .map((p) => ({
+        ...p,
+        delegatedPermissionIds: p.delegatedPermissionIds.filter((id) => id !== s.id),
+      }))
+      .filter((p) => p.delegatedPermissionIds.length > 0);
     await run(`scope:${s.id}`, async () => {
-      if (s.isEnabled) {
-        await saveScopes(scopes.map((x) => (x.id === s.id ? { ...x, isEnabled: false } : x)));
+      if (s.isEnabled || usedBy > 0) {
+        await saveApi({
+          ...api,
+          preAuthorizedApplications: stripped,
+          oauth2PermissionScopes: scopes.map((x) =>
+            x.id === s.id ? { ...x, isEnabled: false } : x,
+          ),
+        });
       }
-      await saveScopes(scopes.filter((x) => x.id !== s.id));
+      await saveApi({
+        ...api,
+        preAuthorizedApplications: stripped,
+        oauth2PermissionScopes: scopes.filter((x) => x.id !== s.id),
+      });
     }).catch(() => {});
   };
 
@@ -118,6 +180,33 @@ export function ExposedApiManager({ app, onAppChange }: Props) {
       await saveRoles(roles.filter((x) => x.id !== r.id));
     }).catch(() => {});
   };
+
+  const upsertClient = (c: PreAuthorized) =>
+    run(`client:${c.appId}`, () =>
+      savePreAuth(
+        preAuth.some((x) => x.appId.toLowerCase() === c.appId.toLowerCase())
+          ? preAuth.map((x) => (x.appId.toLowerCase() === c.appId.toLowerCase() ? c : x))
+          : [...preAuth, c],
+      ),
+    );
+  const removeClient = async (c: PreAuthorized) => {
+    const name = clientNames[c.appId] ?? c.appId;
+    const ok = await confirm({
+      title: `Remove ${name} as an authorized client?`,
+      message: (
+        <p style={{ margin: 0, fontSize: 14 }}>
+          Users of that app will be asked to consent to these scopes again (unless an admin has
+          granted consent tenant-wide).
+        </p>
+      ),
+      confirmLabel: 'Remove',
+    });
+    if (!ok) return;
+    await run(`client:${c.appId}`, () =>
+      savePreAuth(preAuth.filter((x) => x.appId.toLowerCase() !== c.appId.toLowerCase())),
+    ).catch(() => {});
+  };
+  const scopeById = new Map(scopes.map((s) => [s.id, s]));
 
   const hasUri = (app.identifierUris?.length ?? 0) > 0;
 
@@ -206,6 +295,86 @@ export function ExposedApiManager({ app, onAppChange }: Props) {
                         label="Delete scope"
                         busy={busy === `scope:${s.id}`}
                         onClick={() => void deleteScope(s)}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="card">
+        <div className="row" style={{ justifyContent: 'space-between' }}>
+          <div>
+            <h3 style={{ margin: 0 }}>Authorized client applications</h3>
+            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+              Client apps pre-authorized for some of the scopes above: their users are never asked
+              to consent to those scopes.
+            </div>
+          </div>
+          <button
+            className="primary"
+            style={{ whiteSpace: 'nowrap' }}
+            onClick={() => setClientModal('new')}
+            disabled={!!busy || !scopes.some((s) => s.isEnabled)}
+            title={scopes.some((s) => s.isEnabled) ? undefined : 'Add an enabled scope first'}
+          >
+            + Add client
+          </button>
+        </div>
+        {preAuth.length === 0 ? (
+          <div className="muted" style={{ marginTop: 12 }}>
+            No authorized client applications.
+          </div>
+        ) : (
+          <table className="table" style={{ marginTop: 12 }}>
+            <thead>
+              <tr>
+                <th>Client application</th>
+                <th>Authorized scopes</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {preAuth.map((c) => (
+                <tr key={c.appId} onClick={() => setClientModal(c)}>
+                  <td>
+                    {clientNames[c.appId] === undefined ? (
+                      <span className="spinner" />
+                    ) : clientNames[c.appId] ? (
+                      clientNames[c.appId]
+                    ) : (
+                      <span className="muted">Not in this tenant</span>
+                    )}
+                    <div className="mono muted" style={{ fontSize: 11 }}>
+                      {c.appId}
+                      <CopyButton value={c.appId} label="client app id" />
+                    </div>
+                  </td>
+                  <td>
+                    <div className="row wrap" style={{ gap: 4 }}>
+                      {c.delegatedPermissionIds.map((id) => {
+                        const sc = scopeById.get(id);
+                        return (
+                          <span
+                            key={id}
+                            className={`badge ${sc ? 'delegated' : 'expired'}`}
+                            title={sc ? sc.adminConsentDisplayName : `Unknown scope ${id}`}
+                          >
+                            {sc ? sc.value : `unknown ${id.slice(0, 8)}…`}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </td>
+                  <td className="row-actions" onClick={(e) => e.stopPropagation()}>
+                    <div className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
+                      <RemoveButton
+                        label="Remove authorized client"
+                        busy={busy === `client:${c.appId}`}
+                        onClick={() => void removeClient(c)}
                       />
                     </div>
                   </td>
@@ -324,6 +493,19 @@ export function ExposedApiManager({ app, onAppChange }: Props) {
           onSubmit={async (s) => {
             await upsertScope(s);
             setScopeModal('closed');
+          }}
+        />
+      )}
+      {clientModal !== 'closed' && (
+        <ClientModal
+          existing={clientModal === 'new' ? undefined : clientModal}
+          ownAppId={app.appId}
+          scopes={scopes}
+          taken={preAuth.map((p) => p.appId.toLowerCase())}
+          onClose={() => setClientModal('closed')}
+          onSubmit={async (c) => {
+            await upsertClient(c);
+            setClientModal('closed');
           }}
         />
       )}
@@ -618,6 +800,163 @@ function RoleModal({
         />
         <span>Enabled</span>
       </label>
+      {error && <p className="error">{error}</p>}
+    </Modal>
+  );
+}
+
+type PreAuthorized = { appId: string; delegatedPermissionIds: string[] };
+
+const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function ClientModal({
+  existing,
+  ownAppId,
+  scopes,
+  taken,
+  onClose,
+  onSubmit,
+}: {
+  existing?: PreAuthorized;
+  ownAppId: string;
+  scopes: OAuth2PermissionScope[];
+  taken: string[];
+  onClose: () => void;
+  onSubmit: (c: PreAuthorized) => Promise<void>;
+}) {
+  const token = useGraphToken();
+  const [appId, setAppId] = useState(existing?.appId ?? '');
+  const [selected, setSelected] = useState<string[]>(existing?.delegatedPermissionIds ?? []);
+  const [lookup, setLookup] = useState<'idle' | 'loading' | { name: string | null }>('idle');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const id = appId.trim();
+  const validId = GUID_RE.test(id);
+  const duplicate = !existing && taken.includes(id.toLowerCase());
+  const self = id.toLowerCase() === ownAppId.toLowerCase();
+
+  // Show who the appId belongs to as soon as it's a complete GUID.
+  useEffect(() => {
+    if (!validId) {
+      setLookup('idle');
+      return;
+    }
+    let cancelled = false;
+    setLookup('loading');
+    getServicePrincipalByAppId(token, id)
+      .then((sp) => {
+        if (!cancelled) setLookup({ name: sp?.displayName ?? null });
+      })
+      .catch(() => {
+        if (!cancelled) setLookup({ name: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, id, validId]);
+
+  // Enabled scopes, plus any disabled one this client already has.
+  const offered = scopes.filter((s) => s.isEnabled || selected.includes(s.id));
+  const valid = validId && !duplicate && !self && selected.length > 0;
+
+  const submit = async () => {
+    if (!valid) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onSubmit({ appId: id, delegatedPermissionIds: selected });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={existing ? 'Edit authorized client' : 'Add authorized client application'}
+      onClose={() => !submitting && onClose()}
+      footer={
+        <>
+          <button disabled={submitting} onClick={onClose}>
+            Cancel
+          </button>
+          <button className="primary" disabled={submitting || !valid} onClick={submit}>
+            {submitting ? 'Saving…' : existing ? 'Save' : 'Add client'}
+          </button>
+        </>
+      }
+    >
+      <label className="field">
+        <span>Client ID (appId) of the client application</span>
+        <input
+          autoFocus={!existing}
+          className="mono"
+          value={appId}
+          disabled={!!existing}
+          onChange={(e) => setAppId(e.target.value)}
+          placeholder="00000000-0000-0000-0000-000000000000"
+        />
+        {id && !validId && (
+          <span className="error" style={{ fontSize: 12 }}>
+            Enter the client app's application (client) ID — a GUID.
+          </span>
+        )}
+        {duplicate && (
+          <span className="error" style={{ fontSize: 12 }}>
+            This client is already authorized — edit it instead.
+          </span>
+        )}
+        {self && (
+          <span className="error" style={{ fontSize: 12 }}>
+            That's this app's own client ID.
+          </span>
+        )}
+        {validId && !self && (
+          <span className="muted" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
+            {lookup === 'loading' ? (
+              'Looking up…'
+            ) : typeof lookup === 'object' && lookup.name ? (
+              <>
+                Found in this tenant: <strong>{lookup.name}</strong>
+              </>
+            ) : typeof lookup === 'object' ? (
+              'No enterprise app with this client ID in this tenant — fine for a client registered in another tenant.'
+            ) : null}
+          </span>
+        )}
+      </label>
+      <div className="field">
+        <span
+          style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}
+        >
+          Authorized scopes
+        </span>
+        {offered.map((s) => (
+          <label key={s.id} className="row" style={{ gap: 8, marginBottom: 4 }}>
+            <input
+              type="checkbox"
+              style={{ width: 'auto' }}
+              checked={selected.includes(s.id)}
+              onChange={(e) =>
+                setSelected((prev) =>
+                  e.target.checked ? [...prev, s.id] : prev.filter((x) => x !== s.id),
+                )
+              }
+            />
+            <span className="mono">{s.value}</span>
+            <span className="muted" style={{ fontSize: 12 }}>
+              {s.adminConsentDisplayName}
+              {!s.isEnabled && ' (disabled)'}
+            </span>
+          </label>
+        ))}
+        {selected.length === 0 && (
+          <span className="error" style={{ fontSize: 12 }}>
+            Pick at least one scope.
+          </span>
+        )}
+      </div>
       {error && <p className="error">{error}</p>}
     </Modal>
   );
