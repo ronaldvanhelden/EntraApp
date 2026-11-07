@@ -59,6 +59,7 @@ import { PrivilegeBadge, useScopeCatalog } from '../components/PrivilegeBadge';
 import { ScopeDetailsModal } from '../components/ScopeDetailsModal';
 import { AddRequiredPermissionModal } from '../components/AddRequiredPermissionModal';
 import { getSignIn, listAppOnlySignInsForCredential } from '../graph/signIns';
+import { ActivityTab } from '../components/ActivityTab';
 import { GraphError } from '../graph/client';
 import type { SignIn } from '../graph/types';
 
@@ -69,7 +70,7 @@ const AUDIENCES = [
   'PersonalMicrosoftAccount',
 ];
 
-type Tab = 'overview' | 'credentials' | 'authentication' | 'permissions';
+type Tab = 'overview' | 'credentials' | 'authentication' | 'permissions' | 'activity';
 
 export function ApplicationDetail() {
   const { id = '' } = useParams();
@@ -189,6 +190,9 @@ export function ApplicationDetail() {
         >
           Authentication
         </button>
+        <button className={tab === 'activity' ? 'active' : ''} onClick={() => setTab('activity')}>
+          Activity
+        </button>
       </div>
 
       {tab === 'overview' && editing && (
@@ -297,6 +301,7 @@ export function ApplicationDetail() {
       )}
 
       {tab === 'authentication' && <AuthenticationCard app={app} onAppChange={setApp} />}
+      {tab === 'activity' && <ActivityTab appId={app.appId} app={app} fics={fic} sp={sp} />}
 
       {confirmDelete && (
         <DeleteModal
@@ -2334,7 +2339,11 @@ function CertificateAuditModal({
       )}
       {deleteError && <p className="error">{deleteError}</p>}
       <SignInEventSection activity={activity} activityError={activityError} />
-      <CredentialSignInHistorySection appId={appId} keyId={cert.keyId} />
+      <CredentialSignInHistorySection
+        appId={appId}
+        keyId={cert.keyId}
+        thumbprint={formatThumbprint(cert.customKeyIdentifier) || undefined}
+      />
     </Modal>
   );
 }
@@ -2487,7 +2496,15 @@ function isAppOnlyEvent(s: SignIn): boolean {
   );
 }
 
-function CredentialSignInHistorySection({ appId, keyId }: { appId: string; keyId: string }) {
+function CredentialSignInHistorySection({
+  appId,
+  keyId,
+  thumbprint,
+}: {
+  appId: string;
+  keyId: string;
+  thumbprint?: string;
+}) {
   const token = useGraphToken();
   const [state, setState] = useState<
     | { kind: 'loading' }
@@ -2499,7 +2516,7 @@ function CredentialSignInHistorySection({ appId, keyId }: { appId: string; keyId
   useEffect(() => {
     let cancelled = false;
     setState({ kind: 'loading' });
-    listAppOnlySignInsForCredential(token, appId, keyId)
+    listAppOnlySignInsForCredential(token, appId, keyId, thumbprint)
       .then((rows) => {
         if (cancelled) return;
         rows.sort((a, b) => (b.createdDateTime ?? '').localeCompare(a.createdDateTime ?? ''));
@@ -2519,7 +2536,7 @@ function CredentialSignInHistorySection({ appId, keyId }: { appId: string; keyId
     return () => {
       cancelled = true;
     };
-  }, [token, appId, keyId]);
+  }, [token, appId, keyId, thumbprint]);
 
   return (
     <>

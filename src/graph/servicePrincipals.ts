@@ -75,14 +75,24 @@ export function getServicePrincipalByAppId(token: TokenFn, appId: string) {
   }).then((r) => r[0]);
 }
 
-// /beta report. Requires AuditLog.Read.All. Keyed by the app registration's
-// appId (not the service principal object id).
-export function getServicePrincipalSignInActivity(token: TokenFn, appId: string) {
-  return graph<ServicePrincipalSignInActivity>(
+// /beta report. Requires AuditLog.Read.All. The item id in this report is an
+// opaque (base64) value, not the appId, so look the entry up through the
+// documented `$filter=appId eq` form. Resolves to undefined when the report
+// has no entry for the app (never signed in, or the report hasn't caught up —
+// it lags the raw sign-in log by hours in many tenants).
+export function getServicePrincipalSignInActivity(
+  token: TokenFn,
+  appId: string,
+): Promise<ServicePrincipalSignInActivity | undefined> {
+  return graphAll<ServicePrincipalSignInActivity>(
     token,
-    `/reports/servicePrincipalSignInActivities/${appId}`,
-    { api: 'beta' },
-  );
+    '/reports/servicePrincipalSignInActivities',
+    {
+      api: 'beta',
+      query: { $filter: `appId eq '${appId.replace(/'/g, "''")}'` },
+    },
+    1,
+  ).then((rows) => rows[0]);
 }
 
 // Delegated permission grants (oauth2PermissionGrants) for a given client SP
