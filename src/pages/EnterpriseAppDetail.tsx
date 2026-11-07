@@ -8,7 +8,7 @@ import {
   updateServicePrincipal,
 } from '../graph/servicePrincipals';
 import { getApplicationByAppId } from '../graph/applications';
-import { listAppOnlySignInsForApp, listUserSignInsForApp } from '../graph/signIns';
+import { listAppOnlySignInsForApp, listSignInsForApp } from '../graph/signIns';
 import { findTenantInformation, type TenantInformation } from '../graph/organization';
 import type {
   AppCredentialSignInActivity,
@@ -23,12 +23,12 @@ import {
 } from '../graph/credentials';
 import { PermissionsManager } from '../components/PermissionsManager';
 import { AssignedUsersManager } from '../components/AssignedUsersManager';
-import { SignInAuditTab } from '../components/SignInAuditTab';
+import { ActivityTab } from '../components/ActivityTab';
 import { AppIcon } from '../components/AppIcon';
 import { CopyButton } from '../components/CopyButton';
 import { Modal } from '../components/Modal';
 
-type Tab = 'overview' | 'permissions' | 'assignments' | 'audit';
+type Tab = 'overview' | 'permissions' | 'assignments' | 'activity';
 
 export function EnterpriseAppDetail() {
   const { id = '' } = useParams();
@@ -69,8 +69,19 @@ export function EnterpriseAppDetail() {
       .then((full) => {
         setSp(full);
 
-        listUserSignInsForApp(token, full.appId, 1)
-          .then((rows) => setLastDelegated(rows[0] ?? null))
+        // Interactive and non-interactive user sign-ins are separate event
+        // classes in the log; "last delegated" must consider both or an app
+        // that only ever refreshes tokens looks unused.
+        Promise.all([
+          listSignInsForApp(token, full.appId, 'interactiveUser', 1, 1),
+          listSignInsForApp(token, full.appId, 'nonInteractiveUser', 1, 1),
+        ])
+          .then((lists) => {
+            const latest = lists
+              .flat()
+              .sort((a, b) => (b.createdDateTime ?? '').localeCompare(a.createdDateTime ?? ''))[0];
+            setLastDelegated(latest ?? null);
+          })
           .catch((e: unknown) => {
             setLastDelegated(null);
             setSignInError(e instanceof Error ? e.message : String(e));
@@ -193,8 +204,8 @@ export function EnterpriseAppDetail() {
         >
           Users and groups
         </button>
-        <button className={tab === 'audit' ? 'active' : ''} onClick={() => setTab('audit')}>
-          Audit
+        <button className={tab === 'activity' ? 'active' : ''} onClick={() => setTab('activity')}>
+          Activity
         </button>
       </div>
 
@@ -276,7 +287,7 @@ export function EnterpriseAppDetail() {
 
       {tab === 'permissions' && <PermissionsManager clientSp={sp} />}
       {tab === 'assignments' && <AssignedUsersManager sp={sp} />}
-      {tab === 'audit' && <SignInAuditTab sp={sp} />}
+      {tab === 'activity' && <ActivityTab appId={sp.appId} sp={sp} />}
 
       {confirmDelete && (
         <Modal

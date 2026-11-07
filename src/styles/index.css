@@ -1328,3 +1328,28 @@ label.field span {
     padding: 8px;
   }
 }
+
+/* Activity tab: one-line answer to "is this app still in use?" */
+.verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.verdict .badge {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.verdict.active {
+  border-color: color-mix(in srgb, var(--warning) 50%, var(--border));
+  background: color-mix(in srgb, var(--warning) 8%, var(--bg));
+}
+.verdict.quiet {
+  border-color: color-mix(in srgb, var(--success) 45%, var(--border));
+  background: color-mix(in srgb, var(--success) 7%, var(--bg));
+}
