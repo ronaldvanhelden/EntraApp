@@ -41,9 +41,10 @@ export function isConfigured(config: AuthConfig): boolean {
   return /^[0-9a-f-]{36}$/i.test(config.clientId);
 }
 
-// Must match an SPA redirectUri on the app registration exactly. We preserve
-// the trailing slash because Vite's dev server (and GitHub Pages) only serve
-// the app at the base path *with* the slash — landing at "/EntraApp" hits
+// Must match an SPA redirectUri on the app registration exactly, e.g.
+// https://entra.2cloud.nl/ in production. We preserve the trailing slash
+// because Vite's dev server (and GitHub Pages) only serve the app at the base
+// path *with* the slash — with a sub-path base, landing at "/EntraApp" hits
 // Vite's "did you mean /EntraApp/" page and handleRedirectPromise never runs.
 export function computeRedirectUri(): string {
   return window.location.origin + window.location.pathname;

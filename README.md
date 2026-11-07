@@ -1,6 +1,6 @@
 # EntraApp
 
-[WebApp](https://ronaldvanhelden.github.io/EntraApp)
+[WebApp](https://entra.2cloud.nl/)
 
 A dark-mode, dedicated React SPA for managing **Microsoft Entra ID** app registrations
 and enterprise apps, with a focus on **managing API permissions** (both application
@@ -36,7 +36,7 @@ app uses a `HashRouter`, the parameter sits in front of the hash and survives al
 in-app navigation, so a single bookmark keeps you in that tenant:
 
 ```
-https://ronaldvanhelden.github.io/EntraApp/?tenant=debble.com#/enterprise-apps
+https://entra.2cloud.nl/?tenant=debble.com#/enterprise-apps
 ```
 
 - Works with a tenant GUID, a verified domain, or `common` / `organizations`.
@@ -63,17 +63,18 @@ npm run dev
 ```
 
 Open the URL Vite prints, then either accept the default app registration
-(`Debble Permission Manager`) or go to **Settings** and set your own client/tenant.
+(`Debble EntraApp`) or go to **Settings** and set your own client/tenant.
 
 ## App registration requirements
 
 The default client is the multi-tenant app registration
-`285e9c19-6642-4f20-af26-489b47636cc9` (`Debble EntraApp`) with SPA redirect
-URI `https://ronaldvanhelden.github.io/EntraApp`. To use a different client you
+`438ccf20-d1a2-4027-baf3-0104d018357e` (`Debble EntraApp`) with SPA redirect
+URI `https://entra.2cloud.nl/`. To use a different client you
 must register an application in Entra ID with:
 
 - **Platform**: Single-page application (SPA)
-- **Redirect URI**: the exact URL the SPA is served from (no trailing slash).
+- **Redirect URI**: the exact URL the SPA is served from, including the
+  trailing slash (e.g. `https://entra.2cloud.nl/`).
   The Setup screen computes and shows this URL — copy it into the app
   registration.
 - **Supported account types**: any (single-tenant or multi-tenant)
@@ -87,10 +88,18 @@ must register an application in Entra ID with:
 ## Deploy to GitHub Pages
 
 Pushes to `main` automatically build and deploy `dist/` via
-`.github/workflows/static.yml`. The workflow derives the correct base path
-(`/<repo>/`) so routing and asset URLs work without edits.
+`.github/workflows/static.yml`. The site is published on the custom domain
+`https://entra.2cloud.nl/` and built with base path `/`.
 
-Published URL format: `https://<owner>.github.io/<repo>/`
+Custom domain setup:
+
+1. DNS (TransIP): a `CNAME` record `entra` → `ronaldvanhelden.github.io.`
+2. Repo **Settings → Pages → Custom domain**: `entra.2cloud.nl`, then enable
+   **Enforce HTTPS**. No `CNAME` file is needed with Actions-based deploys.
+3. App registration: add SPA redirect URI `https://entra.2cloud.nl/`.
+
+Forks without a custom domain are served from `https://<owner>.github.io/<repo>/`;
+build those with `VITE_BASE=/<repo>/` (set it on the Build step in the workflow).
 
 ## How permission grants work (mental model)
 
