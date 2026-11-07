@@ -1099,15 +1099,102 @@ label.field span {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
-
-  .table {
-    /* Keep columns from collapsing into unreadable widths; card scrolls. */
-    min-width: 560px;
+  /* Cards nested in cards (credential sections, permission groups) don't need
+     the full outer gutter — every pixel of width counts on a phone. */
+  .card .card,
+  .card .group-box {
+    margin-left: -4px;
+    margin-right: -4px;
   }
+
   .table th,
   .table td {
     padding: 10px;
     font-size: 12.5px;
+  }
+
+  /* Tables with a header row become a list of stacked cards: the first cell
+     is the row's title, every other cell shows its column name (data-label,
+     filled in by lib/tableLabels.ts) to the left of its value. Header-less
+     picker tables are already narrow and just wrap. */
+  .table:has(> thead) > thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .table:has(> thead),
+  .table:has(> thead) > tbody,
+  .table:has(> thead) > tbody > tr,
+  .table:has(> thead) > tbody > tr > td {
+    display: block;
+    width: 100%;
+  }
+  .table:has(> thead) > tbody > tr {
+    position: relative;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .table:has(> thead) > tbody > tr:last-child {
+    border-bottom: none;
+  }
+  .table:has(> thead) > tbody > tr > td {
+    position: relative;
+    border: none;
+    max-width: none !important;
+    text-align: left !important;
+    /* flow-root contains the floated label, so a label that wraps to two
+       lines still pushes the next cell down. */
+    display: flow-root;
+    padding: 3px 12px 3px 124px;
+    overflow-wrap: anywhere;
+  }
+  .table:has(> thead) > tbody > tr > td::before {
+    content: attr(data-label);
+    float: left;
+    width: 104px;
+    margin-left: -112px;
+    padding-top: 2px;
+    color: var(--text-dim);
+    font-size: 10.5px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    line-height: 1.4;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+  /* Row title and unlabeled cells (actions, colSpan notices) use full width. */
+  .table:has(> thead) > tbody > tr > td:first-child,
+  .table:has(> thead) > tbody > tr > td[data-label=''],
+  .table:has(> thead) > tbody > tr > td:not([data-label]) {
+    padding-left: 12px;
+  }
+  .table:has(> thead) > tbody > tr > td:first-child::before,
+  .table:has(> thead) > tbody > tr > td[data-label='']::before,
+  .table:has(> thead) > tbody > tr > td:not([data-label])::before {
+    content: none;
+  }
+  .table:has(> thead) > tbody > tr > td:first-child:not(:only-child) {
+    font-size: 14px;
+    font-weight: 500;
+    padding-bottom: 6px;
+  }
+  /* Trailing action column (remove / pick buttons): pin top-right. */
+  .table:has(> thead) > tbody > tr > td[data-label='']:last-child:not(:first-child) {
+    position: absolute;
+    top: 8px;
+    right: 4px;
+    width: auto;
+    padding: 0 8px;
+  }
+  .table:has(> thead)
+    > tbody
+    > tr:has(> td[data-label='']:last-child:not(:first-child))
+    > td:first-child {
+    padding-right: 60px;
   }
 
   /* Single-column key/value layout is far more readable on a narrow phone. */
@@ -1134,6 +1221,52 @@ label.field span {
   .card .row > .muted {
     flex: 1 1 100%;
     margin-bottom: 8px;
+  }
+
+  /* Collapsible headers: keep chevron + title together on one line and let
+     the action buttons drop below when they don't fit beside the title. */
+  .group-header,
+  .card.collapsible .card-header {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .group-header {
+    padding: 10px 12px;
+  }
+  .group-header > .row,
+  .card.collapsible .card-header > .row {
+    flex: 1 1 160px;
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+  .group-header > .row > *,
+  .card.collapsible .card-header > .row > * {
+    min-width: 0;
+  }
+  .group-header > .row > :not(:last-child),
+  .card.collapsible .card-header > .row > :not(:last-child) {
+    flex-shrink: 0;
+  }
+  .group-header > :last-child:not(:first-child),
+  .card.collapsible .card-header > :last-child:not(:first-child) {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: right;
+  }
+  .group-header > :last-child:not(:first-child) .row,
+  .card.collapsible .card-header > :last-child:not(:first-child) .row {
+    justify-content: flex-end;
+  }
+  .group-header > :last-child:not(:first-child) .row > button,
+  .card.collapsible .card-header > :last-child:not(:first-child) .row > button {
+    flex: 1 1 auto;
+  }
+  .group-subtitle {
+    overflow-wrap: anywhere;
+  }
+  .perm-section-header {
+    padding: 10px 12px;
+    flex-wrap: wrap;
   }
 
   .modal-backdrop {
