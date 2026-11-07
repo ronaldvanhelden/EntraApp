@@ -1187,6 +1187,24 @@ label.field span {
     font-weight: 500;
     padding-bottom: 6px;
   }
+  /* Wider action cells (text buttons: Enable, Restore, Delete permanently)
+     get their own full-width line under the row instead of the top-right pin. */
+  .table:has(> thead) > tbody > tr > td.row-actions[data-label='']:last-child:not(:first-child) {
+    position: static;
+    padding: 8px 12px 0;
+  }
+  .table:has(> thead)
+    > tbody
+    > tr:has(> td.row-actions[data-label='']:last-child:not(:first-child))
+    > td:first-child {
+    padding-right: 12px;
+  }
+  .table td.row-actions .row {
+    justify-content: flex-start !important;
+  }
+  .table td.row-actions button {
+    flex: 1 1 auto;
+  }
   /* Trailing action column (remove / pick buttons): pin top-right. */
   .table:has(> thead) > tbody > tr > td[data-label='']:last-child:not(:first-child) {
     position: absolute;
@@ -1352,4 +1370,43 @@ label.field span {
 .verdict.quiet {
   border-color: color-mix(in srgb, var(--success) 45%, var(--border));
   background: color-mix(in srgb, var(--success) 7%, var(--bg));
+}
+
+.table td.row-actions button {
+  white-space: nowrap;
+}
+
+.modal.modal-lg {
+  max-width: 960px;
+}
+
+/* Headline numbers in the credential usage panel. */
+.stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.stat {
+  flex: 1 1 96px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+.stat-value {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+}
+.stat.bad .stat-value {
+  color: var(--danger);
 }

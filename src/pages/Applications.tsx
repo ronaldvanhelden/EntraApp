@@ -6,6 +6,7 @@ import { createServicePrincipalFromAppId } from '../graph/servicePrincipals';
 import type { Application } from '../graph/types';
 import { Modal } from '../components/Modal';
 import { AppIcon } from '../components/AppIcon';
+import { DeletedItemsList } from '../components/DeletedItemsList';
 import { FavoriteStar, TagChip } from '../components/TagChip';
 import {
   FAVORITE_TAG,
@@ -32,6 +33,8 @@ export function Applications() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  // 'deleted' is the directory recycle bin, not part of the live list.
+  const [view, setView] = useState<'active' | 'deleted'>('active');
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [tagBusyId, setTagBusyId] = useState<string | null>(null);
   const [tagError, setTagError] = useState<string | null>(null);
@@ -132,7 +135,19 @@ export function Applications() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        {apps && (
+        <div className="tabs" style={{ margin: 0, borderBottom: 'none' }}>
+          <button className={view === 'active' ? 'active' : ''} onClick={() => setView('active')}>
+            Active
+          </button>
+          <button
+            className={view === 'deleted' ? 'active' : ''}
+            onClick={() => setView('deleted')}
+            title="Soft-deleted app registrations in the directory recycle bin"
+          >
+            Deleted
+          </button>
+        </div>
+        {apps && view === 'active' && (
           <span className="muted">
             {tagFilter
               ? `${visible.length} of ${apps.length}`
@@ -141,7 +156,9 @@ export function Applications() {
         )}
       </div>
 
-      {tagFacets.length > 0 && (
+      {view === 'deleted' && <DeletedItemsList kind="application" search={debouncedSearch} />}
+
+      {view === 'active' && tagFacets.length > 0 && (
         <div className="row wrap" style={{ gap: 6, marginBottom: 12 }}>
           <button
             className={tagFilter === null ? 'primary' : 'ghost'}
@@ -165,11 +182,11 @@ export function Applications() {
         </div>
       )}
 
-      {error && <div className="card error">{error}</div>}
-      {tagError && <div className="card error">{tagError}</div>}
-      {!apps && !error && <span className="spinner" />}
+      {view === 'active' && error && <div className="card error">{error}</div>}
+      {view === 'active' && tagError && <div className="card error">{tagError}</div>}
+      {view === 'active' && !apps && !error && <span className="spinner" />}
 
-      {apps && (
+      {view === 'active' && apps && (
         <div className="card" style={{ padding: 0 }}>
           <table className="table">
             <thead>

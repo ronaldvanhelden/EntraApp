@@ -5,6 +5,8 @@ export interface Application {
   appId: string;
   displayName: string;
   createdDateTime?: string;
+  // Set only on items returned from the directory recycle bin.
+  deletedDateTime?: string | null;
   signInAudience?: string;
   publisherDomain?: string;
   notes?: string;
@@ -165,6 +167,55 @@ export interface SignIn {
     failureReason?: string;
     additionalDetails?: string;
   };
+  // Where from
+  location?: {
+    city?: string | null;
+    state?: string | null;
+    countryOrRegion?: string | null;
+  };
+  autonomousSystemNumber?: number;
+  userAgent?: string;
+  deviceDetail?: {
+    deviceId?: string | null;
+    displayName?: string | null;
+    operatingSystem?: string | null;
+    browser?: string | null;
+    isCompliant?: boolean | null;
+    isManaged?: boolean | null;
+    trustType?: string | null;
+  };
+  networkLocationDetails?: { networkType?: string; networkNames?: string[] }[];
+  // Correlation / troubleshooting
+  correlationId?: string;
+  originalRequestId?: string;
+  sessionId?: string;
+  uniqueTokenIdentifier?: string;
+  processingTimeInMilliseconds?: number;
+  // Tenants involved
+  homeTenantId?: string;
+  homeTenantName?: string;
+  resourceTenantId?: string;
+  resourceServicePrincipalId?: string;
+  resourceOwnerTenantId?: string;
+  appOwnerTenantId?: string;
+  crossTenantAccessType?: string;
+  userType?: string;
+  // Policy / risk
+  conditionalAccessStatus?: string;
+  authenticationRequirement?: string;
+  riskLevelDuringSignIn?: string;
+  riskLevelAggregated?: string;
+  riskState?: string;
+  riskDetail?: string;
+  tokenIssuerName?: string;
+  tokenIssuerType?: string;
+  incomingTokenType?: string;
+  managedServiceIdentity?: {
+    msiType?: string;
+    associatedResourceId?: string;
+    federatedTokenId?: string;
+    federatedTokenIssuer?: string;
+  };
 }
 
 export interface ServicePrincipal {
@@ -182,6 +233,8 @@ export interface ServicePrincipal {
   keyCredentials?: KeyCredential[];
   passwordCredentials?: PasswordCredential[];
   createdDateTime?: string;
+  // Set only on items returned from the directory recycle bin.
+  deletedDateTime?: string | null;
 }
 
 export interface AppRole {
