@@ -2,6 +2,8 @@
 
 export interface Application {
   id: string;
+  // Beta only: true when the app registration has been deactivated.
+  isDisabled?: boolean;
   appId: string;
   displayName: string;
   createdDateTime?: string;

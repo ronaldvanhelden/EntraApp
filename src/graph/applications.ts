@@ -123,6 +123,27 @@ export async function listOwnedApplications(token: TokenFn, search?: string) {
     // only thing lost without it.
     graphAll<Application>(token, path, { query: { $select: LIST_SELECT, $top: 100 } }),
   );
+  return filterClientSide(apps, search);
+}
+
+// Deactivated app registrations (isDisabled = true). The property and its
+// filter only exist on the beta endpoint. Deactivated apps are usually few,
+// so search is applied client-side like the owned list.
+export async function listDeactivatedApplications(token: TokenFn, search?: string) {
+  const apps = await graphAll<Application>(token, '/applications', {
+    api: 'beta',
+    query: {
+      $select: `${LIST_SELECT},isDisabled`,
+      $expand: LIST_EXPAND,
+      $filter: 'isDisabled eq true',
+      $top: 100,
+    },
+    advanced: true,
+  });
+  return filterClientSide(apps, search);
+}
+
+function filterClientSide(apps: Application[], search?: string) {
   const q = search?.trim().toLowerCase();
   if (!q) return apps;
   const tagQ = toStoredTag(q).toLowerCase();

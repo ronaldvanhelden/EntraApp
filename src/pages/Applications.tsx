@@ -4,6 +4,7 @@ import { useGraphToken } from '../auth/useGraphToken';
 import {
   createApplication,
   listApplications,
+  listDeactivatedApplications,
   listOwnedApplications,
   updateApplication,
 } from '../graph/applications';
@@ -38,8 +39,10 @@ export function Applications({ owned = false }: { owned?: boolean } = {}) {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  // 'deleted' is the directory recycle bin, not part of the live list.
-  const [view, setView] = useState<'active' | 'deleted'>('active');
+  // 'deactivated' lists app registrations with isDisabled = true; 'deleted'
+  // is the directory recycle bin, rendered by its own component.
+  const [view, setView] = useState<'active' | 'deactivated' | 'deleted'>('active');
+  const listed = view !== 'deleted';
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [tagBusyId, setTagBusyId] = useState<string | null>(null);
   const [tagError, setTagError] = useState<string | null>(null);
@@ -50,10 +53,15 @@ export function Applications({ owned = false }: { owned?: boolean } = {}) {
   }, [search]);
 
   useEffect(() => {
+    if (view === 'deleted') return;
     let cancelled = false;
     setApps(null);
     setError(null);
-    const load = owned ? listOwnedApplications : listApplications;
+    const load = owned
+      ? listOwnedApplications
+      : view === 'deactivated'
+        ? listDeactivatedApplications
+        : listApplications;
     load(token, debouncedSearch || undefined)
       .then((list) => {
         if (cancelled) return;
@@ -73,7 +81,7 @@ export function Applications({ owned = false }: { owned?: boolean } = {}) {
     return () => {
       cancelled = true;
     };
-  }, [token, debouncedSearch, owned]);
+  }, [token, debouncedSearch, owned, view]);
 
   // Facets over our own (debble:-prefixed) tags in the loaded set, most-used
   // first so the useful ones surface. Tags set outside EntraApp aren't offered
@@ -145,11 +153,28 @@ export function Applications({ owned = false }: { owned?: boolean } = {}) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        {/* The recycle bin isn't scoped by owner, so the owned view has no Deleted tab. */}
+        {/* The recycle bin and the deactivated filter aren't scoped by owner, so the
+            owned view shows only its own list. */}
         {!owned && (
           <div className="tabs" style={{ margin: 0, borderBottom: 'none' }}>
-            <button className={view === 'active' ? 'active' : ''} onClick={() => setView('active')}>
+            <button
+              className={view === 'active' ? 'active' : ''}
+              onClick={() => {
+                setTagFilter(null);
+                setView('active');
+              }}
+            >
               Active
+            </button>
+            <button
+              className={view === 'deactivated' ? 'active' : ''}
+              onClick={() => {
+                setTagFilter(null);
+                setView('deactivated');
+              }}
+              title="App registrations that are deactivated: no new tokens, configuration kept"
+            >
+              Deactivated
             </button>
             <button
               className={view === 'deleted' ? 'active' : ''}
@@ -160,7 +185,7 @@ export function Applications({ owned = false }: { owned?: boolean } = {}) {
             </button>
           </div>
         )}
-        {apps && view === 'active' && (
+        {apps && listed && (
           <span className="muted">
             {tagFilter
               ? `${visible.length} of ${apps.length}`
@@ -171,7 +196,7 @@ export function Applications({ owned = false }: { owned?: boolean } = {}) {
 
       {view === 'deleted' && <DeletedItemsList kind="application" search={debouncedSearch} />}
 
-      {view === 'active' && tagFacets.length > 0 && (
+      {listed && tagFacets.length > 0 && (
         <div className="row wrap" style={{ gap: 6, marginBottom: 12 }}>
           <button
             className={tagFilter === null ? 'primary' : 'ghost'}
@@ -195,11 +220,11 @@ export function Applications({ owned = false }: { owned?: boolean } = {}) {
         </div>
       )}
 
-      {view === 'active' && error && <div className="card error">{error}</div>}
-      {view === 'active' && tagError && <div className="card error">{tagError}</div>}
-      {view === 'active' && !apps && !error && <span className="spinner" />}
+      {listed && error && <div className="card error">{error}</div>}
+      {listed && tagError && <div className="card error">{tagError}</div>}
+      {listed && !apps && !error && <span className="spinner" />}
 
-      {view === 'active' && apps && (
+      {listed && apps && (
         <div className="card" style={{ padding: 0 }}>
           <table className="table">
             <thead>
@@ -275,13 +300,15 @@ export function Applications({ owned = false }: { owned?: boolean } = {}) {
                 <tr>
                   <td colSpan={5}>
                     <div className="empty">
-                      {tagFilter
-                        ? `No applications tagged “${tagLabel(tagFilter)}”.`
-                        : debouncedSearch
-                          ? 'No applications match your search.'
-                          : owned
-                            ? 'You are not an owner of any app registrations.'
-                            : 'No applications found.'}
+                      {view === 'deactivated' && !tagFilter && !debouncedSearch
+                        ? 'No deactivated app registrations.'
+                        : tagFilter
+                          ? `No applications tagged “${tagLabel(tagFilter)}”.`
+                          : debouncedSearch
+                            ? 'No applications match your search.'
+                            : owned
+                              ? 'You are not an owner of any app registrations.'
+                              : 'No applications found.'}
                     </div>
                   </td>
                 </tr>
