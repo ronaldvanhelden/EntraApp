@@ -1002,8 +1002,13 @@ label.field span {
   }
 }
 
-/* --- Mobile breakpoint (phones like Samsung Note 5, 360px wide) ------ */
-@media (max-width: 640px) {
+/* --- Mobile breakpoint ------------------------------------------------
+   Phones (up to 640px, e.g. Samsung Note 5 at 360px), plus portrait screens
+   up to 920px such as the inner screen of a Samsung Galaxy Z Fold 5 held
+   upright (~690–900px depending on display size). The same Fold turned
+   sideways is landscape and keeps the desktop layout.
+   Keep in sync with MOBILE_QUERY in components/Layout.tsx. */
+@media (max-width: 640px), (max-width: 920px) and (orientation: portrait) {
   :root {
     --sidebar-width: 260px;
   }
