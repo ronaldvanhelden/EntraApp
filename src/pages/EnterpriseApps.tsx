@@ -2,11 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
 import { useCurrentTenantId } from '../auth/useCurrentTenantId';
-import { listServicePrincipals } from '../graph/servicePrincipals';
+import { listServicePrincipals, updateServicePrincipal } from '../graph/servicePrincipals';
 import type { ServicePrincipal } from '../graph/types';
 import { AppIcon } from '../components/AppIcon';
+import { DeletedItemsList } from '../components/DeletedItemsList';
 
 type Filter = 'all' | 'enterprise' | 'managed' | 'legacy';
+// 'deleted' is the directory recycle bin, not part of the live list.
+type Status = 'all' | 'enabled' | 'disabled' | 'deleted';
 type TenantFilter = 'all' | 'this' | 'external';
 
 function classify(sp: ServicePrincipal): Exclude<Filter, 'all'> {
@@ -32,6 +35,9 @@ export function EnterpriseApps() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
+  const [status, setStatus] = useState<Status>('all');
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [tenantFilter, setTenantFilter] = useState<TenantFilter>('all');
   // When 'external' is chosen the user can further narrow to a single owning
   // tenant. Empty string means "any external tenant".
@@ -62,6 +68,8 @@ export function EnterpriseApps() {
   const filtered = useMemo(() => {
     if (!sps) return [];
     return sps.filter((sp) => {
+      if (status === 'enabled' && !sp.accountEnabled) return false;
+      if (status === 'disabled' && sp.accountEnabled) return false;
       if (filter !== 'all' && classify(sp) !== filter) return false;
       if (tenantFilter === 'this' && isExternal(sp, currentTenantId)) return false;
       if (tenantFilter === 'external') {
@@ -74,7 +82,30 @@ export function EnterpriseApps() {
       }
       return true;
     });
-  }, [sps, filter, tenantFilter, externalTenantId, currentTenantId]);
+  }, [sps, status, filter, tenantFilter, externalTenantId, currentTenantId]);
+
+  const disabledCount = useMemo(() => (sps ?? []).filter((sp) => !sp.accountEnabled).length, [sps]);
+
+  // Enable / disable straight from the list. Applied optimistically; rolled
+  // back if the PATCH fails.
+  const toggleEnabled = async (sp: ServicePrincipal) => {
+    const next = !sp.accountEnabled;
+    const apply = (accountEnabled: boolean | undefined) =>
+      setSps((prev) =>
+        prev ? prev.map((s) => (s.id === sp.id ? { ...s, accountEnabled } : s)) : prev,
+      );
+    apply(next);
+    setBusyId(sp.id);
+    setActionError(null);
+    try {
+      await updateServicePrincipal(token, sp.id, { accountEnabled: next });
+    } catch (e: unknown) {
+      apply(sp.accountEnabled);
+      setActionError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   // Distinct external owning tenants seen in the current list — drives the
   // secondary dropdown when tenantFilter === 'external'.
@@ -106,53 +137,82 @@ export function EnterpriseApps() {
           onChange={(e) => setSearch(e.target.value)}
         />
         <div className="tabs" style={{ margin: 0, borderBottom: 'none' }}>
-          <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>
-            All
+          <button className={status === 'all' ? 'active' : ''} onClick={() => setStatus('all')}>
+            Any status
           </button>
           <button
-            className={filter === 'enterprise' ? 'active' : ''}
-            onClick={() => setFilter('enterprise')}
+            className={status === 'enabled' ? 'active' : ''}
+            onClick={() => setStatus('enabled')}
           >
-            Enterprise
+            Enabled
           </button>
           <button
-            className={filter === 'managed' ? 'active' : ''}
-            onClick={() => setFilter('managed')}
+            className={status === 'disabled' ? 'active' : ''}
+            onClick={() => setStatus('disabled')}
+            title="Service principals with sign-in blocked (accountEnabled = false)"
           >
-            Managed identities
+            Disabled{sps ? ` (${disabledCount})` : ''}
           </button>
           <button
-            className={filter === 'legacy' ? 'active' : ''}
-            onClick={() => setFilter('legacy')}
-            title="Legacy service principals — created before the app registration model, no backing application"
+            className={status === 'deleted' ? 'active' : ''}
+            onClick={() => setStatus('deleted')}
+            title="Soft-deleted enterprise apps in the directory recycle bin"
           >
-            Legacy
+            Deleted
           </button>
         </div>
-        <div className="tabs" style={{ margin: 0, borderBottom: 'none' }}>
-          <button
-            className={tenantFilter === 'all' ? 'active' : ''}
-            onClick={() => setTenantFilter('all')}
-            title="Show apps from any home tenant"
-          >
-            Any tenant
-          </button>
-          <button
-            className={tenantFilter === 'this' ? 'active' : ''}
-            onClick={() => setTenantFilter('this')}
-            title="Only apps whose home tenant is this tenant"
-          >
-            This tenant
-          </button>
-          <button
-            className={tenantFilter === 'external' ? 'active' : ''}
-            onClick={() => setTenantFilter('external')}
-            title="Only apps from external tenants (multi-tenant apps, B2B)"
-          >
-            External
-          </button>
-        </div>
-        {tenantFilter === 'external' && externalTenants.length > 0 && (
+        {status !== 'deleted' && (
+          <div className="tabs" style={{ margin: 0, borderBottom: 'none' }}>
+            <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>
+              All
+            </button>
+            <button
+              className={filter === 'enterprise' ? 'active' : ''}
+              onClick={() => setFilter('enterprise')}
+            >
+              Enterprise
+            </button>
+            <button
+              className={filter === 'managed' ? 'active' : ''}
+              onClick={() => setFilter('managed')}
+            >
+              Managed identities
+            </button>
+            <button
+              className={filter === 'legacy' ? 'active' : ''}
+              onClick={() => setFilter('legacy')}
+              title="Legacy service principals — created before the app registration model, no backing application"
+            >
+              Legacy
+            </button>
+          </div>
+        )}
+        {status !== 'deleted' && (
+          <div className="tabs" style={{ margin: 0, borderBottom: 'none' }}>
+            <button
+              className={tenantFilter === 'all' ? 'active' : ''}
+              onClick={() => setTenantFilter('all')}
+              title="Show apps from any home tenant"
+            >
+              Any tenant
+            </button>
+            <button
+              className={tenantFilter === 'this' ? 'active' : ''}
+              onClick={() => setTenantFilter('this')}
+              title="Only apps whose home tenant is this tenant"
+            >
+              This tenant
+            </button>
+            <button
+              className={tenantFilter === 'external' ? 'active' : ''}
+              onClick={() => setTenantFilter('external')}
+              title="Only apps from external tenants (multi-tenant apps, B2B)"
+            >
+              External
+            </button>
+          </div>
+        )}
+        {status !== 'deleted' && tenantFilter === 'external' && externalTenants.length > 0 && (
           <select
             value={externalTenantId}
             onChange={(e) => setExternalTenantId(e.target.value)}
@@ -168,19 +228,23 @@ export function EnterpriseApps() {
           </select>
         )}
         <div className="grow" />
-        {sps && (
+        {sps && status !== 'deleted' && (
           <span className="muted">
-            {filter === 'all' && tenantFilter === 'all'
+            {filter === 'all' && tenantFilter === 'all' && status === 'all'
               ? `${sps.length} ${debouncedSearch ? 'matches' : 'total'}`
               : `${filtered.length} of ${sps.length}`}
           </span>
         )}
       </div>
 
-      {error && <div className="card error">{error}</div>}
-      {!sps && !error && <span className="spinner" />}
+      {status === 'deleted' && (
+        <DeletedItemsList kind="servicePrincipal" search={debouncedSearch} />
+      )}
+      {status !== 'deleted' && error && <div className="card error">{error}</div>}
+      {status !== 'deleted' && actionError && <div className="card error">{actionError}</div>}
+      {status !== 'deleted' && !sps && !error && <span className="spinner" />}
 
-      {sps && (
+      {status !== 'deleted' && sps && (
         <div className="card" style={{ padding: 0 }}>
           <table className="table">
             <thead>
@@ -190,6 +254,7 @@ export function EnterpriseApps() {
                 <th>Type</th>
                 <th>Home tenant</th>
                 <th>Enabled</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -228,12 +293,17 @@ export function EnterpriseApps() {
                         <span className="badge">Disabled</span>
                       )}
                     </td>
+                    <td className="row-actions" onClick={(e) => e.stopPropagation()}>
+                      <button disabled={busyId === sp.id} onClick={() => void toggleEnabled(sp)}>
+                        {sp.accountEnabled ? 'Disable' : 'Enable'}
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={5}>
+                  <td colSpan={6}>
                     <div className="empty">
                       {debouncedSearch
                         ? 'No enterprise apps match your search.'

@@ -5,6 +5,8 @@ export interface Application {
   appId: string;
   displayName: string;
   createdDateTime?: string;
+  // Set only on items returned from the directory recycle bin.
+  deletedDateTime?: string | null;
   signInAudience?: string;
   publisherDomain?: string;
   notes?: string;
@@ -182,6 +184,8 @@ export interface ServicePrincipal {
   keyCredentials?: KeyCredential[];
   passwordCredentials?: PasswordCredential[];
   createdDateTime?: string;
+  // Set only on items returned from the directory recycle bin.
+  deletedDateTime?: string | null;
 }
 
 export interface AppRole {
