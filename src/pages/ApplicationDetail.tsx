@@ -61,6 +61,7 @@ import { AddRequiredPermissionModal } from '../components/AddRequiredPermissionM
 import { ActivityTab } from '../components/ActivityTab';
 import { CredentialUsage } from '../components/CredentialUsage';
 import { ExposedApiManager } from '../components/ExposedApiManager';
+import { SchemaExtensionsManager } from '../components/SchemaExtensionsManager';
 import { useCurrentTenantId } from '../auth/useCurrentTenantId';
 import { entraAppRegistrationUrl } from '../lib/entraLinks';
 import { listUsedTags, type UsedTag } from '../graph/applications';
@@ -72,7 +73,8 @@ const AUDIENCES = [
   'PersonalMicrosoftAccount',
 ];
 
-type Tab = 'overview' | 'credentials' | 'authentication' | 'permissions' | 'api' | 'activity';
+type Tab =
+  'overview' | 'credentials' | 'authentication' | 'permissions' | 'api' | 'schema' | 'activity';
 
 export function ApplicationDetail() {
   const { id = '' } = useParams();
@@ -205,6 +207,9 @@ export function ApplicationDetail() {
         <button className={tab === 'api' ? 'active' : ''} onClick={() => setTab('api')}>
           Expose API
         </button>
+        <button className={tab === 'schema' ? 'active' : ''} onClick={() => setTab('schema')}>
+          Schema extensions
+        </button>
         <button className={tab === 'activity' ? 'active' : ''} onClick={() => setTab('activity')}>
           Activity
         </button>
@@ -317,6 +322,7 @@ export function ApplicationDetail() {
 
       {tab === 'authentication' && <AuthenticationCard app={app} onAppChange={setApp} />}
       {tab === 'api' && <ExposedApiManager app={app} onAppChange={setApp} />}
+      {tab === 'schema' && <SchemaExtensionsManager app={app} />}
       {tab === 'activity' && <ActivityTab appId={app.appId} app={app} fics={fic} sp={sp} />}
 
       {confirmDelete && (
