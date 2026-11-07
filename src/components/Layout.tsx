@@ -10,7 +10,9 @@ interface Props {
   children: ReactNode;
 }
 
-const MOBILE_QUERY = '(max-width: 640px)';
+// Phones, plus portrait screens up to 920px (e.g. a Galaxy Z Fold inner screen
+// held upright). Keep in sync with the mobile @media block in index.css.
+const MOBILE_QUERY = '(max-width: 640px), (max-width: 920px) and (orientation: portrait)';
 const COLLAPSE_KEY = 'entraapp:nav-collapsed';
 
 function useIsMobile(): boolean {
