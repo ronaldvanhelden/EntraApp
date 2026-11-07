@@ -1,5 +1,5 @@
 import { graph, graphAll } from './client';
-import { toStoredTag } from '../lib/tags';
+import { ourTags, toStoredTag } from '../lib/tags';
 import type { Application, KeyCredential } from './types';
 
 type TokenFn = () => Promise<string>;
@@ -24,8 +24,41 @@ export type UpdateApplicationPatch = Partial<
     | 'spa'
     | 'publicClient'
     | 'isFallbackPublicClient'
+    | 'api'
+    | 'appRoles'
   >
 >;
+
+export interface UsedTag {
+  // Stored form, e.g. "debble:Production", in the casing seen most.
+  tag: string;
+  count: number;
+}
+
+// Every debble: tag in use across the tenant's app registrations, most used
+// first — the suggestion list when adding a tag. Only our own namespace is
+// collected so Entra's system tags (HideApp, WindowsAzureActiveDirectory…)
+// never get offered.
+export async function listUsedTags(token: TokenFn): Promise<UsedTag[]> {
+  const rows = await graphAll<Pick<Application, 'id' | 'tags'>>(
+    token,
+    '/applications',
+    { query: { $select: 'id,tags', $top: 999 } },
+    5,
+  );
+  const counts = new Map<string, UsedTag>();
+  for (const r of rows) {
+    for (const t of ourTags(r.tags)) {
+      const key = t.toLowerCase();
+      const hit = counts.get(key);
+      if (hit) hit.count += 1;
+      else counts.set(key, { tag: t, count: 1 });
+    }
+  }
+  return [...counts.values()].sort(
+    (a, b) => b.count - a.count || a.tag.localeCompare(b.tag, undefined, { sensitivity: 'base' }),
+  );
+}
 
 // A bare hex-and-dashes token — treat as a (possibly partial) appId GUID
 // rather than a display-name search term.
@@ -135,7 +168,7 @@ export function getApplication(token: TokenFn, id: string) {
         'id,appId,displayName,createdDateTime,signInAudience,publisherDomain,info,' +
         'notes,uniqueName,tags,identifierUris,requiredResourceAccess,' +
         'passwordCredentials,keyCredentials,' +
-        'web,spa,publicClient,isFallbackPublicClient',
+        'web,spa,publicClient,isFallbackPublicClient,api,appRoles',
     },
   });
 }
