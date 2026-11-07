@@ -24,6 +24,7 @@ import {
 import { PermissionsManager } from '../components/PermissionsManager';
 import { AssignedUsersManager } from '../components/AssignedUsersManager';
 import { ActivityTab } from '../components/ActivityTab';
+import { entraEnterpriseAppUrl } from '../lib/entraLinks';
 import { AppIcon } from '../components/AppIcon';
 import { CopyButton } from '../components/CopyButton';
 import { Modal } from '../components/Modal';
@@ -179,13 +180,22 @@ export function EnterpriseAppDetail() {
             </div>
           </div>
         </div>
-        {appRegId && (
-          <div className="row">
+        <div className="row">
+          <a
+            href={entraEnterpriseAppUrl(sp.id, sp.appId, currentTenantId)}
+            target="_blank"
+            rel="noreferrer"
+            style={{ textDecoration: 'none' }}
+            title="Open this enterprise app in the Microsoft Entra admin center"
+          >
+            <button type="button">Open in Entra ↗</button>
+          </a>
+          {appRegId && (
             <Link to={`/applications/${appRegId}`} style={{ textDecoration: 'none' }}>
               <button>View app registration →</button>
             </Link>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="tabs">

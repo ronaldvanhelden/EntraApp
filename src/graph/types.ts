@@ -26,6 +26,18 @@ export interface Application {
   spa?: SpaApplication;
   publicClient?: PublicClientApplication;
   isFallbackPublicClient?: boolean;
+  // What this app exposes to *other* clients: delegated scopes live under
+  // api, application roles directly on the app. Both are replaced wholesale
+  // on PATCH, and an entry must be disabled before it can be removed.
+  api?: ApiApplication;
+  appRoles?: AppRole[];
+}
+
+export interface ApiApplication {
+  oauth2PermissionScopes?: OAuth2PermissionScope[];
+  requestedAccessTokenVersion?: number | null;
+  knownClientApplications?: string[];
+  preAuthorizedApplications?: { appId: string; delegatedPermissionIds: string[] }[];
 }
 
 export interface WebApplication {
@@ -244,6 +256,9 @@ export interface AppRole {
   description: string;
   isEnabled: boolean;
   allowedMemberTypes: string[];
+  // 'Application' for roles defined on the app registration; Entra also
+  // synthesises roles (e.g. the default access role) with other origins.
+  origin?: string;
 }
 
 export interface OAuth2PermissionScope {

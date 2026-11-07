@@ -60,6 +60,10 @@ import { ScopeDetailsModal } from '../components/ScopeDetailsModal';
 import { AddRequiredPermissionModal } from '../components/AddRequiredPermissionModal';
 import { ActivityTab } from '../components/ActivityTab';
 import { CredentialUsage } from '../components/CredentialUsage';
+import { ExposedApiManager } from '../components/ExposedApiManager';
+import { useCurrentTenantId } from '../auth/useCurrentTenantId';
+import { entraAppRegistrationUrl } from '../lib/entraLinks';
+import { listUsedTags, type UsedTag } from '../graph/applications';
 
 const AUDIENCES = [
   'AzureADMyOrg',
@@ -68,12 +72,13 @@ const AUDIENCES = [
   'PersonalMicrosoftAccount',
 ];
 
-type Tab = 'overview' | 'credentials' | 'authentication' | 'permissions' | 'activity';
+type Tab = 'overview' | 'credentials' | 'authentication' | 'permissions' | 'api' | 'activity';
 
 export function ApplicationDetail() {
   const { id = '' } = useParams();
   const token = useGraphToken();
   const nav = useNavigate();
+  const currentTenantId = useCurrentTenantId();
   const [app, setApp] = useState<Application | null>(null);
   const [sp, setSp] = useState<ServicePrincipal | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -157,6 +162,15 @@ export function ApplicationDetail() {
           </div>
         </div>
         <div className="row">
+          <a
+            href={entraAppRegistrationUrl(app.appId, currentTenantId)}
+            target="_blank"
+            rel="noreferrer"
+            style={{ textDecoration: 'none' }}
+            title="Open this app registration in the Microsoft Entra admin center"
+          >
+            <button type="button">Open in Entra ↗</button>
+          </a>
           {tab === 'overview' && !editing && <button onClick={() => setEditing(true)}>Edit</button>}
           {sp && (
             <Link to={`/enterprise-apps/${sp.id}`} style={{ textDecoration: 'none' }}>
@@ -187,6 +201,9 @@ export function ApplicationDetail() {
           onClick={() => setTab('authentication')}
         >
           Authentication
+        </button>
+        <button className={tab === 'api' ? 'active' : ''} onClick={() => setTab('api')}>
+          Expose API
         </button>
         <button className={tab === 'activity' ? 'active' : ''} onClick={() => setTab('activity')}>
           Activity
@@ -299,6 +316,7 @@ export function ApplicationDetail() {
       )}
 
       {tab === 'authentication' && <AuthenticationCard app={app} onAppChange={setApp} />}
+      {tab === 'api' && <ExposedApiManager app={app} onAppChange={setApp} />}
       {tab === 'activity' && <ActivityTab appId={app.appId} app={app} fics={fic} sp={sp} />}
 
       {confirmDelete && (
@@ -627,7 +645,22 @@ function TagsRow({
   onAppChange: (next: Application) => void;
 }) {
   const { saving, save } = useTagWriter(app, onAppChange);
-  return <TagEditor tags={app.tags} onSave={save} disabled={saving} />;
+  const token = useGraphToken();
+  // Tags in use across the tenant, for the suggestion chips. Best-effort:
+  // without them the editor still works, just without suggestions.
+  const [suggestions, setSuggestions] = useState<UsedTag[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    listUsedTags(token)
+      .then((t) => {
+        if (!cancelled) setSuggestions(t);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+  return <TagEditor tags={app.tags} onSave={save} disabled={saving} suggestions={suggestions} />;
 }
 
 // Every redirect URI on the app, tagged with the platform it is registered

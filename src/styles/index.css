@@ -1410,3 +1410,15 @@ label.field span {
 .stat.bad .stat-value {
   color: var(--danger);
 }
+
+/* One-click suggestions under the tag input. */
+.tag-suggestions {
+  padding-left: 2px;
+}
+button.tag-suggestion {
+  min-height: 26px;
+  padding: 2px 9px;
+  font-size: 12px;
+  border-radius: 999px;
+  border-color: var(--border);
+}
