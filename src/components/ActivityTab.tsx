@@ -1045,7 +1045,14 @@ export function relativeTime(iso: string): string {
   return `${Math.round(mo / 12)} years ago`;
 }
 
-function SignInDetailModal({
+export function formatLocation(s: SignIn): string | undefined {
+  const l = s.location;
+  if (!l) return undefined;
+  const parts = [l.city, l.state, l.countryOrRegion].filter((p): p is string => !!p);
+  return parts.length ? parts.join(', ') : undefined;
+}
+
+export function SignInDetailModal({
   signIn,
   appId,
   credential,
@@ -1053,7 +1060,8 @@ function SignInDetailModal({
 }: {
   signIn: SignIn;
   appId: string;
-  credential?: KnownCredential;
+  // Resolved credential name, when the caller knows it.
+  credential?: { label: string; keyId?: string; ficId?: string };
   onClose: () => void;
 }) {
   const appOnly = isAppOnlySignIn(signIn);
@@ -1063,6 +1071,25 @@ function SignInDetailModal({
   const actorSub = appOnly ? signIn.servicePrincipalId : signIn.userPrincipalName;
   const credKey = signIn.federatedCredentialId ?? extractKeyIdFromSignIn(signIn);
   const asResource = !!signIn.appId && signIn.appId !== appId;
+  const dev = signIn.deviceDetail;
+  const deviceBits = [
+    dev?.operatingSystem,
+    dev?.browser,
+    dev?.displayName,
+    dev?.isCompliant ? 'compliant' : undefined,
+    dev?.isManaged ? 'managed' : undefined,
+    dev?.trustType,
+  ].filter((p): p is string => !!p);
+  const risk = [
+    signIn.riskLevelDuringSignIn &&
+    signIn.riskLevelDuringSignIn !== 'hidden' &&
+    signIn.riskLevelDuringSignIn !== 'none'
+      ? `level ${signIn.riskLevelDuringSignIn}`
+      : undefined,
+    signIn.riskState && signIn.riskState !== 'none' ? signIn.riskState : undefined,
+    signIn.riskDetail && signIn.riskDetail !== 'none' ? signIn.riskDetail : undefined,
+  ].filter((p): p is string => !!p);
+  const msi = signIn.managedServiceIdentity;
 
   return (
     <Modal title="Sign-in details" onClose={onClose}>
@@ -1072,7 +1099,14 @@ function SignInDetailModal({
           {KIND_LABEL[eventKind(signIn)]}
           {asResource ? ' · this app was the resource' : ' · this app was the client'}
         </Row>
-        <Row label="Auth protocol">{signIn.authenticationProtocol ?? '—'}</Row>
+        <Row label="Auth protocol">
+          {signIn.authenticationProtocol ?? '—'}
+          {signIn.incomingTokenType && signIn.incomingTokenType !== 'none' && (
+            <div className="muted" style={{ fontSize: 11 }}>
+              presented: {signIn.incomingTokenType}
+            </div>
+          )}
+        </Row>
         <Row label="Actor">
           <div>{actorName ?? '—'}</div>
           {actorSub && (
@@ -1089,10 +1123,43 @@ function SignInDetailModal({
             </div>
           )}
         </Row>
-        <Row label="From IP" mono>
-          {signIn.ipAddress ?? '—'}
+        <Row label="From IP">
+          <span className="mono">{signIn.ipAddress ?? '—'}</span>
+          {(formatLocation(signIn) || signIn.autonomousSystemNumber) && (
+            <div className="muted" style={{ fontSize: 11 }}>
+              {formatLocation(signIn)}
+              {signIn.autonomousSystemNumber ? ` · AS${signIn.autonomousSystemNumber}` : ''}
+            </div>
+          )}
         </Row>
+        {deviceBits.length > 0 && (
+          <Row label="Device">
+            {deviceBits.join(' · ')}
+            {dev?.deviceId && (
+              <div className="mono muted" style={{ fontSize: 11 }}>
+                {dev.deviceId}
+              </div>
+            )}
+          </Row>
+        )}
+        {signIn.userAgent && (
+          <Row label="User agent">
+            <span className="muted" style={{ fontSize: 12, overflowWrap: 'anywhere' }}>
+              {signIn.userAgent}
+            </span>
+          </Row>
+        )}
         <Row label="Client type">{signIn.clientAppUsed ?? '—'}</Row>
+        {msi && (msi.msiType || msi.associatedResourceId) && (
+          <Row label="Managed identity">
+            {msi.msiType}
+            {msi.associatedResourceId && (
+              <div className="mono muted" style={{ fontSize: 11, overflowWrap: 'anywhere' }}>
+                {msi.associatedResourceId}
+              </div>
+            )}
+          </Row>
+        )}
         <Row label="Resource">
           <div>{signIn.resourceDisplayName ?? '—'}</div>
           {signIn.resourceId && (
@@ -1102,9 +1169,18 @@ function SignInDetailModal({
           )}
         </Row>
         <Row label="Credential type">
-          {appOnly
-            ? credentialTypeLabel(signIn.clientCredentialType)
-            : (signIn.authenticationMethodsUsed ?? []).join(', ') || 'User auth'}
+          {appOnly ? (
+            credentialTypeLabel(signIn.clientCredentialType)
+          ) : (
+            <>
+              {(signIn.authenticationMethodsUsed ?? []).join(', ') || 'User auth'}
+              {signIn.clientCredentialType && signIn.clientCredentialType !== 'none' && (
+                <div className="muted" style={{ fontSize: 11 }}>
+                  client app presented: {credentialTypeLabel(signIn.clientCredentialType)}
+                </div>
+              )}
+            </>
+          )}
         </Row>
         {appOnly && (
           <>
@@ -1129,8 +1205,62 @@ function SignInDetailModal({
             )}
           </>
         )}
+        {(signIn.resourceTenantId || signIn.homeTenantId || signIn.crossTenantAccessType) &&
+          (signIn.crossTenantAccessType && signIn.crossTenantAccessType !== 'none' ? (
+            <Row label="Cross-tenant">
+              {signIn.crossTenantAccessType}
+              {signIn.homeTenantId && (
+                <div className="mono muted" style={{ fontSize: 11 }}>
+                  home {signIn.homeTenantName ? `${signIn.homeTenantName} · ` : ''}
+                  {signIn.homeTenantId}
+                </div>
+              )}
+              {signIn.resourceTenantId && (
+                <div className="mono muted" style={{ fontSize: 11 }}>
+                  resource tenant {signIn.resourceTenantId}
+                </div>
+              )}
+            </Row>
+          ) : null)}
+        {signIn.conditionalAccessStatus && signIn.conditionalAccessStatus !== 'notApplied' && (
+          <Row label="Conditional Access">
+            {signIn.conditionalAccessStatus}
+            {signIn.authenticationRequirement && (
+              <div className="muted" style={{ fontSize: 11 }}>
+                {signIn.authenticationRequirement}
+              </div>
+            )}
+          </Row>
+        )}
+        {risk.length > 0 && <Row label="Risk">{risk.join(' · ')}</Row>}
+        {signIn.tokenIssuerName && (
+          <Row label="Token issuer">
+            {signIn.tokenIssuerName}
+            {signIn.tokenIssuerType ? ` (${signIn.tokenIssuerType})` : ''}
+          </Row>
+        )}
         <Row label="Request ID" mono>
           {signIn.id}
+          {signIn.correlationId && (
+            <div className="muted" style={{ fontSize: 11 }}>
+              correlation {signIn.correlationId}
+            </div>
+          )}
+          {signIn.originalRequestId && signIn.originalRequestId !== signIn.id && (
+            <div className="muted" style={{ fontSize: 11 }}>
+              original {signIn.originalRequestId}
+            </div>
+          )}
+          {signIn.sessionId && (
+            <div className="muted" style={{ fontSize: 11 }}>
+              session {signIn.sessionId}
+            </div>
+          )}
+          {signIn.uniqueTokenIdentifier && (
+            <div className="muted" style={{ fontSize: 11, overflowWrap: 'anywhere' }}>
+              token {signIn.uniqueTokenIdentifier}
+            </div>
+          )}
         </Row>
         <Row label="Status">
           {signIn.status?.errorCode ? (

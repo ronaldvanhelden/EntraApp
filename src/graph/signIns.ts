@@ -147,6 +147,101 @@ export function signInUsesCredential(s: SignIn, keyId: string, thumbprint?: stri
   return candidates.some((c) => c === k || (t !== undefined && c === t));
 }
 
+export type CredentialKind = 'secret' | 'certificate' | 'federated';
+
+// Does the recorded credential *type* fit this kind of credential? Entra
+// records the type for user sign-ins through confidential clients too, but
+// the key id only for service-principal sign-ins — so for delegated flows
+// this is often the only link between an event and a secret/certificate.
+export function credentialTypeMatches(s: SignIn, kind: CredentialKind): boolean {
+  const t = s.clientCredentialType;
+  if (!t) return false;
+  switch (kind) {
+    case 'secret':
+      return t === 'clientSecret';
+    case 'certificate':
+      return t === 'clientAssertion' || t === 'certificate';
+    case 'federated':
+      return t === 'federatedIdentityCredential';
+  }
+}
+
+export interface CredentialRef {
+  kind: CredentialKind;
+  keyId?: string;
+  thumbprint?: string;
+  ficId?: string;
+}
+
+// Exact attribution: the event names this key (secrets, certificates) or
+// this federated credential.
+export function signInAttributedTo(s: SignIn, ref: CredentialRef): boolean {
+  if (ref.kind === 'federated') {
+    return !!ref.ficId && s.federatedCredentialId?.toLowerCase() === ref.ficId.toLowerCase();
+  }
+  return !!ref.keyId && signInUsesCredential(s, ref.keyId, ref.thumbprint);
+}
+
+export interface CredentialSignIns {
+  // Events that name this exact credential (any flow).
+  attributed: SignIn[];
+  // Delegated events through this app that presented a credential of the
+  // same *type* but where Entra didn't record which key — can't be pinned
+  // to this credential if the app has several of that type.
+  sameType: SignIn[];
+  // Per-query failures, e.g. a 403 for AuditLog.Read.All.
+  errors: { flow: SignInEventType; message: string; forbidden: boolean }[];
+}
+
+// Everything the sign-in log has on one credential in the last 30 days,
+// across app-only and delegated flows. Queries run in parallel; a failing
+// query is reported, not fatal.
+export async function listSignInsUsingCredential(
+  token: TokenFn,
+  appId: string,
+  ref: CredentialRef,
+  top = 50,
+  maxPages = 2,
+): Promise<CredentialSignIns> {
+  const flows: SignInEventType[] = ['servicePrincipal', 'interactiveUser', 'nonInteractiveUser'];
+  const results = await Promise.all(
+    flows.map(async (flow) => {
+      try {
+        const rows =
+          flow === 'servicePrincipal' && ref.kind !== 'federated' && ref.keyId
+            ? await listAppOnlySignInsForCredential(token, appId, ref.keyId, ref.thumbprint, top)
+            : await listSignInsForApp(token, appId, flow, top, maxPages);
+        return { flow, rows, error: undefined };
+      } catch (e) {
+        return {
+          flow,
+          rows: [] as SignIn[],
+          error: {
+            flow,
+            message: e instanceof Error ? e.message : String(e),
+            forbidden: e instanceof GraphError && e.status === 403,
+          },
+        };
+      }
+    }),
+  );
+  const attributed = new Map<string, SignIn>();
+  const sameType = new Map<string, SignIn>();
+  for (const { rows } of results) {
+    for (const s of rows) {
+      if (signInAttributedTo(s, ref)) attributed.set(s.id, s);
+      else if (!isAppOnlySignIn(s) && credentialTypeMatches(s, ref.kind)) sameType.set(s.id, s);
+    }
+  }
+  const byTime = (a: SignIn, b: SignIn) =>
+    (b.createdDateTime ?? '').localeCompare(a.createdDateTime ?? '');
+  return {
+    attributed: [...attributed.values()].sort(byTime),
+    sameType: [...sameType.values()].sort(byTime),
+    errors: results.flatMap((r) => (r.error ? [r.error] : [])),
+  };
+}
+
 // Best-effort extraction of the credential used for an app-only sign-in.
 // Microsoft Graph beta exposes two dedicated fields —
 // `servicePrincipalCredentialKeyId` (GUID, matches KeyCredential.keyId and

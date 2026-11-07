@@ -58,10 +58,8 @@ import { isFavorite, withFavorite } from '../lib/tags';
 import { PrivilegeBadge, useScopeCatalog } from '../components/PrivilegeBadge';
 import { ScopeDetailsModal } from '../components/ScopeDetailsModal';
 import { AddRequiredPermissionModal } from '../components/AddRequiredPermissionModal';
-import { getSignIn, listAppOnlySignInsForCredential } from '../graph/signIns';
 import { ActivityTab } from '../components/ActivityTab';
-import { GraphError } from '../graph/client';
-import type { SignIn } from '../graph/types';
+import { CredentialUsage } from '../components/CredentialUsage';
 
 const AUDIENCES = [
   'AzureADMyOrg',
@@ -1753,6 +1751,7 @@ function CredentialsCard({
   const certs: KeyCredential[] = app.keyCredentials ?? [];
   const [selectedSecret, setSelectedSecret] = useState<PasswordCredential | null>(null);
   const [selectedCert, setSelectedCert] = useState<KeyCredential | null>(null);
+  const [selectedFic, setSelectedFic] = useState<FederatedIdentityCredential | null>(null);
   const [showAddSecret, setShowAddSecret] = useState(false);
   const [showAddCert, setShowAddCert] = useState(false);
   const [newSecret, setNewSecret] = useState<PasswordCredential | null>(null);
@@ -2053,7 +2052,7 @@ function CredentialsCard({
             </thead>
             <tbody>
               {fic.map((f) => (
-                <tr key={f.id}>
+                <tr key={f.id} onClick={() => setSelectedFic(f)} style={{ cursor: 'pointer' }}>
                   <td>{f.name}</td>
                   <td className="mono" style={{ fontSize: 12 }}>
                     {f.issuer}
@@ -2091,6 +2090,13 @@ function CredentialsCard({
           onDelete={() => handleRemoveCert(selectedCert.keyId)}
         />
       )}
+      {selectedFic && (
+        <FederatedCredentialModal
+          appId={app.appId}
+          fic={selectedFic}
+          onClose={() => setSelectedFic(null)}
+        />
+      )}
       {showAddSecret && (
         <AddClientSecretModal onClose={() => setShowAddSecret(false)} onSubmit={handleAddSecret} />
       )}
@@ -2100,6 +2106,37 @@ function CredentialsCard({
       {newSecret && <NewSecretValueModal secret={newSecret} onClose={() => setNewSecret(null)} />}
       {confirmDialog}
     </div>
+  );
+}
+
+function FederatedCredentialModal({
+  appId,
+  fic,
+  onClose,
+}: {
+  appId: string;
+  fic: FederatedIdentityCredential;
+  onClose: () => void;
+}) {
+  return (
+    <Modal
+      className="modal-lg"
+      title="Federated credential details"
+      onClose={onClose}
+      footer={<button onClick={onClose}>Close</button>}
+    >
+      <div className="kv">
+        <AuditRow label="Name" value={fic.name} />
+        <AuditRow label="ID" value={fic.id} mono />
+        <AuditRow label="Description" value={fic.description} />
+      </div>
+      <CredentialUsage
+        appId={appId}
+        label={fic.name}
+        ref_={{ kind: 'federated', ficId: fic.id }}
+        fic={fic}
+      />
+    </Modal>
   );
 }
 
@@ -2205,6 +2242,7 @@ function SecretAuditModal({
 
   return (
     <Modal
+      className="modal-lg"
       title="Client secret details"
       onClose={() => !deleting && onClose()}
       footer={
@@ -2251,8 +2289,13 @@ function SecretAuditModal({
         </p>
       )}
       {deleteError && <p className="error">{deleteError}</p>}
-      <SignInEventSection activity={activity} activityError={activityError} />
-      <CredentialSignInHistorySection appId={appId} keyId={secret.keyId} />
+      <CredentialUsage
+        appId={appId}
+        label={secret.displayName || 'Client secret'}
+        ref_={{ kind: 'secret', keyId: secret.keyId }}
+        report={activity}
+        reportError={activityError}
+      />
     </Modal>
   );
 }
@@ -2290,6 +2333,7 @@ function CertificateAuditModal({
 
   return (
     <Modal
+      className="modal-lg"
       title="Certificate details"
       onClose={() => !deleting && onClose()}
       footer={
@@ -2338,280 +2382,14 @@ function CertificateAuditModal({
         </p>
       )}
       {deleteError && <p className="error">{deleteError}</p>}
-      <SignInEventSection activity={activity} activityError={activityError} />
-      <CredentialSignInHistorySection
+      <CredentialUsage
         appId={appId}
-        keyId={cert.keyId}
-        thumbprint={formatThumbprint(cert.customKeyIdentifier) || undefined}
+        label={cert.displayName || 'Certificate'}
+        ref_={{ kind: 'certificate', keyId: cert.keyId, thumbprint: thumb || undefined }}
+        report={activity}
+        reportError={activityError}
       />
     </Modal>
-  );
-}
-
-function SignInEventSection({
-  activity,
-  activityError,
-}: {
-  activity?: AppCredentialSignInActivity;
-  activityError: string | null;
-}) {
-  const token = useGraphToken();
-  const si = activity?.signInActivity;
-  const requestId = si?.requestId;
-  const [event, setEvent] = useState<SignIn | null>(null);
-  const [eventError, setEventError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setEvent(null);
-    setEventError(null);
-    if (!requestId) return;
-    let cancelled = false;
-    getSignIn(token, requestId)
-      .then((r) => {
-        if (!cancelled) setEvent(r);
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setEventError(e instanceof Error ? e.message : String(e));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [token, requestId]);
-
-  if (activityError) {
-    return (
-      <>
-        <h4 style={{ marginTop: 20, marginBottom: 8 }}>Sign-in activity</h4>
-        <p className="muted" style={{ fontSize: 13 }}>
-          Requires <span className="mono">AuditLog.Read.All</span>.
-        </p>
-      </>
-    );
-  }
-  if (!activity) {
-    return (
-      <>
-        <h4 style={{ marginTop: 20, marginBottom: 8 }}>Sign-in activity</h4>
-        <div className="muted">No sign-in recorded for this credential.</div>
-      </>
-    );
-  }
-
-  const actorName =
-    event?.userDisplayName ??
-    event?.userPrincipalName ??
-    event?.servicePrincipalName ??
-    event?.appDisplayName;
-  const actorSub =
-    event?.userPrincipalName && event?.userDisplayName
-      ? event.userPrincipalName
-      : event?.servicePrincipalId;
-
-  return (
-    <>
-      <h4 style={{ marginTop: 20, marginBottom: 8 }}>Last sign-in activity</h4>
-      <div className="kv">
-        <AuditRow
-          label="When"
-          value={si?.lastSignInDateTime ? formatDateTime(si.lastSignInDateTime) : 'Never'}
-        />
-        <AuditRow label="Key type" value={activity.keyType} />
-        <AuditRow label="Key usage" value={activity.keyUsage} />
-        {requestId ? (
-          <>
-            <AuditRow
-              label="Who"
-              value={
-                event ? (
-                  <>
-                    <div>{actorName ?? '—'}</div>
-                    {actorSub && (
-                      <div className="muted mono" style={{ fontSize: 11 }}>
-                        {actorSub}
-                      </div>
-                    )}
-                  </>
-                ) : eventError ? (
-                  <span className="muted" style={{ fontSize: 12 }}>
-                    (unavailable)
-                  </span>
-                ) : (
-                  <span className="spinner" />
-                )
-              }
-            />
-            <AuditRow
-              label="Flow"
-              value={
-                event ? (
-                  <>
-                    {isAppOnlyEvent(event) ? 'App-only' : 'Delegated'}
-                    {event.authenticationProtocol && (
-                      <div className="muted" style={{ fontSize: 11 }}>
-                        {event.authenticationProtocol}
-                      </div>
-                    )}
-                  </>
-                ) : undefined
-              }
-            />
-            <AuditRow label="From IP" value={event?.ipAddress} mono />
-            <AuditRow label="Client" value={event?.clientAppUsed} />
-            <AuditRow
-              label="Resource"
-              value={event?.resourceDisplayName ?? si?.resourceDisplayName}
-            />
-            <AuditRow label="Resource ID" value={event?.resourceId ?? si?.resourceId} mono />
-            <AuditRow label="Request ID" value={requestId} mono />
-            <AuditRow
-              label="Status"
-              value={
-                !event ? undefined : event.status?.errorCode ? (
-                  <>
-                    <span className="badge expired">Failed</span>
-                    <div className="muted" style={{ fontSize: 11 }}>
-                      {event.status.failureReason ?? `code ${event.status.errorCode}`}
-                    </div>
-                  </>
-                ) : (
-                  <span className="badge granted">Success</span>
-                )
-              }
-            />
-          </>
-        ) : (
-          <>
-            <AuditRow label="Target resource" value={si?.resourceDisplayName} />
-            <AuditRow label="Resource ID" value={si?.resourceId} mono />
-          </>
-        )}
-      </div>
-    </>
-  );
-}
-
-function isAppOnlyEvent(s: SignIn): boolean {
-  return (s.signInEventTypes ?? []).some(
-    (t) => t === 'servicePrincipal' || t === 'managedIdentity',
-  );
-}
-
-function CredentialSignInHistorySection({
-  appId,
-  keyId,
-  thumbprint,
-}: {
-  appId: string;
-  keyId: string;
-  thumbprint?: string;
-}) {
-  const token = useGraphToken();
-  const [state, setState] = useState<
-    | { kind: 'loading' }
-    | { kind: 'loaded'; rows: SignIn[] }
-    | { kind: 'forbidden' }
-    | { kind: 'error'; message: string }
-  >({ kind: 'loading' });
-
-  useEffect(() => {
-    let cancelled = false;
-    setState({ kind: 'loading' });
-    listAppOnlySignInsForCredential(token, appId, keyId, thumbprint)
-      .then((rows) => {
-        if (cancelled) return;
-        rows.sort((a, b) => (b.createdDateTime ?? '').localeCompare(a.createdDateTime ?? ''));
-        setState({ kind: 'loaded', rows });
-      })
-      .catch((e: unknown) => {
-        if (cancelled) return;
-        if (e instanceof GraphError && (e.status === 403 || e.status === 404)) {
-          setState({ kind: 'forbidden' });
-          return;
-        }
-        setState({
-          kind: 'error',
-          message: e instanceof Error ? e.message : String(e),
-        });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [token, appId, keyId, thumbprint]);
-
-  return (
-    <>
-      <h4 style={{ marginTop: 20, marginBottom: 4 }}>Sign-ins · last 30 days</h4>
-      <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
-        App-only sign-ins that used this credential. Microsoft Entra retains 30 days of sign-in
-        activity.
-      </div>
-      {state.kind === 'loading' && <span className="spinner" />}
-      {state.kind === 'forbidden' && (
-        <div className="muted" style={{ fontSize: 13 }}>
-          Requires <span className="mono">AuditLog.Read.All</span>.
-        </div>
-      )}
-      {state.kind === 'error' && (
-        <p className="error" style={{ fontSize: 13 }}>
-          {state.message}
-        </p>
-      )}
-      {state.kind === 'loaded' && state.rows.length === 0 && (
-        <div className="muted" style={{ fontSize: 13 }}>
-          No sign-ins recorded in the last 30 days.
-        </div>
-      )}
-      {state.kind === 'loaded' && state.rows.length > 0 && (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>When</th>
-              <th>Actor</th>
-              <th>From IP</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {state.rows.map((s) => {
-              const ok = !s.status?.errorCode;
-              const actor =
-                s.servicePrincipalName ??
-                s.appDisplayName ??
-                s.userDisplayName ??
-                s.userPrincipalName;
-              return (
-                <tr key={s.id}>
-                  <td>{formatDateTime(s.createdDateTime)}</td>
-                  <td>
-                    <div>{actor ?? <span className="muted">—</span>}</div>
-                    {s.servicePrincipalId && (
-                      <div className="muted mono" style={{ fontSize: 11 }}>
-                        {s.servicePrincipalId}
-                      </div>
-                    )}
-                  </td>
-                  <td className="mono">{s.ipAddress ?? <span className="muted">—</span>}</td>
-                  <td>
-                    {ok ? (
-                      <span className="badge granted">Success</span>
-                    ) : (
-                      <>
-                        <span className="badge expired">Failed</span>
-                        {(s.status?.failureReason || s.status?.errorCode) && (
-                          <div className="muted" style={{ fontSize: 11 }}>
-                            {s.status?.failureReason ?? `code ${s.status?.errorCode}`}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
-    </>
   );
 }
 
