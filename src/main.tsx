@@ -2,7 +2,10 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
 import App from './App';
+import { installTableLabels } from './lib/tableLabels';
 import './styles/index.css';
+
+installTableLabels();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
