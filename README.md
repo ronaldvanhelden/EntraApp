@@ -63,12 +63,12 @@ npm run dev
 ```
 
 Open the URL Vite prints, then either accept the default app registration
-(`Debble Permission Manager`) or go to **Settings** and set your own client/tenant.
+(`Debble EntraApp`) or go to **Settings** and set your own client/tenant.
 
 ## App registration requirements
 
 The default client is the multi-tenant app registration
-`285e9c19-6642-4f20-af26-489b47636cc9` (`Debble EntraApp`) with SPA redirect
+`438ccf20-d1a2-4027-baf3-0104d018357e` (`Debble EntraApp`) with SPA redirect
 URI `https://entra.2cloud.nl/`. To use a different client you
 must register an application in Entra ID with:
 
