@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { restoreScroll, saveScroll } from '../lib/scrollMemory';
 import { useGraphToken } from '../auth/useGraphToken';
 import {
   createApplication,
@@ -32,6 +33,7 @@ import {
 } from '../lib/tags';
 
 type View = 'active' | 'owned' | 'deactivated' | 'deleted';
+const VIEWS: View[] = ['active', 'owned', 'deactivated', 'deleted'];
 
 const AUDIENCES = [
   'AzureADMyOrg',
@@ -43,17 +45,45 @@ const AUDIENCES = [
 export function Applications() {
   const token = useGraphToken();
   const nav = useNavigate();
+  const location = useLocation();
+  // Tab, search and tag filter live in the URL, so coming back from an app
+  // registration (back button or browser back) returns to the same list.
+  const [params, setParams] = useSearchParams();
+  const setParam = (key: string, value: string | null) =>
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value) next.set(key, value);
+        else next.delete(key);
+        return next;
+      },
+      { replace: true },
+    );
   const [apps, setApps] = useState<Application[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [search, setSearch] = useState(() => params.get('q') ?? '');
+  const debouncedSearch = (params.get('q') ?? '').trim();
   const [showCreate, setShowCreate] = useState(false);
   // 'owned' is the subset the signed-in user is an owner of; 'deactivated'
   // lists app registrations with isDisabled = true; 'deleted' is the directory
   // recycle bin, rendered by its own component.
-  const [view, setView] = useState<View>('active');
+  const viewParam = params.get('view');
+  const view: View = (VIEWS as string[]).includes(viewParam ?? '') ? (viewParam as View) : 'active';
+  // Switching tabs also clears the tag filter.
+  const setView = (v: View) =>
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (v === 'active') next.delete('view');
+        else next.set('view', v);
+        next.delete('tag');
+        return next;
+      },
+      { replace: true },
+    );
   const listed = view !== 'deleted';
-  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const tagFilter = params.get('tag');
+  const setTagFilter = (t: string | null) => setParam('tag', t);
   const [tagBusyId, setTagBusyId] = useState<string | null>(null);
   const [tagError, setTagError] = useState<string | null>(null);
   // Row ids ticked for bulk tagging. Cleared whenever the list reloads.
@@ -62,9 +92,35 @@ export function Applications() {
   const [usedTags, setUsedTags] = useState<UsedTag[] | null>(null);
 
   useEffect(() => {
-    const handle = setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    const q = search.trim();
+    if (q === debouncedSearch) return;
+    const handle = setTimeout(() => {
+      lastPushedSearch.current = q;
+      setParam('q', q || null);
+    }, 250);
     return () => clearTimeout(handle);
-  }, [search]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, debouncedSearch]);
+
+  // The URL changed from outside (sidebar link, browser back): show its search.
+  const lastPushedSearch = useRef(debouncedSearch);
+  useEffect(() => {
+    if (debouncedSearch === lastPushedSearch.current) return;
+    lastPushedSearch.current = debouncedSearch;
+    setSearch(debouncedSearch);
+  }, [debouncedSearch]);
+
+  // Back on this list from an app registration: once rows are in, scroll to
+  // where the user was.
+  const listKey = location.pathname + location.search;
+  useEffect(() => {
+    if (apps) restoreScroll(listKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apps]);
+  const openApp = (id: string) => {
+    saveScroll(listKey);
+    nav(`/applications/${id}`, { state: { fromList: listKey } });
+  };
 
   useEffect(() => {
     if (view === 'deleted') return;
@@ -236,7 +292,6 @@ export function Applications() {
           <button
             className={view === 'active' ? 'active' : ''}
             onClick={() => {
-              setTagFilter(null);
               setView('active');
             }}
           >
@@ -245,7 +300,6 @@ export function Applications() {
           <button
             className={view === 'owned' ? 'active' : ''}
             onClick={() => {
-              setTagFilter(null);
               setView('owned');
             }}
             title="App registrations you are listed as an owner of"
@@ -255,7 +309,6 @@ export function Applications() {
           <button
             className={view === 'deactivated' ? 'active' : ''}
             onClick={() => {
-              setTagFilter(null);
               setView('deactivated');
             }}
             title="App registrations that are deactivated: no new tokens, configuration kept"
@@ -346,7 +399,7 @@ export function Applications() {
                 <tr
                   key={a.id}
                   className={selected.has(a.id) ? 'selected' : undefined}
-                  onClick={() => nav(`/applications/${a.id}`)}
+                  onClick={() => openApp(a.id)}
                 >
                   <td className="select-cell" onClick={(e) => e.stopPropagation()}>
                     <Checkbox
