@@ -3,6 +3,7 @@ import { useGraphToken } from '../auth/useGraphToken';
 import { listServicePrincipals } from '../graph/servicePrincipals';
 import type { ServicePrincipal } from '../graph/types';
 import { FIRST_PARTY_APPS, getFirstPartyApp } from '../lib/firstPartyApps';
+import { THIRD_PARTY_APPS, getThirdPartyApp } from '../lib/thirdPartyApps';
 
 // Picks a client application by appId for "Authorized client applications".
 // Offers both Microsoft first-party apps (from a static catalog — most have no
@@ -50,6 +51,33 @@ export function MicrosoftBadge() {
       Microsoft
     </span>
   );
+}
+
+export function ThirdPartyBadge({ note }: { note?: string }) {
+  return (
+    <span
+      className="badge pending"
+      title={`Known third-party application${note ? `: ${note}` : ''}`}
+    >
+      Third-party
+    </span>
+  );
+}
+
+// Badges for a client: Microsoft first-party or a known third-party app.
+export function KnownAppBadges({ appId, microsoft }: { appId: string; microsoft: boolean }) {
+  const tp = getThirdPartyApp(appId);
+  return (
+    <>
+      {microsoft && !tp && <MicrosoftBadge />}
+      {tp && <ThirdPartyBadge note={tp.note} />}
+    </>
+  );
+}
+
+// Investigation hint from the catalogs, if any.
+export function knownAppNote(appId: string): string | undefined {
+  return getFirstPartyApp(appId)?.note ?? getThirdPartyApp(appId)?.note;
 }
 
 export function ClientAppPicker({ selected, onChange, taken = [], disabled, autoFocus }: Props) {
@@ -104,6 +132,14 @@ export function ClientAppPicker({ selected, onChange, taken = [], disabled, auto
       : FIRST_PARTY_APPS;
     return list.filter((a) => !tenantIds.has(a.appId));
   }, [ql, tenantIds]);
+  const thirdParty = useMemo(() => {
+    const list = ql
+      ? THIRD_PARTY_APPS.filter(
+          (a) => a.displayName.toLowerCase().includes(ql) || a.appId.startsWith(ql),
+        )
+      : THIRD_PARTY_APPS;
+    return list.filter((a) => !tenantIds.has(a.appId));
+  }, [ql, tenantIds]);
 
   if (selected) {
     return (
@@ -120,11 +156,16 @@ export function ClientAppPicker({ selected, onChange, taken = [], disabled, auto
         <div className="grow">
           <div className="row" style={{ gap: 6 }}>
             <strong>{selected.displayName ?? 'Unknown application'}</strong>
-            {selected.microsoft && <MicrosoftBadge />}
+            <KnownAppBadges appId={selected.appId} microsoft={selected.microsoft} />
           </div>
           <div className="mono muted" style={{ fontSize: 12 }}>
             {selected.appId}
           </div>
+          {knownAppNote(selected.appId) && (
+            <div className="muted" style={{ fontSize: 12 }}>
+              {knownAppNote(selected.appId)}
+            </div>
+          )}
         </div>
         {!disabled && (
           <button className="ghost" onClick={() => onChange(null)}>
@@ -149,12 +190,17 @@ export function ClientAppPicker({ selected, onChange, taken = [], disabled, auto
       <td>
         <div className="row" style={{ gap: 6 }}>
           <span>{c.displayName}</span>
-          {c.microsoft && <MicrosoftBadge />}
+          <KnownAppBadges appId={c.appId} microsoft={c.microsoft} />
           {isTaken(c.appId) && <span className="badge">Already added</span>}
         </div>
         <div className="mono muted" style={{ fontSize: 12 }}>
           {c.appId}
         </div>
+        {knownAppNote(c.appId) && (
+          <div className="muted" style={{ fontSize: 12 }}>
+            {knownAppNote(c.appId)}
+          </div>
+        )}
       </td>
     </tr>
   );
@@ -168,14 +214,17 @@ export function ClientAppPicker({ selected, onChange, taken = [], disabled, auto
   );
 
   // A full GUID nobody lists — offer it as-is (client from another tenant).
-  const rawGuid = GUID_RE.test(q) && !tenantIds.has(ql) && !getFirstPartyApp(q) ? ql : null;
+  const rawGuid =
+    GUID_RE.test(q) && !tenantIds.has(ql) && !getFirstPartyApp(q) && !getThirdPartyApp(q)
+      ? ql
+      : null;
 
   return (
     <div className="stack" style={{ gap: 6 }}>
       <input
         autoFocus={autoFocus}
         disabled={disabled}
-        placeholder="Search by name or client ID — Microsoft apps and apps in this tenant"
+        placeholder="Search by name or client ID — apps in this tenant, Microsoft and known third-party apps"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
@@ -240,6 +289,19 @@ export function ClientAppPicker({ selected, onChange, taken = [], disabled, auto
                 row(
                   { appId: a.appId, displayName: a.displayName, microsoft: true },
                   `fp:${a.appId}`,
+                ),
+              )
+            )}
+            {groupHeader('Known third-party applications')}
+            {thirdParty.length === 0 ? (
+              <tr>
+                <td className="muted">No known third-party apps match.</td>
+              </tr>
+            ) : (
+              thirdParty.map((a) =>
+                row(
+                  { appId: a.appId, displayName: a.displayName, microsoft: false },
+                  `tp:${a.appId}`,
                 ),
               )
             )}
