@@ -2,7 +2,14 @@ import { useEffect, useState } from 'react';
 import { useGraphToken } from '../auth/useGraphToken';
 import { updateApplication } from '../graph/applications';
 import { getServicePrincipalByAppId } from '../graph/servicePrincipals';
+import { getFirstPartyApp } from '../lib/firstPartyApps';
 import type { ApiApplication, AppRole, Application, OAuth2PermissionScope } from '../graph/types';
+import {
+  ClientAppPicker,
+  isMicrosoftApp,
+  MicrosoftBadge,
+  type ClientAppChoice,
+} from './ClientAppPicker';
 import { CopyButton } from './CopyButton';
 import { useConfirm } from './ConfirmDialog';
 import { Modal } from './Modal';
@@ -30,7 +37,11 @@ export function ExposedApiManager({ app, onAppChange }: Props) {
   const [scopeModal, setScopeModal] = useState<'closed' | 'new' | OAuth2PermissionScope>('closed');
   const [roleModal, setRoleModal] = useState<'closed' | 'new' | AppRole>('closed');
   const [clientModal, setClientModal] = useState<'closed' | 'new' | PreAuthorized>('closed');
-  const [clientNames, setClientNames] = useState<Record<string, string | null>>({});
+  // Per client appId: tenant SP name (null when no SP here) and whether it's a
+  // Microsoft first-party app.
+  const [clientInfo, setClientInfo] = useState<
+    Record<string, { spName: string | null; microsoft: boolean }>
+  >({});
 
   const api: ApiApplication = app.api ?? {};
   const scopes = api.oauth2PermissionScopes ?? [];
@@ -56,14 +67,24 @@ export function ExposedApiManager({ app, onAppChange }: Props) {
   useEffect(() => {
     let cancelled = false;
     for (const p of preAuth) {
-      if (p.appId in clientNames) continue;
+      if (p.appId in clientInfo) continue;
       getServicePrincipalByAppId(token, p.appId)
         .then((sp) => {
           if (!cancelled)
-            setClientNames((prev) => ({ ...prev, [p.appId]: sp?.displayName ?? null }));
+            setClientInfo((prev) => ({
+              ...prev,
+              [p.appId]: {
+                spName: sp?.displayName ?? null,
+                microsoft: isMicrosoftApp(p.appId, sp),
+              },
+            }));
         })
         .catch(() => {
-          if (!cancelled) setClientNames((prev) => ({ ...prev, [p.appId]: null }));
+          if (!cancelled)
+            setClientInfo((prev) => ({
+              ...prev,
+              [p.appId]: { spName: null, microsoft: isMicrosoftApp(p.appId) },
+            }));
         });
     }
     return () => {
@@ -190,7 +211,7 @@ export function ExposedApiManager({ app, onAppChange }: Props) {
       ),
     );
   const removeClient = async (c: PreAuthorized) => {
-    const name = clientNames[c.appId] ?? c.appId;
+    const name = clientDisplayName(c.appId) ?? c.appId;
     const ok = await confirm({
       title: `Remove ${name} as an authorized client?`,
       message: (
@@ -206,6 +227,8 @@ export function ExposedApiManager({ app, onAppChange }: Props) {
       savePreAuth(preAuth.filter((x) => x.appId.toLowerCase() !== c.appId.toLowerCase())),
     ).catch(() => {});
   };
+  const clientDisplayName = (appId: string) =>
+    clientInfo[appId]?.spName ?? getFirstPartyApp(appId)?.displayName ?? null;
   const scopeById = new Map(scopes.map((s) => [s.id, s]));
 
   const hasUri = (app.identifierUris?.length ?? 0) > 0;
@@ -341,12 +364,22 @@ export function ExposedApiManager({ app, onAppChange }: Props) {
               {preAuth.map((c) => (
                 <tr key={c.appId} onClick={() => setClientModal(c)}>
                   <td>
-                    {clientNames[c.appId] === undefined ? (
-                      <span className="spinner" />
-                    ) : clientNames[c.appId] ? (
-                      clientNames[c.appId]
+                    {clientInfo[c.appId] === undefined ? (
+                      (getFirstPartyApp(c.appId)?.displayName ?? <span className="spinner" />)
                     ) : (
-                      <span className="muted">Not in this tenant</span>
+                      <div className="row" style={{ gap: 6 }}>
+                        {clientDisplayName(c.appId) ?? (
+                          <span className="muted">Unknown application</span>
+                        )}
+                        {(clientInfo[c.appId].microsoft || getFirstPartyApp(c.appId)) && (
+                          <MicrosoftBadge />
+                        )}
+                        {!clientInfo[c.appId].spName && (
+                          <span className="badge" title="No service principal in this tenant">
+                            Not in this tenant
+                          </span>
+                        )}
+                      </div>
                     )}
                     <div className="mono muted" style={{ fontSize: 11 }}>
                       {c.appId}
@@ -825,13 +858,21 @@ function ClientModal({
   onSubmit: (c: PreAuthorized) => Promise<void>;
 }) {
   const token = useGraphToken();
-  const [appId, setAppId] = useState(existing?.appId ?? '');
+  const [choice, setChoice] = useState<ClientAppChoice | null>(
+    existing
+      ? {
+          appId: existing.appId,
+          displayName: getFirstPartyApp(existing.appId)?.displayName ?? null,
+          microsoft: isMicrosoftApp(existing.appId),
+        }
+      : null,
+  );
   const [selected, setSelected] = useState<string[]>(existing?.delegatedPermissionIds ?? []);
   const [lookup, setLookup] = useState<'idle' | 'loading' | { name: string | null }>('idle');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const id = appId.trim();
+  const id = choice?.appId.trim() ?? '';
   const validId = GUID_RE.test(id);
   const duplicate = !existing && taken.includes(id.toLowerCase());
   const self = id.toLowerCase() === ownAppId.toLowerCase();
@@ -887,21 +928,23 @@ function ClientModal({
         </>
       }
     >
-      <label className="field">
-        <span>Client ID (appId) of the client application</span>
-        <input
-          autoFocus={!existing}
-          className="mono"
-          value={appId}
+      <div className="field">
+        <span
+          style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}
+        >
+          Client application
+        </span>
+        <ClientAppPicker
+          selected={
+            choice && typeof lookup === 'object' && lookup.name && !choice.displayName
+              ? { ...choice, displayName: lookup.name }
+              : choice
+          }
+          onChange={setChoice}
+          taken={[...taken, ownAppId.toLowerCase()]}
           disabled={!!existing}
-          onChange={(e) => setAppId(e.target.value)}
-          placeholder="00000000-0000-0000-0000-000000000000"
+          autoFocus={!existing}
         />
-        {id && !validId && (
-          <span className="error" style={{ fontSize: 12 }}>
-            Enter the client app's application (client) ID — a GUID.
-          </span>
-        )}
         {duplicate && (
           <span className="error" style={{ fontSize: 12 }}>
             This client is already authorized — edit it instead.
@@ -921,11 +964,15 @@ function ClientModal({
                 Found in this tenant: <strong>{lookup.name}</strong>
               </>
             ) : typeof lookup === 'object' ? (
-              'No enterprise app with this client ID in this tenant — fine for a client registered in another tenant.'
+              choice?.microsoft ? (
+                'Microsoft first-party app without a service principal in this tenant yet — it gets one on first sign-in.'
+              ) : (
+                'No enterprise app with this client ID in this tenant — fine for a client registered in another tenant.'
+              )
             ) : null}
           </span>
         )}
-      </label>
+      </div>
       <div className="field">
         <span
           style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}
