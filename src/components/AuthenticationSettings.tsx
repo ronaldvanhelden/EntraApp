@@ -150,6 +150,7 @@ export function AuthenticationSettings({
 
       <AuthCard
         title="Web"
+        use="Server-side web apps and backends-for-frontend (ASP.NET, Node, Java, Python) that sign users in and keep the tokens on the server."
         client="confidential"
         status="recommended"
         property="web.redirectUris"
@@ -174,6 +175,7 @@ export function AuthenticationSettings({
 
       <AuthCard
         title="Single-page application (SPA)"
+        use="Browser apps (React, Angular, Vue, Blazor WebAssembly) with no backend of their own that sign users in and call APIs straight from JavaScript."
         client="public"
         status="recommended"
         property="spa.redirectUris"
@@ -193,6 +195,7 @@ export function AuthenticationSettings({
 
       <AuthCard
         title="Mobile & desktop"
+        use="Apps installed on the user’s device — iOS, Android, Windows, macOS, Electron, or a CLI that opens a browser — that sign users in interactively or through a broker."
         client="public"
         status="recommended"
         property="publicClient.redirectUris"
@@ -223,25 +226,8 @@ export function AuthenticationSettings({
       </AuthCard>
 
       <AuthCard
-        title="PKCE (Proof Key for Code Exchange)"
-        client="public"
-        status="recommended"
-        property="none: chosen by the client on each request"
-        summary="Not a switch on the app registration. The client invents a random code_verifier, sends its SHA-256 hash as code_challenge when it starts sign-in, and must present the verifier when it redeems the code. A stolen code is useless without the verifier."
-        can={[
-          'SPA redirect URIs: required. Entra rejects a browser code redemption without it',
-          'Mobile & desktop: MSAL always sends it. Recommended for any native app',
-          'Web (confidential) clients: optional but recommended by OAuth 2.1 on top of the secret. Microsoft.Identity.Web and MSAL send it',
-        ]}
-        cannot={[
-          'Be enforced or turned off here: there is no PKCE property in the app registration',
-          'Replace a secret for a Web redirect URI: a confidential client still has to authenticate',
-          'Protect implicit grant or device code flows: they have no code exchange to bind it to',
-        ]}
-      />
-
-      <AuthCard
         title="Allow public client flows"
+        use="Apps that can’t show a browser or receive a redirect: CLIs and scripts over SSH, TVs and IoT devices (device code), or legacy apps that still sign in with a username and password."
         client="public"
         status={fallbackPublic ? 'legacy' : 'current'}
         statusOverride={[
@@ -273,6 +259,7 @@ export function AuthenticationSettings({
 
       <AuthCard
         title="Implicit grant"
+        use="Only older browser apps that can’t be updated yet: MSAL.js 1.x / ADAL.js, or ASP.NET / OWIN apps using the “code id_token” hybrid flow. New apps should use the SPA or Web platform."
         client="public"
         status="legacy"
         property="web.implicitGrantSettings"
@@ -337,6 +324,7 @@ function AuthCard({
   status,
   statusOverride,
   property,
+  use,
   summary,
   can,
   cannot,
@@ -349,6 +337,8 @@ function AuthCard({
   // For a card covering several flows with different standing.
   statusOverride?: Array<{ status: Status; text: string }>;
   property: string;
+  // Who this card is for, in plain words: the kind of app that should use it.
+  use: string;
   summary: string;
   can: string[];
   cannot: string[];
@@ -375,6 +365,7 @@ function AuthCard({
           </span>
         )}
       </div>
+      <IntendedUse>{use}</IntendedUse>
       <p style={{ margin: '0 0 8px', fontSize: 13 }}>{summary}</p>
       <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
         Graph property: <code>{property}</code>
@@ -403,6 +394,14 @@ function AuthCard({
         </div>
       )}
       {children && <div style={{ marginTop: 12 }}>{children}</div>}
+    </div>
+  );
+}
+
+function IntendedUse({ children }: { children: ReactNode }) {
+  return (
+    <div className="auth-use">
+      <strong>Intended use:</strong> {children}
     </div>
   );
 }
@@ -548,6 +547,10 @@ function TokenVersionCard({
         <span className={STATUS.recommended.cls}>v2.0: Recommended</span>
         <span className={STATUS.legacy.cls}>v1.0: Legacy default</span>
       </div>
+      <IntendedUse>
+        Set this when the app is an API that other apps call. Choose v2.0 for new APIs; keep v1.0
+        only when existing consumers or token validation code expect v1.0 tokens.
+      </IntendedUse>
       <p style={{ margin: '0 0 8px', fontSize: 13 }}>
         Decides the format of access tokens that <em>other</em> apps get to call this app’s API. The
         resource decides, not the client: a client using the v2.0 endpoint still gets a v1.0 token

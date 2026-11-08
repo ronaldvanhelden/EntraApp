@@ -1468,6 +1468,14 @@ button.tag-suggestion {
   font-size: 13px;
   color: var(--text-muted);
 }
+.auth-use {
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  background: var(--bg);
+  font-size: 13px;
+}
 .auth-can {
   display: grid;
   grid-template-columns: 1fr 1fr;
