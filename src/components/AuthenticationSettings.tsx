@@ -138,13 +138,15 @@ export function AuthenticationSettings({
 
       <div className="tabs auth-side-tabs">
         <button className={side === 'backend' ? 'active' : ''} onClick={() => setSide('backend')}>
-          Backend{' '}
+          <AuthIcon name="server" size={16} />
+          Backend
           <span className="tab-count" title="Cards in use">
             {backendInUse}
           </span>
         </button>
         <button className={side === 'frontend' ? 'active' : ''} onClick={() => setSide('frontend')}>
-          Frontend{' '}
+          <AuthIcon name="desktop" size={16} />
+          Frontend
           <span className="tab-count" title="Cards in use">
             {frontendInUse}
           </span>
@@ -422,7 +424,7 @@ function AuthCard({
   );
 }
 
-type AuthIconName = 'server' | 'browser' | 'device' | 'terminal' | 'link' | 'token';
+type AuthIconName = 'server' | 'browser' | 'device' | 'desktop' | 'terminal' | 'link' | 'token';
 
 // 24px line icons, drawn in the card's tone colour.
 const AUTH_ICONS: Record<AuthIconName, ReactNode> = {
@@ -446,6 +448,12 @@ const AUTH_ICONS: Record<AuthIconName, ReactNode> = {
       <path d="M11 18h2" />
     </>
   ),
+  desktop: (
+    <>
+      <rect x="3" y="4" width="18" height="12" rx="1.5" />
+      <path d="M8 20h8M12 16v4" />
+    </>
+  ),
   terminal: (
     <>
       <rect x="3" y="4" width="18" height="16" rx="2" />
@@ -465,6 +473,25 @@ const AUTH_ICONS: Record<AuthIconName, ReactNode> = {
     </>
   ),
 };
+
+// One of AUTH_ICONS as a line-drawn SVG.
+function AuthIcon({ name, size = 18 }: { name: AuthIconName; size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      {AUTH_ICONS[name]}
+    </svg>
+  );
+}
 
 // Card title row: chevron, card icon, title and badges, then a separator line.
 // Clicking it folds the card down to just this row.
@@ -577,9 +604,9 @@ function RedirectUris({
 }) {
   return (
     <div>
-      <strong style={{ fontSize: 13 }}>Redirect URIs ({uris.length})</strong>
-      <div style={{ marginTop: 6 }}>
-        <button onClick={onEdit} disabled={disabled}>
+      <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+        <strong style={{ fontSize: 13 }}>Redirect URIs ({uris.length})</strong>
+        <button className="primary" onClick={onEdit} disabled={disabled}>
           Edit
         </button>
       </div>

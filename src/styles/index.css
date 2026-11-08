@@ -1479,6 +1479,11 @@ button.tag-suggestion {
 .auth-side-tabs {
   margin-bottom: 8px;
 }
+.auth-side-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .tab-count {
   display: inline-block;
   min-width: 18px;
