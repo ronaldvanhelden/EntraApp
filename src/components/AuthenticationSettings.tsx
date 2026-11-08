@@ -437,7 +437,7 @@ const AUTH_ICONS: Record<AuthIconName, ReactNode> = {
   ),
 };
 
-// Card title row: a desktop mark first for public (frontend) clients, then the card icon, title, badges, then a separator line.
+// Card title row: the card icon, title, badges, then a separator line.
 function AuthCardHeader({
   icon,
   tone,
@@ -451,29 +451,6 @@ function AuthCardHeader({
 }) {
   return (
     <div className="auth-card-header">
-      {tone === 'public' && (
-        <span
-          className="frontend-icon"
-          role="img"
-          aria-label={CLIENT.public.label}
-          title={CLIENT.public.title}
-        >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden
-          >
-            <rect x="3" y="4" width="18" height="12" rx="1.5" />
-            <path d="M8 20h8M12 16v4" />
-          </svg>
-        </span>
-      )}
       <span className={`auth-icon ${tone}`} aria-hidden>
         <svg
           width="18"
