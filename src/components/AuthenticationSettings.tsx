@@ -29,19 +29,6 @@ const STATUS: Record<Status, { label: string; cls: string; title: string }> = {
   },
 };
 
-const CLIENT: Record<ClientKind, { label: string; cls: string; title: string }> = {
-  confidential: {
-    label: 'Confidential client · backend',
-    cls: 'badge app',
-    title: 'Runs on a server you control and can keep a secret or certificate',
-  },
-  public: {
-    label: 'Public client · frontend',
-    cls: 'badge delegated',
-    title: 'Runs on the user’s device (browser, phone, desktop, CLI) and cannot keep a secret',
-  },
-};
-
 // The Authentication tab: one card per way an app can sign users in, each
 // labelled with the kind of client it is for and whether it is current or
 // legacy, plus the access token version this app gets as an API.
@@ -118,189 +105,221 @@ export function AuthenticationSettings({
 
   const busy = saving !== null;
 
+  // Backend = confidential client (Web platform); frontend = public clients.
+  // Open on the side this app actually uses, backend when it uses both or none.
+  const usesFrontend =
+    spaUris.length > 0 ||
+    publicUris.length > 0 ||
+    fallbackPublic ||
+    idTokenIssuance ||
+    accessTokenIssuance;
+  // Cards in use on each side, shown as a count on the tab.
+  const backendInUse = webUris.length > 0 ? 1 : 0;
+  const frontendInUse = [
+    spaUris.length > 0,
+    publicUris.length > 0,
+    fallbackPublic,
+    idTokenIssuance || accessTokenIssuance,
+  ].filter(Boolean).length;
+  const [side, setSide] = useState<'backend' | 'frontend'>(
+    webUris.length === 0 && usesFrontend ? 'frontend' : 'backend',
+  );
+
   return (
     <>
-      <div className="card">
-        <h3>Authentication</h3>
-        <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-          An app registration can serve several kinds of client at once. Each card below is one way
-          to sign in, and says which kind of client it is for:
-        </p>
-        <div className="auth-legend">
-          <div>
-            <ClientBadge kind="confidential" />
-            <p>
-              Code runs on a server you control (ASP.NET, Node, Java, a daemon, a web API calling
-              another API). It proves who it is with a <strong>client secret</strong>,{' '}
-              <strong>certificate</strong> or <strong>federated credential</strong> when it redeems
-              a code or asks for a token.
-            </p>
-          </div>
-          <div>
-            <ClientBadge kind="public" />
-            <p>
-              Code runs on the user’s device: browser SPA, mobile app, desktop app, CLI. Anything
-              shipped there can be read, so it <strong>cannot keep a secret</strong>. Instead it
-              protects the code exchange with <strong>PKCE</strong>.
-            </p>
-          </div>
-        </div>
-        {error && <p className="error">{error}</p>}
-      </div>
-
-      <AuthCard
-        title="Web application (server-side)"
-        icon="server"
-        use="Server-side web apps and backends-for-frontend (ASP.NET, Node, Java, Python) that sign users in and keep the tokens on the server."
-        client="confidential"
-        status="recommended"
-        summary="Server-side sign-in with the authorization code flow. The browser only carries a one-time code; your server swaps it for tokens, proving itself with a secret, certificate or federated credential."
-        can={[
-          'Authorization code grant: /authorize returns the code to a Web redirect URI (query or form_post), never to browser JavaScript',
-          'Code redemption at /oauth2/v2.0/token authenticated with a client_secret, or a client_assertion JWT signed by a certificate or issued by a federated identity',
-          'ID token, access token and, with offline_access, a refresh token with a sliding lifetime of up to 90 days',
-          'With the same credential: the on-behalf-of grant (jwt-bearer) for downstream APIs and client credentials for app-only tokens',
-        ]}
-        footnote={
-          webUris.length > 0 && !hasCredential
-            ? '⚠ This app has Web redirect URIs but no secret, certificate or federated credential, so codes cannot be redeemed.'
-            : undefined
-        }
-      >
-        <RedirectUris uris={webUris} onEdit={() => setEditPlatform('web')} disabled={busy} />
-      </AuthCard>
-
-      <AuthCard
-        title="Single-page application (browser)"
-        icon="browser"
-        use="Browser apps (React, Angular, Vue, Blazor WebAssembly) with no backend of their own that sign users in and call APIs straight from JavaScript."
-        client="public"
-        status="recommended"
-        summary="Browser JavaScript (MSAL.js 2+, React, Angular, Vue) signs in with authorization code + PKCE and redeems the code itself, directly from the browser."
-        can={[
-          'Authorization code grant with PKCE (S256): the browser redeems the code itself with a CORS request to /oauth2/v2.0/token, allowed only for the Origin of an SPA redirect URI',
-          'ID token, access token and a refresh token that is single-use and expires 24 hours after sign-in',
-          'Silent token renewal with the refresh token instead of a hidden iframe with prompt=none, so it works when third-party cookies are blocked',
-        ]}
-      >
-        <RedirectUris uris={spaUris} onEdit={() => setEditPlatform('spa')} disabled={busy} />
-      </AuthCard>
-
-      <AuthCard
-        title="Mobile & desktop application"
-        icon="device"
-        use="Apps installed on the user’s device — iOS, Android, Windows, macOS, Electron, or a CLI that opens a browser — that sign users in interactively or through a broker."
-        client="public"
-        status="recommended"
-        summary="Native apps (WPF/WinForms, MAUI, iOS, Android, Electron, CLIs that open a browser) sign in with authorization code + PKCE and receive the code on a loopback or custom-scheme URI."
-        can={[
-          'Authorization code grant with PKCE, code delivered to a loopback (http://localhost:port), custom scheme (msal{client-id}://auth) or nativeclient URI',
-          'Code redemption at /oauth2/v2.0/token without client authentication: the app is a public client',
-          'Brokered sign-in through Authenticator, Company Portal or Windows WAM using the device’s Primary Refresh Token, so device-based Conditional Access and SSO across apps apply',
-          'Refresh tokens with a sliding lifetime of up to 90 days, kept in the OS token cache',
-        ]}
-        footnote={
-          <>
-            Typical URIs: <code>http://localhost</code> (loopback, any port),{' '}
-            <code>msal{app.appId}://auth</code> (MSAL mobile),{' '}
-            <code>https://login.microsoftonline.com/common/oauth2/nativeclient</code> (embedded web
-            view).
-          </>
-        }
-      >
-        <RedirectUris
-          uris={publicUris}
-          onEdit={() => setEditPlatform('publicClient')}
-          disabled={busy}
-        />
-      </AuthCard>
-
-      <AuthCard
-        title="Sign-in without a redirect (public client flows)"
-        icon="terminal"
-        defaultCollapsed={!fallbackPublic}
-        off={!fallbackPublic}
-        use="Only apps that truly can’t show a browser or receive a redirect, such as Teams Rooms and other shared or input-constrained devices, or legacy tools that can’t be updated yet. For CLIs and scripts, prefer browser-based or brokered sign-in for users, and managed identities or workload identity federation for automation."
-        client="public"
-        status={fallbackPublic ? 'legacy' : 'current'}
-        statusOverride={[
-          { status: 'avoid', text: 'Device code' },
-          { status: 'avoid', text: 'Username/password (ROPC)' },
-          { status: 'legacy', text: 'Windows integrated auth' },
-        ]}
-        summary="Flows that never use a redirect URI. With this on, Entra treats the app as a public client for them, so no secret is needed."
-        can={[
-          'Device authorization grant: /devicecode returns a user_code and device_code; the app polls /token with grant_type=urn:ietf:params:oauth:grant-type:device_code while the user signs in elsewhere',
-          'Resource owner password credentials (ROPC): grant_type=password posts the username and password straight to /token (no MFA, no interactive Conditional Access)',
-          'Integrated Windows Authentication: a Kerberos ticket or WS-Trust token from a domain-joined machine is exchanged for Entra tokens',
-          'All of these at /token without client_secret or client_assertion: isFallbackPublicClient=true makes Entra treat the app as public for flows without a redirect URI',
-        ]}
-        footnote={
-          <>
-            ⚠ Device code flow is a common phishing vector: an attacker starts the flow and gets a
-            user to enter the code on the real Microsoft sign-in page, and the tokens go to the
-            attacker. Microsoft recommends blocking it wherever possible. Security defaults block
-            it, and from 1 July 2026 every new tenant does too. Other tenants can turn on the
-            Microsoft-managed Conditional Access policy “Block device code flow”. See{' '}
-            <a
-              href="https://learn.microsoft.com/entra/identity/conditional-access/policy-block-authentication-flows"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Block authentication flows
-            </a>
-            .
-          </>
-        }
-      >
-        <Toggle
-          checked={fallbackPublic}
-          disabled={busy}
-          onChange={(v) => patch({ isFallbackPublicClient: v }, 'fallback').catch(() => {})}
-          on="Yes, public client flows allowed"
-          off="No"
-        />
-      </AuthCard>
-
-      <AuthCard
-        title="Implicit grant (legacy browser sign-in)"
-        icon="link"
-        defaultCollapsed={!idTokenIssuance && !accessTokenIssuance}
-        off={!idTokenIssuance && !accessTokenIssuance}
-        use="Only older browser apps that can’t be updated yet: MSAL.js 1.x / ADAL.js, or ASP.NET / OWIN apps using the “code id_token” hybrid flow. New apps should use the SPA or Web platform."
-        client="public"
-        status="legacy"
-        summary="The pre-PKCE way for browser apps to get tokens: the token is returned directly in the redirect URL fragment instead of a code. Kept for apps that cannot move to the SPA platform yet."
-        can={[
-          'ID tokens: /authorize with response_type=id_token (or the hybrid code id_token) returns the ID token directly in the redirect URI fragment or form_post',
-          'Access tokens: /authorize with response_type=token returns the access token in the URL fragment, with no call to the token endpoint',
-          'No refresh tokens: renewal is a hidden iframe with prompt=none that relies on the Entra session cookie',
-        ]}
-      >
-        <div className="stack" style={{ gap: 6 }}>
-          <Toggle
-            checked={idTokenIssuance}
-            disabled={busy}
-            onChange={(v) => setImplicit({ enableIdTokenIssuance: v })}
-            on="ID tokens issued (response_type=id_token)"
-            off="ID tokens: off"
-          />
-          <Toggle
-            checked={accessTokenIssuance}
-            disabled={busy}
-            onChange={(v) => setImplicit({ enableAccessTokenIssuance: v })}
-            on="Access tokens issued (response_type=token)"
-            off="Access tokens: off"
-          />
-        </div>
-      </AuthCard>
-
       <TokenVersionCard
         app={app}
         busy={busy}
         confirm={confirm}
         onSave={(body) => patch(body, 'tokenver')}
       />
+
+      {error && <div className="card error">{error}</div>}
+
+      <div className="tabs auth-side-tabs">
+        <button className={side === 'backend' ? 'active' : ''} onClick={() => setSide('backend')}>
+          Backend{' '}
+          <span className="tab-count" title="Cards in use">
+            {backendInUse}
+          </span>
+        </button>
+        <button className={side === 'frontend' ? 'active' : ''} onClick={() => setSide('frontend')}>
+          Frontend{' '}
+          <span className="tab-count" title="Cards in use">
+            {frontendInUse}
+          </span>
+        </button>
+      </div>
+      <p className="muted auth-side-intro">
+        {side === 'backend' ? (
+          <>
+            <strong>Confidential clients.</strong> Code runs on a server you control (ASP.NET, Node,
+            Java, a daemon, a web API calling another API). It proves who it is with a{' '}
+            <strong>client secret</strong>, <strong>certificate</strong> or{' '}
+            <strong>federated credential</strong> when it redeems a code or asks for a token.
+          </>
+        ) : (
+          <>
+            <strong>Public clients.</strong> Code runs on the user’s device: browser SPA, mobile
+            app, desktop app, CLI. Anything shipped there can be read, so it{' '}
+            <strong>cannot keep a secret</strong>. Instead it protects the code exchange with{' '}
+            <strong>PKCE</strong>.
+          </>
+        )}
+      </p>
+
+      {side === 'backend' && (
+        <AuthCard
+          title="Web application (server-side)"
+          icon="server"
+          use="Server-side web apps and backends-for-frontend (ASP.NET, Node, Java, Python) that sign users in and keep the tokens on the server."
+          client="confidential"
+          status="recommended"
+          summary="Server-side sign-in with the authorization code flow. The browser only carries a one-time code; your server swaps it for tokens, proving itself with a secret, certificate or federated credential."
+          can={[
+            'Authorization code grant: /authorize returns the code to a Web redirect URI (query or form_post), never to browser JavaScript',
+            'Code redemption at /oauth2/v2.0/token authenticated with a client_secret, or a client_assertion JWT signed by a certificate or issued by a federated identity',
+            'ID token, access token and, with offline_access, a refresh token with a sliding lifetime of up to 90 days',
+            'With the same credential: the on-behalf-of grant (jwt-bearer) for downstream APIs and client credentials for app-only tokens',
+          ]}
+          footnote={
+            webUris.length > 0 && !hasCredential
+              ? '⚠ This app has Web redirect URIs but no secret, certificate or federated credential, so codes cannot be redeemed.'
+              : undefined
+          }
+        >
+          <RedirectUris uris={webUris} onEdit={() => setEditPlatform('web')} disabled={busy} />
+        </AuthCard>
+      )}
+
+      {side === 'frontend' && (
+        <>
+          <AuthCard
+            title="Single-page application (browser)"
+            icon="browser"
+            use="Browser apps (React, Angular, Vue, Blazor WebAssembly) with no backend of their own that sign users in and call APIs straight from JavaScript."
+            client="public"
+            status="recommended"
+            summary="Browser JavaScript (MSAL.js 2+, React, Angular, Vue) signs in with authorization code + PKCE and redeems the code itself, directly from the browser."
+            can={[
+              'Authorization code grant with PKCE (S256): the browser redeems the code itself with a CORS request to /oauth2/v2.0/token, allowed only for the Origin of an SPA redirect URI',
+              'ID token, access token and a refresh token that is single-use and expires 24 hours after sign-in',
+              'Silent token renewal with the refresh token instead of a hidden iframe with prompt=none, so it works when third-party cookies are blocked',
+            ]}
+          >
+            <RedirectUris uris={spaUris} onEdit={() => setEditPlatform('spa')} disabled={busy} />
+          </AuthCard>
+
+          <AuthCard
+            title="Mobile & desktop application"
+            icon="device"
+            use="Apps installed on the user’s device — iOS, Android, Windows, macOS, Electron, or a CLI that opens a browser — that sign users in interactively or through a broker."
+            client="public"
+            status="recommended"
+            summary="Native apps (WPF/WinForms, MAUI, iOS, Android, Electron, CLIs that open a browser) sign in with authorization code + PKCE and receive the code on a loopback or custom-scheme URI."
+            can={[
+              'Authorization code grant with PKCE, code delivered to a loopback (http://localhost:port), custom scheme (msal{client-id}://auth) or nativeclient URI',
+              'Code redemption at /oauth2/v2.0/token without client authentication: the app is a public client',
+              'Brokered sign-in through Authenticator, Company Portal or Windows WAM using the device’s Primary Refresh Token, so device-based Conditional Access and SSO across apps apply',
+              'Refresh tokens with a sliding lifetime of up to 90 days, kept in the OS token cache',
+            ]}
+            footnote={
+              <>
+                Typical URIs: <code>http://localhost</code> (loopback, any port),{' '}
+                <code>msal{app.appId}://auth</code> (MSAL mobile),{' '}
+                <code>https://login.microsoftonline.com/common/oauth2/nativeclient</code> (embedded
+                web view).
+              </>
+            }
+          >
+            <RedirectUris
+              uris={publicUris}
+              onEdit={() => setEditPlatform('publicClient')}
+              disabled={busy}
+            />
+          </AuthCard>
+
+          <AuthCard
+            title="Sign-in without a redirect (public client flows)"
+            icon="terminal"
+            defaultCollapsed={!fallbackPublic}
+            off={!fallbackPublic}
+            use="Only apps that truly can’t show a browser or receive a redirect, such as Teams Rooms and other shared or input-constrained devices, or legacy tools that can’t be updated yet. For CLIs and scripts, prefer browser-based or brokered sign-in for users, and managed identities or workload identity federation for automation."
+            client="public"
+            status={fallbackPublic ? 'legacy' : 'current'}
+            statusOverride={[
+              { status: 'avoid', text: 'Device code' },
+              { status: 'avoid', text: 'Username/password (ROPC)' },
+              { status: 'legacy', text: 'Windows integrated auth' },
+            ]}
+            summary="Flows that never use a redirect URI. With this on, Entra treats the app as a public client for them, so no secret is needed."
+            can={[
+              'Device authorization grant: /devicecode returns a user_code and device_code; the app polls /token with grant_type=urn:ietf:params:oauth:grant-type:device_code while the user signs in elsewhere',
+              'Resource owner password credentials (ROPC): grant_type=password posts the username and password straight to /token (no MFA, no interactive Conditional Access)',
+              'Integrated Windows Authentication: a Kerberos ticket or WS-Trust token from a domain-joined machine is exchanged for Entra tokens',
+              'All of these at /token without client_secret or client_assertion: isFallbackPublicClient=true makes Entra treat the app as public for flows without a redirect URI',
+            ]}
+            footnote={
+              <>
+                ⚠ Device code flow is a common phishing vector: an attacker starts the flow and gets
+                a user to enter the code on the real Microsoft sign-in page, and the tokens go to
+                the attacker. Microsoft recommends blocking it wherever possible. Security defaults
+                block it, and from 1 July 2026 every new tenant does too. Other tenants can turn on
+                the Microsoft-managed Conditional Access policy “Block device code flow”. See{' '}
+                <a
+                  href="https://learn.microsoft.com/entra/identity/conditional-access/policy-block-authentication-flows"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Block authentication flows
+                </a>
+                .
+              </>
+            }
+          >
+            <Toggle
+              checked={fallbackPublic}
+              disabled={busy}
+              onChange={(v) => patch({ isFallbackPublicClient: v }, 'fallback').catch(() => {})}
+              on="Yes, public client flows allowed"
+              off="No"
+            />
+          </AuthCard>
+
+          <AuthCard
+            title="Implicit grant (legacy browser sign-in)"
+            icon="link"
+            defaultCollapsed={!idTokenIssuance && !accessTokenIssuance}
+            off={!idTokenIssuance && !accessTokenIssuance}
+            use="Only older browser apps that can’t be updated yet: MSAL.js 1.x / ADAL.js, or ASP.NET / OWIN apps using the “code id_token” hybrid flow. New apps should use the SPA or Web platform."
+            client="public"
+            status="legacy"
+            summary="The pre-PKCE way for browser apps to get tokens: the token is returned directly in the redirect URL fragment instead of a code. Kept for apps that cannot move to the SPA platform yet."
+            can={[
+              'ID tokens: /authorize with response_type=id_token (or the hybrid code id_token) returns the ID token directly in the redirect URI fragment or form_post',
+              'Access tokens: /authorize with response_type=token returns the access token in the URL fragment, with no call to the token endpoint',
+              'No refresh tokens: renewal is a hidden iframe with prompt=none that relies on the Entra session cookie',
+            ]}
+          >
+            <div className="stack" style={{ gap: 6 }}>
+              <Toggle
+                checked={idTokenIssuance}
+                disabled={busy}
+                onChange={(v) => setImplicit({ enableIdTokenIssuance: v })}
+                on="ID tokens issued (response_type=id_token)"
+                off="ID tokens: off"
+              />
+              <Toggle
+                checked={accessTokenIssuance}
+                disabled={busy}
+                onChange={(v) => setImplicit({ enableAccessTokenIssuance: v })}
+                on="Access tokens issued (response_type=token)"
+                off="Access tokens: off"
+              />
+            </div>
+          </AuthCard>
+        </>
+      )}
 
       {editPlatform && (
         <RedirectUriEditModal
@@ -403,22 +422,6 @@ function AuthCard({
   );
 }
 
-// Client-kind badge. Public clients lead with a JS mark: the code ships to the
-// user's device, where anyone can read it.
-function ClientBadge({ kind }: { kind: ClientKind }) {
-  const c = CLIENT[kind];
-  return (
-    <span className={`${c.cls} client-badge`} title={c.title}>
-      {kind === 'public' && (
-        <span className="js-icon" aria-hidden>
-          JS
-        </span>
-      )}
-      {c.label}
-    </span>
-  );
-}
-
 type AuthIconName = 'server' | 'browser' | 'device' | 'terminal' | 'link' | 'token';
 
 // 24px line icons, drawn in the card's tone colour.
@@ -495,7 +498,18 @@ function AuthCardHeader({
       }}
     >
       <span className="chevron" aria-hidden>
-        ▾
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
       </span>
       <span className={`auth-icon ${tone}`} aria-hidden>
         <svg
@@ -722,14 +736,6 @@ function TokenVersionCard({
                 ))}
               </tbody>
             </table>
-          </div>
-          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-            How to check: decode an access token for this API (e.g. on jwt.ms) and look at{' '}
-            <code>ver</code>, <code>iss</code> and <code>aud</code>. In v1.0, <code>aud</code> is
-            whatever the client asked for, so a request for{' '}
-            <code>{appIdUri ?? 'api://…'}/.default</code> gives that URI and a request by client id
-            gives the GUID. In v2.0 it is always the client id GUID. Your API’s token validation
-            must accept the matching issuer and audience.
           </div>
         </>
       )}

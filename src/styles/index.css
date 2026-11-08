@@ -1468,16 +1468,6 @@ button.tag-suggestion {
 }
 
 /* Authentication tab */
-.auth-legend {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-.auth-legend p {
-  margin: 6px 0 0;
-  font-size: 13px;
-  color: var(--text-muted);
-}
 .auth-use {
   margin: 0 0 8px;
   padding: 6px 10px;
@@ -1486,25 +1476,24 @@ button.tag-suggestion {
   background: var(--bg);
   font-size: 13px;
 }
-.client-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+.auth-side-tabs {
+  margin-bottom: 8px;
 }
-.js-icon {
-  display: inline-flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  width: 14px;
-  height: 14px;
-  padding: 0 1px 1px 0;
-  border-radius: 2px;
-  background: #f7df1e;
-  color: #000;
-  font-size: 7px;
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: -0.02em;
+.tab-count {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--border);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+.auth-side-intro {
+  margin: 0 0 16px;
+  font-size: 13px;
 }
 .auth-card-header {
   cursor: pointer;
@@ -1518,13 +1507,17 @@ button.tag-suggestion {
   border-bottom: 1px solid var(--border);
 }
 .auth-card-header .chevron {
-  display: inline-block;
-  width: 16px;
-  font-size: 18px;
-  line-height: 1;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
   color: var(--text-muted);
   transition: transform 120ms;
+}
+.auth-card-header:hover .chevron {
+  color: var(--text);
 }
 .auth-card.collapsed .auth-card-header {
   margin-bottom: 0;
@@ -1589,7 +1582,4 @@ button.tag-suggestion {
   cursor: default;
 }
 @media (max-width: 760px) {
-  .auth-legend {
-    grid-template-columns: 1fr;
-  }
 }
