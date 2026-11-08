@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
 import {
   addApplicationCertificate,
@@ -90,6 +90,12 @@ export function ApplicationDetail() {
   const { id = '' } = useParams();
   const token = useGraphToken();
   const nav = useNavigate();
+  const location = useLocation();
+  // Opened from the list: going back through history returns to the same tab,
+  // search and filter, and the list restores its scroll position. Opened any
+  // other way (deep link, enterprise app): fall back to the list.
+  const fromList = (location.state as { fromList?: string } | null)?.fromList;
+  const goBack = () => (fromList ? nav(-1) : nav('/applications'));
   const currentTenantId = useCurrentTenantId();
   const [app, setApp] = useState<Application | null>(null);
   const [sp, setSp] = useState<ServicePrincipal | null>(null);
@@ -154,6 +160,9 @@ export function ApplicationDetail() {
 
   return (
     <>
+      <button className="ghost back-link" onClick={goBack}>
+        ← App registrations
+      </button>
       <div className="page-header">
         <div className="row" style={{ gap: 12, alignItems: 'center' }}>
           <AppIcon

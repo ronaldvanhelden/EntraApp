@@ -310,6 +310,16 @@ pre {
   min-width: 0;
 }
 
+.back-link {
+  padding: 2px 6px;
+  margin: -8px 0 8px -6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.back-link:hover {
+  color: var(--text);
+}
+
 .page-header {
   display: flex;
   align-items: center;
