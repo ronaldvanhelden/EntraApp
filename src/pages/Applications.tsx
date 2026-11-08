@@ -57,12 +57,14 @@ export function Applications({ owned = false }: { owned?: boolean } = {}) {
     let cancelled = false;
     setApps(null);
     setError(null);
-    const load = owned
-      ? listOwnedApplications
-      : view === 'deactivated'
-        ? listDeactivatedApplications
-        : listApplications;
-    load(token, debouncedSearch || undefined)
+    const q = debouncedSearch || undefined;
+    const deactivated = view === 'deactivated';
+    (owned
+      ? listOwnedApplications(token, q, { deactivated })
+      : deactivated
+        ? listDeactivatedApplications(token, q)
+        : listApplications(token, q)
+    )
       .then((list) => {
         if (cancelled) return;
         // Favorites first, then alphabetical. Sorting happens only on load, so
@@ -153,38 +155,34 @@ export function Applications({ owned = false }: { owned?: boolean } = {}) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        {/* The recycle bin and the deactivated filter aren't scoped by owner, so the
-            owned view shows only its own list. */}
-        {!owned && (
-          <div className="tabs" style={{ margin: 0, borderBottom: 'none' }}>
-            <button
-              className={view === 'active' ? 'active' : ''}
-              onClick={() => {
-                setTagFilter(null);
-                setView('active');
-              }}
-            >
-              Active
-            </button>
-            <button
-              className={view === 'deactivated' ? 'active' : ''}
-              onClick={() => {
-                setTagFilter(null);
-                setView('deactivated');
-              }}
-              title="App registrations that are deactivated: no new tokens, configuration kept"
-            >
-              Deactivated
-            </button>
-            <button
-              className={view === 'deleted' ? 'active' : ''}
-              onClick={() => setView('deleted')}
-              title="Soft-deleted app registrations in the directory recycle bin"
-            >
-              Deleted
-            </button>
-          </div>
-        )}
+        <div className="tabs" style={{ margin: 0, borderBottom: 'none' }}>
+          <button
+            className={view === 'active' ? 'active' : ''}
+            onClick={() => {
+              setTagFilter(null);
+              setView('active');
+            }}
+          >
+            Active
+          </button>
+          <button
+            className={view === 'deactivated' ? 'active' : ''}
+            onClick={() => {
+              setTagFilter(null);
+              setView('deactivated');
+            }}
+            title="App registrations that are deactivated: no new tokens, configuration kept"
+          >
+            Deactivated
+          </button>
+          <button
+            className={view === 'deleted' ? 'active' : ''}
+            onClick={() => setView('deleted')}
+            title="Soft-deleted app registrations in the directory recycle bin"
+          >
+            Deleted
+          </button>
+        </div>
         {apps && listed && (
           <span className="muted">
             {tagFilter
@@ -194,7 +192,9 @@ export function Applications({ owned = false }: { owned?: boolean } = {}) {
         )}
       </div>
 
-      {view === 'deleted' && <DeletedItemsList kind="application" search={debouncedSearch} />}
+      {view === 'deleted' && (
+        <DeletedItemsList kind="application" search={debouncedSearch} ownedOnly={owned} />
+      )}
 
       {listed && tagFacets.length > 0 && (
         <div className="row wrap" style={{ gap: 6, marginBottom: 12 }}>
@@ -301,7 +301,9 @@ export function Applications({ owned = false }: { owned?: boolean } = {}) {
                   <td colSpan={5}>
                     <div className="empty">
                       {view === 'deactivated' && !tagFilter && !debouncedSearch
-                        ? 'No deactivated app registrations.'
+                        ? owned
+                          ? 'None of your app registrations are deactivated.'
+                          : 'No deactivated app registrations.'
                         : tagFilter
                           ? `No applications tagged “${tagLabel(tagFilter)}”.`
                           : debouncedSearch

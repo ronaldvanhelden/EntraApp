@@ -113,17 +113,25 @@ export async function listApplications(token: TokenFn, search?: string) {
 // returns only applications from /me/ownedObjects. Search is applied
 // client-side: an owner rarely has more than a handful of registrations, and
 // it keeps matching identical to the full list (name, unique name, appId,
-// tag label).
-export async function listOwnedApplications(token: TokenFn, search?: string) {
+// tag label). With `deactivated`, the beta endpoint is used so isDisabled can
+// be read, and only deactivated apps are kept.
+export async function listOwnedApplications(
+  token: TokenFn,
+  search?: string,
+  { deactivated = false }: { deactivated?: boolean } = {},
+) {
   const path = '/me/ownedObjects/microsoft.graph.application';
+  const api = deactivated ? 'beta' : 'v1.0';
+  const $select = deactivated ? `${LIST_SELECT},isDisabled` : LIST_SELECT;
   const apps = await graphAll<Application>(token, path, {
-    query: { $select: LIST_SELECT, $expand: LIST_EXPAND, $top: 100 },
+    api,
+    query: { $select, $expand: LIST_EXPAND, $top: 100 },
   }).catch(() =>
     // Some tenants reject $expand on the cast segment; the FIC badge is the
     // only thing lost without it.
-    graphAll<Application>(token, path, { query: { $select: LIST_SELECT, $top: 100 } }),
+    graphAll<Application>(token, path, { api, query: { $select, $top: 100 } }),
   );
-  return filterClientSide(apps, search);
+  return filterClientSide(deactivated ? apps.filter((a) => a.isDisabled === true) : apps, search);
 }
 
 // Deactivated app registrations (isDisabled = true). The property and its
