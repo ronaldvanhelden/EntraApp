@@ -143,6 +143,27 @@ export async function listDeactivatedApplications(token: TokenFn, search?: strin
   return filterClientSide(apps, search);
 }
 
+// The Active tab: every app registration except deactivated ones. isDisabled
+// only exists on beta, so the v1.0 list is fetched as usual and the
+// deactivated ids (usually few) are subtracted. If the beta call fails the
+// unfiltered list is returned rather than breaking the page.
+export async function listActiveApplications(token: TokenFn, search?: string) {
+  const [apps, deactivatedIds] = await Promise.all([
+    listApplications(token, search),
+    listDeactivatedIds(token).catch(() => new Set<string>()),
+  ]);
+  return deactivatedIds.size ? apps.filter((a) => !deactivatedIds.has(a.id)) : apps;
+}
+
+async function listDeactivatedIds(token: TokenFn) {
+  const rows = await graphAll<Pick<Application, 'id'>>(token, '/applications', {
+    api: 'beta',
+    query: { $select: 'id', $filter: 'isDisabled eq true', $top: 999 },
+    advanced: true,
+  });
+  return new Set(rows.map((r) => r.id));
+}
+
 function filterClientSide(apps: Application[], search?: string) {
   const q = search?.trim().toLowerCase();
   if (!q) return apps;
