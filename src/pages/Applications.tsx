@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
-import { createApplication, listApplications, updateApplication } from '../graph/applications';
+import {
+  createApplication,
+  listApplications,
+  listDeactivatedApplications,
+  listOwnedApplications,
+  updateApplication,
+} from '../graph/applications';
 import { createServicePrincipalFromAppId } from '../graph/servicePrincipals';
 import type { Application } from '../graph/types';
 import { Modal } from '../components/Modal';
@@ -18,6 +24,8 @@ import {
   withFavorite,
 } from '../lib/tags';
 
+type View = 'active' | 'owned' | 'deactivated' | 'deleted';
+
 const AUDIENCES = [
   'AzureADMyOrg',
   'AzureADMultipleOrgs',
@@ -33,8 +41,11 @@ export function Applications() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  // 'deleted' is the directory recycle bin, not part of the live list.
-  const [view, setView] = useState<'active' | 'deleted'>('active');
+  // 'owned' is the subset the signed-in user is an owner of; 'deactivated'
+  // lists app registrations with isDisabled = true; 'deleted' is the directory
+  // recycle bin, rendered by its own component.
+  const [view, setView] = useState<View>('active');
+  const listed = view !== 'deleted';
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [tagBusyId, setTagBusyId] = useState<string | null>(null);
   const [tagError, setTagError] = useState<string | null>(null);
@@ -45,10 +56,17 @@ export function Applications() {
   }, [search]);
 
   useEffect(() => {
+    if (view === 'deleted') return;
     let cancelled = false;
     setApps(null);
     setError(null);
-    listApplications(token, debouncedSearch || undefined)
+    const q = debouncedSearch || undefined;
+    (view === 'owned'
+      ? listOwnedApplications(token, q)
+      : view === 'deactivated'
+        ? listDeactivatedApplications(token, q)
+        : listApplications(token, q)
+    )
       .then((list) => {
         if (cancelled) return;
         // Favorites first, then alphabetical. Sorting happens only on load, so
@@ -67,7 +85,7 @@ export function Applications() {
     return () => {
       cancelled = true;
     };
-  }, [token, debouncedSearch]);
+  }, [token, debouncedSearch, view]);
 
   // Facets over our own (debble:-prefixed) tags in the loaded set, most-used
   // first so the useful ones surface. Tags set outside EntraApp aren't offered
@@ -136,8 +154,34 @@ export function Applications() {
           onChange={(e) => setSearch(e.target.value)}
         />
         <div className="tabs" style={{ margin: 0, borderBottom: 'none' }}>
-          <button className={view === 'active' ? 'active' : ''} onClick={() => setView('active')}>
+          <button
+            className={view === 'active' ? 'active' : ''}
+            onClick={() => {
+              setTagFilter(null);
+              setView('active');
+            }}
+          >
             Active
+          </button>
+          <button
+            className={view === 'owned' ? 'active' : ''}
+            onClick={() => {
+              setTagFilter(null);
+              setView('owned');
+            }}
+            title="App registrations you are listed as an owner of"
+          >
+            Owned
+          </button>
+          <button
+            className={view === 'deactivated' ? 'active' : ''}
+            onClick={() => {
+              setTagFilter(null);
+              setView('deactivated');
+            }}
+            title="App registrations that are deactivated: no new tokens, configuration kept"
+          >
+            Deactivated
           </button>
           <button
             className={view === 'deleted' ? 'active' : ''}
@@ -147,7 +191,7 @@ export function Applications() {
             Deleted
           </button>
         </div>
-        {apps && view === 'active' && (
+        {apps && listed && (
           <span className="muted">
             {tagFilter
               ? `${visible.length} of ${apps.length}`
@@ -158,7 +202,7 @@ export function Applications() {
 
       {view === 'deleted' && <DeletedItemsList kind="application" search={debouncedSearch} />}
 
-      {view === 'active' && tagFacets.length > 0 && (
+      {listed && tagFacets.length > 0 && (
         <div className="row wrap" style={{ gap: 6, marginBottom: 12 }}>
           <button
             className={tagFilter === null ? 'primary' : 'ghost'}
@@ -182,11 +226,11 @@ export function Applications() {
         </div>
       )}
 
-      {view === 'active' && error && <div className="card error">{error}</div>}
-      {view === 'active' && tagError && <div className="card error">{tagError}</div>}
-      {view === 'active' && !apps && !error && <span className="spinner" />}
+      {listed && error && <div className="card error">{error}</div>}
+      {listed && tagError && <div className="card error">{tagError}</div>}
+      {listed && !apps && !error && <span className="spinner" />}
 
-      {view === 'active' && apps && (
+      {listed && apps && (
         <div className="card" style={{ padding: 0 }}>
           <table className="table">
             <thead>
@@ -262,11 +306,15 @@ export function Applications() {
                 <tr>
                   <td colSpan={5}>
                     <div className="empty">
-                      {tagFilter
-                        ? `No applications tagged “${tagLabel(tagFilter)}”.`
-                        : debouncedSearch
-                          ? 'No applications match your search.'
-                          : 'No applications found.'}
+                      {view === 'deactivated' && !tagFilter && !debouncedSearch
+                        ? 'No deactivated app registrations.'
+                        : tagFilter
+                          ? `No applications tagged “${tagLabel(tagFilter)}”.`
+                          : debouncedSearch
+                            ? 'No applications match your search.'
+                            : view === 'owned'
+                              ? 'You are not an owner of any app registrations.'
+                              : 'No applications found.'}
                     </div>
                   </td>
                 </tr>
