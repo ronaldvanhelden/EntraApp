@@ -32,3 +32,17 @@ export async function listMyActiveRoleTemplateIds(token: TokenFn) {
   );
   return new Set(roles.map((r) => r.roleTemplateId));
 }
+
+// Display names of the directory roles the signed-in user currently holds
+// (active assignments only), for showing on the Overview.
+export async function listMyActiveRoleNames(token: TokenFn) {
+  const roles = await graphAll<DirectoryRole>(
+    token,
+    '/me/transitiveMemberOf/microsoft.graph.directoryRole',
+    { query: { $select: 'id,displayName,roleTemplateId' } },
+  );
+  return roles
+    .map((r) => r.displayName)
+    .filter((n): n is string => !!n)
+    .sort();
+}

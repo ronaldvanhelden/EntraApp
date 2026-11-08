@@ -96,13 +96,15 @@ export function ApplicationDetail() {
   // search and filter, and the list restores its scroll position. Opened any
   // other way (deep link, enterprise app): fall back to the list.
   const fromList = (location.state as { fromList?: string } | null)?.fromList;
+  // Links (e.g. from the Overview's "Needs attention") may ask for a tab.
+  const initialTab = (location.state as { tab?: Tab } | null)?.tab ?? 'overview';
   const goBack = () => (fromList ? nav(-1) : nav('/applications'));
   const currentTenantId = useCurrentTenantId();
   const [app, setApp] = useState<Application | null>(null);
   const [sp, setSp] = useState<ServicePrincipal | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  const [tab, setTab] = useState<Tab>('overview');
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [fic, setFic] = useState<FederatedIdentityCredential[] | null>(null);
   const [activityByKeyId, setActivityByKeyId] = useState<Map<string, AppCredentialSignInActivity>>(
@@ -116,7 +118,7 @@ export function ApplicationDetail() {
     setSp(null);
     setError(null);
     setEditing(false);
-    setTab('overview');
+    setTab(initialTab);
     setFic(null);
     setActivityByKeyId(new Map());
     setActivityError(null);
