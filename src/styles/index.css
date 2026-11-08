@@ -1507,6 +1507,8 @@ button.tag-suggestion {
   letter-spacing: -0.02em;
 }
 .auth-card-header {
+  cursor: pointer;
+  user-select: none;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -1514,6 +1516,23 @@ button.tag-suggestion {
   margin: 0 0 12px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border);
+}
+.auth-card-header .chevron {
+  display: inline-block;
+  width: 16px;
+  font-size: 18px;
+  line-height: 1;
+  text-align: center;
+  color: var(--text-muted);
+  transition: transform 120ms;
+}
+.auth-card.collapsed .auth-card-header {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+.auth-card.collapsed .auth-card-header .chevron {
+  transform: rotate(-90deg);
 }
 .auth-card-header h3 {
   margin: 0;

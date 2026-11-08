@@ -218,6 +218,8 @@ export function AuthenticationSettings({
       <AuthCard
         title="Sign-in without a redirect (public client flows)"
         icon="terminal"
+        defaultCollapsed={!fallbackPublic}
+        off={!fallbackPublic}
         use="Only apps that truly can’t show a browser or receive a redirect, such as Teams Rooms and other shared or input-constrained devices, or legacy tools that can’t be updated yet. For CLIs and scripts, prefer browser-based or brokered sign-in for users, and managed identities or workload identity federation for automation."
         client="public"
         status={fallbackPublic ? 'legacy' : 'current'}
@@ -263,6 +265,8 @@ export function AuthenticationSettings({
       <AuthCard
         title="Implicit grant (legacy browser sign-in)"
         icon="link"
+        defaultCollapsed={!idTokenIssuance && !accessTokenIssuance}
+        off={!idTokenIssuance && !accessTokenIssuance}
         use="Only older browser apps that can’t be updated yet: MSAL.js 1.x / ADAL.js, or ASP.NET / OWIN apps using the “code id_token” hybrid flow. New apps should use the SPA or Web platform."
         client="public"
         status="legacy"
@@ -327,6 +331,8 @@ function AuthCard({
   summary,
   can,
   footnote,
+  defaultCollapsed = false,
+  off = false,
   children,
 }: {
   title: string;
@@ -340,11 +346,27 @@ function AuthCard({
   summary: string;
   can: string[];
   footnote?: ReactNode;
+  // Start folded, e.g. for a setting that is switched off.
+  defaultCollapsed?: boolean;
+  // The setting is switched off: shown as an "Off" badge in the header.
+  off?: boolean;
   children?: ReactNode;
 }) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
   return (
-    <div className="card auth-card">
-      <AuthCardHeader icon={icon} tone={client} title={title}>
+    <div className={`card auth-card${collapsed ? ' collapsed' : ''}`}>
+      <AuthCardHeader
+        icon={icon}
+        tone={client}
+        title={title}
+        collapsed={collapsed}
+        onToggle={() => setCollapsed((c) => !c)}
+      >
+        {off && (
+          <span className="badge" title="This setting is switched off for this app">
+            Off
+          </span>
+        )}
         {statusOverride ? (
           statusOverride.map((s) => (
             <span key={s.text} className={STATUS[s.status].cls} title={STATUS[s.status].title}>
@@ -357,22 +379,26 @@ function AuthCard({
           </span>
         )}
       </AuthCardHeader>
-      <IntendedUse>{use}</IntendedUse>
-      <p style={{ margin: '0 0 10px', fontSize: 13 }}>{summary}</p>
-      <div className="auth-can">
-        <div className="auth-can-title">What it enables</div>
-        <ul>
-          {can.map((x) => (
-            <li key={x}>{x}</li>
-          ))}
-        </ul>
-      </div>
-      {footnote && (
-        <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-          {footnote}
-        </div>
+      {!collapsed && (
+        <>
+          <IntendedUse>{use}</IntendedUse>
+          <p style={{ margin: '0 0 10px', fontSize: 13 }}>{summary}</p>
+          <div className="auth-can">
+            <div className="auth-can-title">What it enables</div>
+            <ul>
+              {can.map((x) => (
+                <li key={x}>{x}</li>
+              ))}
+            </ul>
+          </div>
+          {footnote && (
+            <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+              {footnote}
+            </div>
+          )}
+          {children && <div style={{ marginTop: 12 }}>{children}</div>}
+        </>
       )}
-      {children && <div style={{ marginTop: 12 }}>{children}</div>}
     </div>
   );
 }
@@ -437,20 +463,40 @@ const AUTH_ICONS: Record<AuthIconName, ReactNode> = {
   ),
 };
 
-// Card title row: the card icon, title, badges, then a separator line.
+// Card title row: chevron, card icon, title and badges, then a separator line.
+// Clicking it folds the card down to just this row.
 function AuthCardHeader({
   icon,
   tone,
   title,
+  collapsed,
+  onToggle,
   children,
 }: {
   icon: AuthIconName;
   tone: ClientKind | 'api';
   title: string;
+  collapsed: boolean;
+  onToggle: () => void;
   children?: ReactNode;
 }) {
   return (
-    <div className="auth-card-header">
+    <div
+      className="auth-card-header"
+      role="button"
+      tabIndex={0}
+      aria-expanded={!collapsed}
+      onClick={onToggle}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
+    >
+      <span className="chevron" aria-hidden>
+        ▾
+      </span>
       <span className={`auth-icon ${tone}`} aria-hidden>
         <svg
           width="18"
@@ -555,6 +601,7 @@ function TokenVersionCard({
   confirm: ReturnType<typeof useConfirm>['confirm'];
   onSave: (body: UpdateApplicationPatch) => Promise<void>;
 }) {
+  const [collapsed, setCollapsed] = useState(false);
   const raw = app.api?.requestedAccessTokenVersion;
   const version = raw === 2 ? 2 : 1;
   const tid = '{tenant-id}';
@@ -611,71 +658,81 @@ function TokenVersionCard({
   ];
 
   return (
-    <div className="card auth-card">
-      <AuthCardHeader icon="token" tone="api" title="Access token version (this app as an API)">
+    <div className={`card auth-card${collapsed ? ' collapsed' : ''}`}>
+      <AuthCardHeader
+        icon="token"
+        tone="api"
+        title="Access token version (this app as an API)"
+        collapsed={collapsed}
+        onToggle={() => setCollapsed((c) => !c)}
+      >
         <span className={STATUS.recommended.cls}>v2.0: Recommended</span>
         <span className={STATUS.legacy.cls}>v1.0: Legacy default</span>
       </AuthCardHeader>
-      <IntendedUse>
-        Set this when the app is an API that other apps call. Choose v2.0 for new APIs; keep v1.0
-        only when existing consumers or token validation code expect v1.0 tokens.
-      </IntendedUse>
-      <p style={{ margin: '0 0 8px', fontSize: 13 }}>
-        Decides the format of access tokens that <em>other</em> apps get to call this app’s API. The
-        resource decides, not the client: a client using the v2.0 endpoint still gets a v1.0 token
-        for an API set to v1. ID tokens are not affected; their version follows the endpoint the
-        client signed in with.
-      </p>
+      {!collapsed && (
+        <>
+          <IntendedUse>
+            Set this when the app is an API that other apps call. Choose v2.0 for new APIs; keep
+            v1.0 only when existing consumers or token validation code expect v1.0 tokens.
+          </IntendedUse>
+          <p style={{ margin: '0 0 8px', fontSize: 13 }}>
+            Decides the format of access tokens that <em>other</em> apps get to call this app’s API.
+            The resource decides, not the client: a client using the v2.0 endpoint still gets a v1.0
+            token for an API set to v1. ID tokens are not affected; their version follows the
+            endpoint the client signed in with.
+          </p>
 
-      <div className="row" style={{ gap: 12, marginBottom: 12 }}>
-        {([1, 2] as const).map((v) => (
-          <label key={v} className="row" style={{ gap: 6 }}>
-            <input
-              type="radio"
-              name="tokenver"
-              style={{ width: 'auto' }}
-              checked={version === v}
-              disabled={busy || (v === 1 && personal)}
-              onChange={() => choose(v)}
-            />
-            v{v}.0{v === 1 && raw == null ? ' (default, not set)' : ''}
-          </label>
-        ))}
-        {personal && (
-          <span className="muted" style={{ fontSize: 12 }}>
-            v1.0 isn’t possible: the sign-in audience includes personal Microsoft accounts.
-          </span>
-        )}
-      </div>
-
-      <div style={{ overflowX: 'auto' }}>
-        <table className="table token-compare">
-          <thead>
-            <tr>
-              <th>Claim</th>
-              <th className={version === 1 ? 'current' : undefined}>v1.0</th>
-              <th className={version === 2 ? 'current' : undefined}>v2.0</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(([k, v1, v2]) => (
-              <tr key={k}>
-                <td>{k}</td>
-                <td className={`mono${version === 1 ? ' current' : ''}`}>{v1}</td>
-                <td className={`mono${version === 2 ? ' current' : ''}`}>{v2}</td>
-              </tr>
+          <div className="row" style={{ gap: 12, marginBottom: 12 }}>
+            {([1, 2] as const).map((v) => (
+              <label key={v} className="row" style={{ gap: 6 }}>
+                <input
+                  type="radio"
+                  name="tokenver"
+                  style={{ width: 'auto' }}
+                  checked={version === v}
+                  disabled={busy || (v === 1 && personal)}
+                  onChange={() => choose(v)}
+                />
+                v{v}.0{v === 1 && raw == null ? ' (default, not set)' : ''}
+              </label>
             ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-        How to check: decode an access token for this API (e.g. on jwt.ms) and look at{' '}
-        <code>ver</code>, <code>iss</code> and <code>aud</code>. In v1.0, <code>aud</code> is
-        whatever the client asked for, so a request for{' '}
-        <code>{appIdUri ?? 'api://…'}/.default</code> gives that URI and a request by client id
-        gives the GUID. In v2.0 it is always the client id GUID. Your API’s token validation must
-        accept the matching issuer and audience.
-      </div>
+            {personal && (
+              <span className="muted" style={{ fontSize: 12 }}>
+                v1.0 isn’t possible: the sign-in audience includes personal Microsoft accounts.
+              </span>
+            )}
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table className="table token-compare">
+              <thead>
+                <tr>
+                  <th>Claim</th>
+                  <th className={version === 1 ? 'current' : undefined}>v1.0</th>
+                  <th className={version === 2 ? 'current' : undefined}>v2.0</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(([k, v1, v2]) => (
+                  <tr key={k}>
+                    <td>{k}</td>
+                    <td className={`mono${version === 1 ? ' current' : ''}`}>{v1}</td>
+                    <td className={`mono${version === 2 ? ' current' : ''}`}>{v2}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            How to check: decode an access token for this API (e.g. on jwt.ms) and look at{' '}
+            <code>ver</code>, <code>iss</code> and <code>aud</code>. In v1.0, <code>aud</code> is
+            whatever the client asked for, so a request for{' '}
+            <code>{appIdUri ?? 'api://…'}/.default</code> gives that URI and a request by client id
+            gives the GUID. In v2.0 it is always the client id GUID. Your API’s token validation
+            must accept the matching issuer and audience.
+          </div>
+        </>
+      )}
     </div>
   );
 }
