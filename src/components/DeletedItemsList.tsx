@@ -5,7 +5,6 @@ import {
   daysUntilPurge,
   DELETED_RETENTION_DAYS,
   listDeletedApplications,
-  listDeletedOwnedApplications,
   listDeletedServicePrincipals,
   permanentlyDeleteItem,
   restoreDeletedItem,
@@ -21,8 +20,6 @@ interface Props {
   kind: Kind;
   // Free-text filter from the page's search box (name or appId).
   search: string;
-  // Only objects the signed-in user owned (applications only).
-  ownedOnly?: boolean;
 }
 
 const COPY: Record<Kind, { noun: string; route: string; other: string }> = {
@@ -41,7 +38,7 @@ const COPY: Record<Kind, { noun: string; route: string; other: string }> = {
 
 // Recycle-bin view for app registrations and enterprise apps: what was
 // soft-deleted, when it will be purged, and the two things you can do with it.
-export function DeletedItemsList({ kind, search, ownedOnly = false }: Props) {
+export function DeletedItemsList({ kind, search }: Props) {
   const token = useGraphToken();
   const { confirm, confirmDialog } = useConfirm();
   const [items, setItems] = useState<Item[] | null>(null);
@@ -55,12 +52,7 @@ export function DeletedItemsList({ kind, search, ownedOnly = false }: Props) {
     setItems(null);
     setError(null);
     setNotice(null);
-    (kind === 'application'
-      ? ownedOnly
-        ? listDeletedOwnedApplications(token)
-        : listDeletedApplications(token)
-      : listDeletedServicePrincipals(token)
-    )
+    (kind === 'application' ? listDeletedApplications(token) : listDeletedServicePrincipals(token))
       .then((list) => {
         if (cancelled) return;
         // Most recently deleted first — that's what people are looking for.
@@ -76,7 +68,7 @@ export function DeletedItemsList({ kind, search, ownedOnly = false }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [token, kind, ownedOnly]);
+  }, [token, kind]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();

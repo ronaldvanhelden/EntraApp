@@ -24,6 +24,8 @@ import {
   withFavorite,
 } from '../lib/tags';
 
+type View = 'active' | 'owned' | 'deactivated' | 'deleted';
+
 const AUDIENCES = [
   'AzureADMyOrg',
   'AzureADMultipleOrgs',
@@ -31,7 +33,7 @@ const AUDIENCES = [
   'PersonalMicrosoftAccount',
 ];
 
-export function Applications({ owned = false }: { owned?: boolean } = {}) {
+export function Applications() {
   const token = useGraphToken();
   const nav = useNavigate();
   const [apps, setApps] = useState<Application[] | null>(null);
@@ -39,9 +41,10 @@ export function Applications({ owned = false }: { owned?: boolean } = {}) {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  // 'deactivated' lists app registrations with isDisabled = true; 'deleted'
-  // is the directory recycle bin, rendered by its own component.
-  const [view, setView] = useState<'active' | 'deactivated' | 'deleted'>('active');
+  // 'owned' is the subset the signed-in user is an owner of; 'deactivated'
+  // lists app registrations with isDisabled = true; 'deleted' is the directory
+  // recycle bin, rendered by its own component.
+  const [view, setView] = useState<View>('active');
   const listed = view !== 'deleted';
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [tagBusyId, setTagBusyId] = useState<string | null>(null);
@@ -58,10 +61,9 @@ export function Applications({ owned = false }: { owned?: boolean } = {}) {
     setApps(null);
     setError(null);
     const q = debouncedSearch || undefined;
-    const deactivated = view === 'deactivated';
-    (owned
-      ? listOwnedApplications(token, q, { deactivated })
-      : deactivated
+    (view === 'owned'
+      ? listOwnedApplications(token, q)
+      : view === 'deactivated'
         ? listDeactivatedApplications(token, q)
         : listApplications(token, q)
     )
@@ -83,7 +85,7 @@ export function Applications({ owned = false }: { owned?: boolean } = {}) {
     return () => {
       cancelled = true;
     };
-  }, [token, debouncedSearch, owned, view]);
+  }, [token, debouncedSearch, view]);
 
   // Facets over our own (debble:-prefixed) tags in the loaded set, most-used
   // first so the useful ones surface. Tags set outside EntraApp aren't offered
@@ -136,12 +138,8 @@ export function Applications({ owned = false }: { owned?: boolean } = {}) {
     <>
       <div className="page-header">
         <div>
-          <h1>{owned ? 'My app registrations' : 'App registrations'}</h1>
-          <div className="subtitle">
-            {owned
-              ? 'App registrations you are listed as an owner of'
-              : 'Identity objects representing applications in your tenant'}
-          </div>
+          <h1>App registrations</h1>
+          <div className="subtitle">Identity objects representing applications in your tenant</div>
         </div>
         <button className="primary" onClick={() => setShowCreate(true)}>
           + New app registration
@@ -164,6 +162,16 @@ export function Applications({ owned = false }: { owned?: boolean } = {}) {
             }}
           >
             Active
+          </button>
+          <button
+            className={view === 'owned' ? 'active' : ''}
+            onClick={() => {
+              setTagFilter(null);
+              setView('owned');
+            }}
+            title="App registrations you are listed as an owner of"
+          >
+            Owned
           </button>
           <button
             className={view === 'deactivated' ? 'active' : ''}
@@ -192,9 +200,7 @@ export function Applications({ owned = false }: { owned?: boolean } = {}) {
         )}
       </div>
 
-      {view === 'deleted' && (
-        <DeletedItemsList kind="application" search={debouncedSearch} ownedOnly={owned} />
-      )}
+      {view === 'deleted' && <DeletedItemsList kind="application" search={debouncedSearch} />}
 
       {listed && tagFacets.length > 0 && (
         <div className="row wrap" style={{ gap: 6, marginBottom: 12 }}>
@@ -301,14 +307,12 @@ export function Applications({ owned = false }: { owned?: boolean } = {}) {
                   <td colSpan={5}>
                     <div className="empty">
                       {view === 'deactivated' && !tagFilter && !debouncedSearch
-                        ? owned
-                          ? 'None of your app registrations are deactivated.'
-                          : 'No deactivated app registrations.'
+                        ? 'No deactivated app registrations.'
                         : tagFilter
                           ? `No applications tagged “${tagLabel(tagFilter)}”.`
                           : debouncedSearch
                             ? 'No applications match your search.'
-                            : owned
+                            : view === 'owned'
                               ? 'You are not an owner of any app registrations.'
                               : 'No applications found.'}
                     </div>

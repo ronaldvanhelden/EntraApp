@@ -1,5 +1,4 @@
-import { graph, graphAll, type Paged } from './client';
-import { getMe } from './me';
+import { graph, graphAll } from './client';
 import type { Application, ServicePrincipal } from './types';
 
 type TokenFn = () => Promise<string>;
@@ -13,22 +12,6 @@ export function listDeletedApplications(token: TokenFn) {
   return graphAll<Application>(token, '/directory/deletedItems/microsoft.graph.application', {
     query: { $top: 100 },
   });
-}
-
-// Deleted app registrations the signed-in user owned. The recycle bin can't
-// be filtered by owner with $filter; this action is the supported route and
-// returns at most 1,000 objects in one response.
-export async function listDeletedOwnedApplications(token: TokenFn) {
-  const me = await getMe(token);
-  const res = await graph<Paged<Application>>(
-    token,
-    '/directory/deletedItems/getUserOwnedObjects',
-    {
-      method: 'POST',
-      body: { userId: me.id, type: 'Application' },
-    },
-  );
-  return res.value;
 }
 
 export function listDeletedServicePrincipals(token: TokenFn) {
