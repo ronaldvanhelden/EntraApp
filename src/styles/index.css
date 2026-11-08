@@ -100,6 +100,11 @@ button.danger:hover:not(:disabled) {
 }
 /* Icon-only remove buttons: red outline with a white glyph so the bin reads
    clearly against dark table rows. Hover fills red as usual. */
+button.btn-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 button.danger.icon-btn {
   color: #fff;
 }
