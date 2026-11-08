@@ -218,11 +218,11 @@ export function AuthenticationSettings({
       <AuthCard
         title="Sign-in without a redirect (public client flows)"
         icon="terminal"
-        use="Apps that can’t show a browser or receive a redirect: CLIs and scripts over SSH, TVs and IoT devices (device code), or legacy apps that still sign in with a username and password."
+        use="Only apps that truly can’t show a browser or receive a redirect, such as Teams Rooms and other shared or input-constrained devices, or legacy tools that can’t be updated yet. For CLIs and scripts, prefer browser-based or brokered sign-in for users, and managed identities or workload identity federation for automation."
         client="public"
         status={fallbackPublic ? 'legacy' : 'current'}
         statusOverride={[
-          { status: 'current', text: 'Device code' },
+          { status: 'avoid', text: 'Device code' },
           { status: 'avoid', text: 'Username/password (ROPC)' },
           { status: 'legacy', text: 'Windows integrated auth' },
         ]}
@@ -233,6 +233,23 @@ export function AuthenticationSettings({
           'Integrated Windows Authentication: a Kerberos ticket or WS-Trust token from a domain-joined machine is exchanged for Entra tokens',
           'All of these at /token without client_secret or client_assertion: isFallbackPublicClient=true makes Entra treat the app as public for flows without a redirect URI',
         ]}
+        footnote={
+          <>
+            ⚠ Device code flow is a common phishing vector: an attacker starts the flow and gets a
+            user to enter the code on the real Microsoft sign-in page, and the tokens go to the
+            attacker. Microsoft recommends blocking it wherever possible. Security defaults block
+            it, and from 1 July 2026 every new tenant does too. Other tenants can turn on the
+            Microsoft-managed Conditional Access policy “Block device code flow”. See{' '}
+            <a
+              href="https://learn.microsoft.com/entra/identity/conditional-access/policy-block-authentication-flows"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Block authentication flows
+            </a>
+            .
+          </>
+        }
       >
         <Toggle
           checked={fallbackPublic}
