@@ -5,6 +5,7 @@ import { AuthenticatedTemplate, UnauthenticatedTemplate, useMsal } from '@azure/
 import { GRAPH_SCOPES } from '../auth/config';
 import { useAuthConfig } from '../auth/context';
 import { TenantChip } from './TenantChip';
+import { scrollToTop } from '../lib/scrollMemory';
 
 interface Props {
   children: ReactNode;
@@ -84,7 +85,10 @@ export function Layout({ children }: Props) {
           {navOpen && (
             <div className="nav-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />
           )}
-          <main className="main">{children}</main>
+          <main className="main">
+            <ScrollReset />
+            {children}
+          </main>
         </div>
       </AuthenticatedTemplate>
     </>
@@ -184,4 +188,14 @@ function SignInScreen() {
       </button>
     </div>
   );
+}
+
+// Open every page at the top. Without this the shared <main> scroller keeps the
+// previous page's offset; list pages restore their own position afterwards.
+function ScrollReset() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    scrollToTop();
+  }, [pathname]);
+  return null;
 }

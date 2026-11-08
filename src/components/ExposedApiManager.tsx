@@ -3,11 +3,13 @@ import { useGraphToken } from '../auth/useGraphToken';
 import { updateApplication } from '../graph/applications';
 import { getServicePrincipalByAppId } from '../graph/servicePrincipals';
 import { getFirstPartyApp } from '../lib/firstPartyApps';
+import { getThirdPartyApp } from '../lib/thirdPartyApps';
 import type { ApiApplication, AppRole, Application, OAuth2PermissionScope } from '../graph/types';
 import {
   ClientAppPicker,
   isMicrosoftApp,
-  MicrosoftBadge,
+  KnownAppBadges,
+  knownAppNote,
   type ClientAppChoice,
 } from './ClientAppPicker';
 import { CopyButton } from './CopyButton';
@@ -228,7 +230,10 @@ export function ExposedApiManager({ app, onAppChange }: Props) {
     ).catch(() => {});
   };
   const clientDisplayName = (appId: string) =>
-    clientInfo[appId]?.spName ?? getFirstPartyApp(appId)?.displayName ?? null;
+    clientInfo[appId]?.spName ??
+    getFirstPartyApp(appId)?.displayName ??
+    getThirdPartyApp(appId)?.displayName ??
+    null;
   const scopeById = new Map(scopes.map((s) => [s.id, s]));
 
   const hasUri = (app.identifierUris?.length ?? 0) > 0;
@@ -365,15 +370,16 @@ export function ExposedApiManager({ app, onAppChange }: Props) {
                 <tr key={c.appId} onClick={() => setClientModal(c)}>
                   <td>
                     {clientInfo[c.appId] === undefined ? (
-                      (getFirstPartyApp(c.appId)?.displayName ?? <span className="spinner" />)
+                      (clientDisplayName(c.appId) ?? <span className="spinner" />)
                     ) : (
                       <div className="row" style={{ gap: 6 }}>
                         {clientDisplayName(c.appId) ?? (
                           <span className="muted">Unknown application</span>
                         )}
-                        {(clientInfo[c.appId].microsoft || getFirstPartyApp(c.appId)) && (
-                          <MicrosoftBadge />
-                        )}
+                        <KnownAppBadges
+                          appId={c.appId}
+                          microsoft={clientInfo[c.appId].microsoft || !!getFirstPartyApp(c.appId)}
+                        />
                         {!clientInfo[c.appId].spName && (
                           <span className="badge" title="No service principal in this tenant">
                             Not in this tenant
@@ -385,6 +391,11 @@ export function ExposedApiManager({ app, onAppChange }: Props) {
                       {c.appId}
                       <CopyButton value={c.appId} label="client app id" />
                     </div>
+                    {knownAppNote(c.appId) && (
+                      <div className="muted" style={{ fontSize: 11 }}>
+                        {knownAppNote(c.appId)}
+                      </div>
+                    )}
                   </td>
                   <td>
                     <div className="row wrap" style={{ gap: 4 }}>
@@ -862,7 +873,10 @@ function ClientModal({
     existing
       ? {
           appId: existing.appId,
-          displayName: getFirstPartyApp(existing.appId)?.displayName ?? null,
+          displayName:
+            getFirstPartyApp(existing.appId)?.displayName ??
+            getThirdPartyApp(existing.appId)?.displayName ??
+            null,
           microsoft: isMicrosoftApp(existing.appId),
         }
       : null,

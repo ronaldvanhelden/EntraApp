@@ -211,25 +211,29 @@ export default function ManifestEditor({
           </div>
         </div>
         <div className="row" style={{ gap: 6 }}>
-          <button className="ghost" onClick={format} disabled={!original}>
+          <button className="ghost btn-with-icon" onClick={format} disabled={!original}>
+            <ToolbarIcon name="format" />
             Format
           </button>
           <button
-            className="ghost"
+            className="ghost btn-with-icon"
             onClick={() => setReloadKey((k) => k + 1)}
             disabled={saving}
             title="Load the current version from Graph (discards edits)"
           >
+            <ToolbarIcon name="reload" />
             Reload
           </button>
-          <button onClick={discard} disabled={!dirty || saving}>
+          <button className="btn-with-icon" onClick={discard} disabled={!dirty || saving}>
+            <ToolbarIcon name="discard" />
             Discard
           </button>
           <button
-            className="primary"
+            className="primary btn-with-icon"
             onClick={save}
             disabled={!dirty || blocked || saving || markers > 0 || !diff?.changed.length}
           >
+            <ToolbarIcon name="save" />
             {saving ? 'Saving…' : diff?.changed.length ? `Save (${diff.changed.length})` : 'Save'}
           </button>
         </div>
@@ -270,5 +274,49 @@ export default function ManifestEditor({
       {!original && !loadError && <span className="spinner" />}
       {confirmDialog}
     </div>
+  );
+}
+
+const TOOLBAR_ICONS = {
+  // Lines of different lengths: tidy up the JSON.
+  format: <path d="M4 6h16M4 10h10M4 14h16M4 18h10" />,
+  // Circular arrow: fetch again from Graph.
+  reload: (
+    <>
+      <path d="M20 11a8 8 0 1 0-2.3 5.7" />
+      <path d="M20 4v7h-7" />
+    </>
+  ),
+  // Undo arrow: throw away local edits.
+  discard: (
+    <>
+      <path d="M9 14L4 9l5-5" />
+      <path d="M4 9h11a5 5 0 0 1 0 10h-3" />
+    </>
+  ),
+  // Floppy disk: write to Graph.
+  save: (
+    <>
+      <path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+      <path d="M7 3v5h8V3M7 21v-7h10v7" />
+    </>
+  ),
+};
+
+function ToolbarIcon({ name }: { name: keyof typeof TOOLBAR_ICONS }) {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      {TOOLBAR_ICONS[name]}
+    </svg>
   );
 }

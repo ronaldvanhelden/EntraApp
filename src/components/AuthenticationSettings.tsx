@@ -29,19 +29,6 @@ const STATUS: Record<Status, { label: string; cls: string; title: string }> = {
   },
 };
 
-const CLIENT: Record<ClientKind, { label: string; cls: string; title: string }> = {
-  confidential: {
-    label: 'Confidential client · backend',
-    cls: 'badge app',
-    title: 'Runs on a server you control and can keep a secret or certificate',
-  },
-  public: {
-    label: 'Public client · frontend',
-    cls: 'badge delegated',
-    title: 'Runs on the user’s device (browser, phone, desktop, CLI) and cannot keep a secret',
-  },
-};
-
 // The Authentication tab: one card per way an app can sign users in, each
 // labelled with the kind of client it is for and whether it is current or
 // legacy, plus the access token version this app gets as an API.
@@ -118,199 +105,223 @@ export function AuthenticationSettings({
 
   const busy = saving !== null;
 
+  // Backend = confidential client (Web platform); frontend = public clients.
+  // Open on the side this app actually uses, backend when it uses both or none.
+  const usesFrontend =
+    spaUris.length > 0 ||
+    publicUris.length > 0 ||
+    fallbackPublic ||
+    idTokenIssuance ||
+    accessTokenIssuance;
+  // Cards in use on each side, shown as a count on the tab.
+  const backendInUse = webUris.length > 0 ? 1 : 0;
+  const frontendInUse = [
+    spaUris.length > 0,
+    publicUris.length > 0,
+    fallbackPublic,
+    idTokenIssuance || accessTokenIssuance,
+  ].filter(Boolean).length;
+  const [side, setSide] = useState<'backend' | 'frontend'>(
+    webUris.length === 0 && usesFrontend ? 'frontend' : 'backend',
+  );
+
   return (
     <>
-      <div className="card">
-        <h3>Authentication</h3>
-        <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-          An app registration can serve several kinds of client at once. Each card below is one way
-          to sign in, and says which kind of client it is for:
-        </p>
-        <div className="auth-legend">
-          <div>
-            <span className={CLIENT.confidential.cls}>{CLIENT.confidential.label}</span>
-            <p>
-              Code runs on a server you control (ASP.NET, Node, Java, a daemon, a web API calling
-              another API). It proves who it is with a <strong>client secret</strong>,{' '}
-              <strong>certificate</strong> or <strong>federated credential</strong> when it redeems
-              a code or asks for a token.
-            </p>
-          </div>
-          <div>
-            <span className={CLIENT.public.cls}>{CLIENT.public.label}</span>
-            <p>
-              Code runs on the user’s device: browser SPA, mobile app, desktop app, CLI. Anything
-              shipped there can be read, so it <strong>cannot keep a secret</strong>. Instead it
-              protects the code exchange with <strong>PKCE</strong>.
-            </p>
-          </div>
-        </div>
-        {error && <p className="error">{error}</p>}
-      </div>
-
-      <AuthCard
-        title="Web"
-        client="confidential"
-        status="recommended"
-        property="web.redirectUris"
-        summary="Server-side sign-in with the authorization code flow. The browser only carries a one-time code; your server swaps it for tokens, proving itself with a secret, certificate or federated credential."
-        can={[
-          'Sign users in to a server-rendered app or backend-for-frontend',
-          'Get refresh tokens (rolling, up to 90 days) and call APIs on the user’s behalf, including on-behalf-of',
-          'Combine with client credentials (app-only tokens) using the same secret or certificate',
-        ]}
-        cannot={[
-          'Redeem a code from browser JavaScript: the token endpoint does not allow CORS for Web URIs (AADSTS9002326)',
-          'Work without a credential: add a secret, certificate or federated credential under Credentials',
-        ]}
-        footnote={
-          webUris.length > 0 && !hasCredential
-            ? '⚠ This app has Web redirect URIs but no secret, certificate or federated credential, so codes cannot be redeemed.'
-            : undefined
-        }
-      >
-        <RedirectUris uris={webUris} onEdit={() => setEditPlatform('web')} disabled={busy} />
-      </AuthCard>
-
-      <AuthCard
-        title="Single-page application (SPA)"
-        client="public"
-        status="recommended"
-        property="spa.redirectUris"
-        summary="Browser JavaScript (MSAL.js 2+, React, Angular, Vue) signs in with authorization code + PKCE and redeems the code itself, directly from the browser."
-        can={[
-          'Sign users in and call APIs straight from the browser without a backend',
-          'Renew tokens silently with a refresh token, without hidden iframes or third-party cookies',
-        ]}
-        cannot={[
-          'Use a client secret or certificate (it would be visible to every user)',
-          'Get app-only tokens (client credentials)',
-          'Keep a session longer than 24 hours without the user: SPA refresh tokens expire after 24 h',
-        ]}
-      >
-        <RedirectUris uris={spaUris} onEdit={() => setEditPlatform('spa')} disabled={busy} />
-      </AuthCard>
-
-      <AuthCard
-        title="Mobile & desktop"
-        client="public"
-        status="recommended"
-        property="publicClient.redirectUris"
-        summary="Native apps (WPF/WinForms, MAUI, iOS, Android, Electron, CLIs that open a browser) sign in with authorization code + PKCE and receive the code on a loopback or custom-scheme URI."
-        can={[
-          'Interactive sign-in through the system browser or an embedded web view',
-          'Brokered sign-in through Authenticator / Company Portal / WAM, with device-based Conditional Access',
-          'Long-lived refresh tokens kept in the OS token cache',
-        ]}
-        cannot={[
-          'Use a client secret or certificate',
-          'Sign in without a browser or broker: for that, see public client flows below',
-        ]}
-        footnote={
-          <>
-            Typical URIs: <code>http://localhost</code> (loopback, any port),{' '}
-            <code>msal{app.appId}://auth</code> (MSAL mobile),{' '}
-            <code>https://login.microsoftonline.com/common/oauth2/nativeclient</code> (embedded web
-            view).
-          </>
-        }
-      >
-        <RedirectUris
-          uris={publicUris}
-          onEdit={() => setEditPlatform('publicClient')}
-          disabled={busy}
-        />
-      </AuthCard>
-
-      <AuthCard
-        title="PKCE (Proof Key for Code Exchange)"
-        client="public"
-        status="recommended"
-        property="none: chosen by the client on each request"
-        summary="Not a switch on the app registration. The client invents a random code_verifier, sends its SHA-256 hash as code_challenge when it starts sign-in, and must present the verifier when it redeems the code. A stolen code is useless without the verifier."
-        can={[
-          'SPA redirect URIs: required. Entra rejects a browser code redemption without it',
-          'Mobile & desktop: MSAL always sends it. Recommended for any native app',
-          'Web (confidential) clients: optional but recommended by OAuth 2.1 on top of the secret. Microsoft.Identity.Web and MSAL send it',
-        ]}
-        cannot={[
-          'Be enforced or turned off here: there is no PKCE property in the app registration',
-          'Replace a secret for a Web redirect URI: a confidential client still has to authenticate',
-          'Protect implicit grant or device code flows: they have no code exchange to bind it to',
-        ]}
-      />
-
-      <AuthCard
-        title="Allow public client flows"
-        client="public"
-        status={fallbackPublic ? 'legacy' : 'current'}
-        statusOverride={[
-          { status: 'current', text: 'Device code' },
-          { status: 'avoid', text: 'Username/password (ROPC)' },
-          { status: 'legacy', text: 'Windows integrated auth' },
-        ]}
-        property="isFallbackPublicClient"
-        summary="Flows that never use a redirect URI. With this on, Entra treats the app as a public client for them, so no secret is needed."
-        can={[
-          'Device code flow: the user signs in on another device with a short code (CLIs, SSH sessions, TVs)',
-          'ROPC: the app collects the username and password itself',
-          'Windows integrated auth (IWA) on domain-joined machines',
-        ]}
-        cannot={[
-          'Off: those three flows fail with AADSTS7000218 (client_secret or client_assertion required)',
-          'ROPC cannot do MFA, so it fails for users who must use MFA. It also hands the password to the app',
-          'On: anyone who knows the client id can start these flows without a secret',
-        ]}
-      >
-        <Toggle
-          checked={fallbackPublic}
-          disabled={busy}
-          onChange={(v) => patch({ isFallbackPublicClient: v }, 'fallback').catch(() => {})}
-          on="Yes, public client flows allowed"
-          off="No"
-        />
-      </AuthCard>
-
-      <AuthCard
-        title="Implicit grant"
-        client="public"
-        status="legacy"
-        property="web.implicitGrantSettings"
-        summary="The pre-PKCE way for browser apps to get tokens: the token is returned directly in the redirect URL fragment instead of a code. Kept for apps that cannot move to the SPA platform yet."
-        can={[
-          'ID tokens: lets older ASP.NET / OWIN apps use the "code id_token" hybrid flow, and lets MSAL.js 1.x / ADAL.js sign users in',
-          'Access tokens: lets MSAL.js 1.x / ADAL.js get access tokens from the browser',
-        ]}
-        cannot={[
-          'Get refresh tokens: silent renewal relies on hidden iframes, which browsers that block third-party cookies break',
-          'Keep tokens out of the URL, browser history and Referer headers',
-          'Turning ID tokens off breaks hybrid-flow apps with AADSTS700054; turning access tokens off breaks MSAL.js 1.x apps',
-        ]}
-      >
-        <div className="stack" style={{ gap: 6 }}>
-          <Toggle
-            checked={idTokenIssuance}
-            disabled={busy}
-            onChange={(v) => setImplicit({ enableIdTokenIssuance: v })}
-            on="ID tokens issued (response_type=id_token)"
-            off="ID tokens: off"
-          />
-          <Toggle
-            checked={accessTokenIssuance}
-            disabled={busy}
-            onChange={(v) => setImplicit({ enableAccessTokenIssuance: v })}
-            on="Access tokens issued (response_type=token)"
-            off="Access tokens: off"
-          />
-        </div>
-      </AuthCard>
-
       <TokenVersionCard
         app={app}
         busy={busy}
         confirm={confirm}
         onSave={(body) => patch(body, 'tokenver')}
       />
+
+      {error && <div className="card error">{error}</div>}
+
+      <div className="tabs auth-side-tabs">
+        <button className={side === 'backend' ? 'active' : ''} onClick={() => setSide('backend')}>
+          <AuthIcon name="server" size={16} />
+          Backend
+          <span className="tab-count" title="Cards in use">
+            {backendInUse}
+          </span>
+        </button>
+        <button className={side === 'frontend' ? 'active' : ''} onClick={() => setSide('frontend')}>
+          <AuthIcon name="desktop" size={16} />
+          Frontend
+          <span className="tab-count" title="Cards in use">
+            {frontendInUse}
+          </span>
+        </button>
+      </div>
+      <p className="muted auth-side-intro">
+        {side === 'backend' ? (
+          <>
+            <strong>Confidential clients.</strong> Code runs on a server you control (ASP.NET, Node,
+            Java, a daemon, a web API calling another API). It proves who it is with a{' '}
+            <strong>client secret</strong>, <strong>certificate</strong> or{' '}
+            <strong>federated credential</strong> when it redeems a code or asks for a token.
+          </>
+        ) : (
+          <>
+            <strong>Public clients.</strong> Code runs on the user’s device: browser SPA, mobile
+            app, desktop app, CLI. Anything shipped there can be read, so it{' '}
+            <strong>cannot keep a secret</strong>. Instead it protects the code exchange with{' '}
+            <strong>PKCE</strong>.
+          </>
+        )}
+      </p>
+
+      {side === 'backend' && (
+        <AuthCard
+          title="Web application (server-side)"
+          icon="server"
+          use="Server-side web apps and backends-for-frontend (ASP.NET, Node, Java, Python) that sign users in and keep the tokens on the server."
+          client="confidential"
+          status="recommended"
+          summary="Server-side sign-in with the authorization code flow. The browser only carries a one-time code; your server swaps it for tokens, proving itself with a secret, certificate or federated credential."
+          can={[
+            'Authorization code grant: /authorize returns the code to a Web redirect URI (query or form_post), never to browser JavaScript',
+            'Code redemption at /oauth2/v2.0/token authenticated with a client_secret, or a client_assertion JWT signed by a certificate or issued by a federated identity',
+            'ID token, access token and, with offline_access, a refresh token with a sliding lifetime of up to 90 days',
+            'With the same credential: the on-behalf-of grant (jwt-bearer) for downstream APIs and client credentials for app-only tokens',
+          ]}
+          footnote={
+            webUris.length > 0 && !hasCredential
+              ? '⚠ This app has Web redirect URIs but no secret, certificate or federated credential, so codes cannot be redeemed.'
+              : undefined
+          }
+        >
+          <RedirectUris uris={webUris} onEdit={() => setEditPlatform('web')} disabled={busy} />
+        </AuthCard>
+      )}
+
+      {side === 'frontend' && (
+        <>
+          <AuthCard
+            title="Single-page application (browser)"
+            icon="browser"
+            use="Browser apps (React, Angular, Vue, Blazor WebAssembly) with no backend of their own that sign users in and call APIs straight from JavaScript."
+            client="public"
+            status="recommended"
+            summary="Browser JavaScript (MSAL.js 2+, React, Angular, Vue) signs in with authorization code + PKCE and redeems the code itself, directly from the browser."
+            can={[
+              'Authorization code grant with PKCE (S256): the browser redeems the code itself with a CORS request to /oauth2/v2.0/token, allowed only for the Origin of an SPA redirect URI',
+              'ID token, access token and a refresh token that is single-use and expires 24 hours after sign-in',
+              'Silent token renewal with the refresh token instead of a hidden iframe with prompt=none, so it works when third-party cookies are blocked',
+            ]}
+          >
+            <RedirectUris uris={spaUris} onEdit={() => setEditPlatform('spa')} disabled={busy} />
+          </AuthCard>
+
+          <AuthCard
+            title="Mobile & desktop application"
+            icon="device"
+            use="Apps installed on the user’s device — iOS, Android, Windows, macOS, Electron, or a CLI that opens a browser — that sign users in interactively or through a broker."
+            client="public"
+            status="recommended"
+            summary="Native apps (WPF/WinForms, MAUI, iOS, Android, Electron, CLIs that open a browser) sign in with authorization code + PKCE and receive the code on a loopback or custom-scheme URI."
+            can={[
+              'Authorization code grant with PKCE, code delivered to a loopback (http://localhost:port), custom scheme (msal{client-id}://auth) or nativeclient URI',
+              'Code redemption at /oauth2/v2.0/token without client authentication: the app is a public client',
+              'Brokered sign-in through Authenticator, Company Portal or Windows WAM using the device’s Primary Refresh Token, so device-based Conditional Access and SSO across apps apply',
+              'Refresh tokens with a sliding lifetime of up to 90 days, kept in the OS token cache',
+            ]}
+            footnote={
+              <>
+                Typical URIs: <code>http://localhost</code> (loopback, any port),{' '}
+                <code>msal{app.appId}://auth</code> (MSAL mobile),{' '}
+                <code>https://login.microsoftonline.com/common/oauth2/nativeclient</code> (embedded
+                web view).
+              </>
+            }
+          >
+            <RedirectUris
+              uris={publicUris}
+              onEdit={() => setEditPlatform('publicClient')}
+              disabled={busy}
+            />
+          </AuthCard>
+
+          <AuthCard
+            title="Sign-in without a redirect (public client flows)"
+            icon="terminal"
+            defaultCollapsed={!fallbackPublic}
+            off={!fallbackPublic}
+            use="Only apps that truly can’t show a browser or receive a redirect, such as Teams Rooms and other shared or input-constrained devices, or legacy tools that can’t be updated yet. For CLIs and scripts, prefer browser-based or brokered sign-in for users, and managed identities or workload identity federation for automation."
+            client="public"
+            status={fallbackPublic ? 'legacy' : 'current'}
+            statusOverride={[
+              { status: 'avoid', text: 'Device code' },
+              { status: 'avoid', text: 'Username/password (ROPC)' },
+              { status: 'legacy', text: 'Windows integrated auth' },
+            ]}
+            summary="Flows that never use a redirect URI. With this on, Entra treats the app as a public client for them, so no secret is needed."
+            can={[
+              'Device authorization grant: /devicecode returns a user_code and device_code; the app polls /token with grant_type=urn:ietf:params:oauth:grant-type:device_code while the user signs in elsewhere',
+              'Resource owner password credentials (ROPC): grant_type=password posts the username and password straight to /token (no MFA, no interactive Conditional Access)',
+              'Integrated Windows Authentication: a Kerberos ticket or WS-Trust token from a domain-joined machine is exchanged for Entra tokens',
+              'All of these at /token without client_secret or client_assertion: isFallbackPublicClient=true makes Entra treat the app as public for flows without a redirect URI',
+            ]}
+            footnote={
+              <>
+                ⚠ Device code flow is a common phishing vector: an attacker starts the flow and gets
+                a user to enter the code on the real Microsoft sign-in page, and the tokens go to
+                the attacker. Microsoft recommends blocking it wherever possible. Security defaults
+                block it, and from 1 July 2026 every new tenant does too. Other tenants can turn on
+                the Microsoft-managed Conditional Access policy “Block device code flow”. See{' '}
+                <a
+                  href="https://learn.microsoft.com/entra/identity/conditional-access/policy-block-authentication-flows"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Block authentication flows
+                </a>
+                .
+              </>
+            }
+          >
+            <Toggle
+              checked={fallbackPublic}
+              disabled={busy}
+              onChange={(v) => patch({ isFallbackPublicClient: v }, 'fallback').catch(() => {})}
+              on="Yes, public client flows allowed"
+              off="No"
+            />
+          </AuthCard>
+
+          <AuthCard
+            title="Implicit grant (legacy browser sign-in)"
+            icon="link"
+            defaultCollapsed={!idTokenIssuance && !accessTokenIssuance}
+            off={!idTokenIssuance && !accessTokenIssuance}
+            use="Only older browser apps that can’t be updated yet: MSAL.js 1.x / ADAL.js, or ASP.NET / OWIN apps using the “code id_token” hybrid flow. New apps should use the SPA or Web platform."
+            client="public"
+            status="legacy"
+            summary="The pre-PKCE way for browser apps to get tokens: the token is returned directly in the redirect URL fragment instead of a code. Kept for apps that cannot move to the SPA platform yet."
+            can={[
+              'ID tokens: /authorize with response_type=id_token (or the hybrid code id_token) returns the ID token directly in the redirect URI fragment or form_post',
+              'Access tokens: /authorize with response_type=token returns the access token in the URL fragment, with no call to the token endpoint',
+              'No refresh tokens: renewal is a hidden iframe with prompt=none that relies on the Entra session cookie',
+            ]}
+          >
+            <div className="stack" style={{ gap: 6 }}>
+              <Toggle
+                checked={idTokenIssuance}
+                disabled={busy}
+                onChange={(v) => setImplicit({ enableIdTokenIssuance: v })}
+                on="ID tokens issued (response_type=id_token)"
+                off="ID tokens: off"
+              />
+              <Toggle
+                checked={accessTokenIssuance}
+                disabled={busy}
+                onChange={(v) => setImplicit({ enableAccessTokenIssuance: v })}
+                on="Access tokens issued (response_type=token)"
+                off="Access tokens: off"
+              />
+            </div>
+          </AuthCard>
+        </>
+      )}
 
       {editPlatform && (
         <RedirectUriEditModal
@@ -333,36 +344,50 @@ export function AuthenticationSettings({
 
 function AuthCard({
   title,
+  icon,
   client,
   status,
   statusOverride,
-  property,
+  use,
   summary,
   can,
-  cannot,
   footnote,
+  defaultCollapsed = false,
+  off = false,
   children,
 }: {
   title: string;
+  icon: AuthIconName;
   client: ClientKind;
   status: Status;
   // For a card covering several flows with different standing.
   statusOverride?: Array<{ status: Status; text: string }>;
-  property: string;
+  // Who this card is for, in plain words: the kind of app that should use it.
+  use: string;
   summary: string;
   can: string[];
-  cannot: string[];
   footnote?: ReactNode;
+  // Start folded, e.g. for a setting that is switched off.
+  defaultCollapsed?: boolean;
+  // The setting is switched off: shown as an "Off" badge in the header.
+  off?: boolean;
   children?: ReactNode;
 }) {
-  const c = CLIENT[client];
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
   return (
-    <div className="card auth-card">
-      <div className="row wrap" style={{ gap: 8, alignItems: 'center', marginBottom: 6 }}>
-        <h3 style={{ margin: 0 }}>{title}</h3>
-        <span className={c.cls} title={c.title}>
-          {c.label}
-        </span>
+    <div className={`card auth-card${collapsed ? ' collapsed' : ''}`}>
+      <AuthCardHeader
+        icon={icon}
+        tone={client}
+        title={title}
+        collapsed={collapsed}
+        onToggle={() => setCollapsed((c) => !c)}
+      >
+        {off && (
+          <span className="badge" title="This setting is switched off for this app">
+            Off
+          </span>
+        )}
         {statusOverride ? (
           statusOverride.map((s) => (
             <span key={s.text} className={STATUS[s.status].cls} title={STATUS[s.status].title}>
@@ -374,35 +399,169 @@ function AuthCard({
             {STATUS[status].label}
           </span>
         )}
-      </div>
-      <p style={{ margin: '0 0 8px', fontSize: 13 }}>{summary}</p>
-      <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
-        Graph property: <code>{property}</code>
-      </div>
-      <div className="auth-can">
-        <div>
-          <div className="auth-can-title">What it enables</div>
-          <ul>
-            {can.map((x) => (
-              <li key={x}>{x}</li>
-            ))}
-          </ul>
-        </div>
-        <div>
-          <div className="auth-can-title">Limits & effect when off</div>
-          <ul>
-            {cannot.map((x) => (
-              <li key={x}>{x}</li>
-            ))}
-          </ul>
-        </div>
-      </div>
-      {footnote && (
-        <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-          {footnote}
-        </div>
+      </AuthCardHeader>
+      {!collapsed && (
+        <>
+          <IntendedUse>{use}</IntendedUse>
+          <p style={{ margin: '0 0 10px', fontSize: 13 }}>{summary}</p>
+          <div className="auth-can">
+            <div className="auth-can-title">What it enables</div>
+            <ul>
+              {can.map((x) => (
+                <li key={x}>{x}</li>
+              ))}
+            </ul>
+          </div>
+          {footnote && (
+            <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+              {footnote}
+            </div>
+          )}
+          {children && <div style={{ marginTop: 12 }}>{children}</div>}
+        </>
       )}
-      {children && <div style={{ marginTop: 12 }}>{children}</div>}
+    </div>
+  );
+}
+
+type AuthIconName = 'server' | 'browser' | 'device' | 'desktop' | 'terminal' | 'link' | 'token';
+
+// 24px line icons, drawn in the card's tone colour.
+const AUTH_ICONS: Record<AuthIconName, ReactNode> = {
+  server: (
+    <>
+      <rect x="3" y="4" width="18" height="7" rx="1.5" />
+      <rect x="3" y="13" width="18" height="7" rx="1.5" />
+      <path d="M7 7.5h.01M7 16.5h.01M11 7.5h6M11 16.5h6" />
+    </>
+  ),
+  browser: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 9h18M6.5 6.5h.01M9 6.5h.01" />
+      <path d="M10 13l-2 2 2 2M14 13l2 2-2 2" />
+    </>
+  ),
+  device: (
+    <>
+      <rect x="6" y="2" width="12" height="20" rx="2" />
+      <path d="M11 18h2" />
+    </>
+  ),
+  desktop: (
+    <>
+      <rect x="3" y="4" width="18" height="12" rx="1.5" />
+      <path d="M8 20h8M12 16v4" />
+    </>
+  ),
+  terminal: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M7 9l3 3-3 3M12 15h5" />
+    </>
+  ),
+  link: (
+    <>
+      <path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1" />
+      <path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1" />
+    </>
+  ),
+  token: (
+    <>
+      <circle cx="8" cy="15" r="4" />
+      <path d="M10.85 12.15L19 4M16 7l2 2M14 9l2 2" />
+    </>
+  ),
+};
+
+// One of AUTH_ICONS as a line-drawn SVG.
+function AuthIcon({ name, size = 18 }: { name: AuthIconName; size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      {AUTH_ICONS[name]}
+    </svg>
+  );
+}
+
+// Card title row: chevron, card icon, title and badges, then a separator line.
+// Clicking it folds the card down to just this row.
+function AuthCardHeader({
+  icon,
+  tone,
+  title,
+  collapsed,
+  onToggle,
+  children,
+}: {
+  icon: AuthIconName;
+  tone: ClientKind | 'api';
+  title: string;
+  collapsed: boolean;
+  onToggle: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <div
+      className="auth-card-header"
+      role="button"
+      tabIndex={0}
+      aria-expanded={!collapsed}
+      onClick={onToggle}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
+    >
+      <span className="chevron" aria-hidden>
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </span>
+      <span className={`auth-icon ${tone}`} aria-hidden>
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          {AUTH_ICONS[icon]}
+        </svg>
+      </span>
+      <h3>{title}</h3>
+      <div className="auth-card-badges">{children}</div>
+    </div>
+  );
+}
+
+function IntendedUse({ children }: { children: ReactNode }) {
+  return (
+    <div className="auth-use">
+      <strong>Intended use:</strong> {children}
     </div>
   );
 }
@@ -445,9 +604,9 @@ function RedirectUris({
 }) {
   return (
     <div>
-      <div className="row" style={{ justifyContent: 'space-between' }}>
+      <div className="row" style={{ gap: 10, alignItems: 'center' }}>
         <strong style={{ fontSize: 13 }}>Redirect URIs ({uris.length})</strong>
-        <button onClick={onEdit} disabled={disabled}>
+        <button className="primary" onClick={onEdit} disabled={disabled}>
           Edit
         </button>
       </div>
@@ -483,6 +642,7 @@ function TokenVersionCard({
   confirm: ReturnType<typeof useConfirm>['confirm'];
   onSave: (body: UpdateApplicationPatch) => Promise<void>;
 }) {
+  const [collapsed, setCollapsed] = useState(false);
   const raw = app.api?.requestedAccessTokenVersion;
   const version = raw === 2 ? 2 : 1;
   const tid = '{tenant-id}';
@@ -539,75 +699,73 @@ function TokenVersionCard({
   ];
 
   return (
-    <div className="card auth-card">
-      <div className="row wrap" style={{ gap: 8, alignItems: 'center', marginBottom: 6 }}>
-        <h3 style={{ margin: 0 }}>Access token version</h3>
-        <span className="badge" title="Applies when this app is the API that receives tokens">
-          This app as an API
-        </span>
+    <div className={`card auth-card${collapsed ? ' collapsed' : ''}`}>
+      <AuthCardHeader
+        icon="token"
+        tone="api"
+        title="Access token version (this app as an API)"
+        collapsed={collapsed}
+        onToggle={() => setCollapsed((c) => !c)}
+      >
         <span className={STATUS.recommended.cls}>v2.0: Recommended</span>
         <span className={STATUS.legacy.cls}>v1.0: Legacy default</span>
-      </div>
-      <p style={{ margin: '0 0 8px', fontSize: 13 }}>
-        Decides the format of access tokens that <em>other</em> apps get to call this app’s API. The
-        resource decides, not the client: a client using the v2.0 endpoint still gets a v1.0 token
-        for an API set to v1. ID tokens are not affected; their version follows the endpoint the
-        client signed in with.
-      </p>
-      <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
-        Graph property: <code>api.requestedAccessTokenVersion</code> (null or 1 = v1.0, 2 = v2.0).
-        In the portal’s legacy manifest it is <code>accessTokenAcceptedVersion</code>.
-      </div>
+      </AuthCardHeader>
+      {!collapsed && (
+        <>
+          <IntendedUse>
+            Set this when the app is an API that other apps call. Choose v2.0 for new APIs; keep
+            v1.0 only when existing consumers or token validation code expect v1.0 tokens.
+          </IntendedUse>
+          <p style={{ margin: '0 0 8px', fontSize: 13 }}>
+            Decides the format of access tokens that <em>other</em> apps get to call this app’s API.
+            The resource decides, not the client: a client using the v2.0 endpoint still gets a v1.0
+            token for an API set to v1. ID tokens are not affected; their version follows the
+            endpoint the client signed in with.
+          </p>
 
-      <div className="row" style={{ gap: 12, marginBottom: 12 }}>
-        {([1, 2] as const).map((v) => (
-          <label key={v} className="row" style={{ gap: 6 }}>
-            <input
-              type="radio"
-              name="tokenver"
-              style={{ width: 'auto' }}
-              checked={version === v}
-              disabled={busy || (v === 1 && personal)}
-              onChange={() => choose(v)}
-            />
-            v{v}.0{v === 1 && raw == null ? ' (default, not set)' : ''}
-          </label>
-        ))}
-        {personal && (
-          <span className="muted" style={{ fontSize: 12 }}>
-            v1.0 isn’t possible: the sign-in audience includes personal Microsoft accounts.
-          </span>
-        )}
-      </div>
-
-      <div style={{ overflowX: 'auto' }}>
-        <table className="table token-compare">
-          <thead>
-            <tr>
-              <th>Claim</th>
-              <th className={version === 1 ? 'current' : undefined}>v1.0</th>
-              <th className={version === 2 ? 'current' : undefined}>v2.0</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(([k, v1, v2]) => (
-              <tr key={k}>
-                <td>{k}</td>
-                <td className={`mono${version === 1 ? ' current' : ''}`}>{v1}</td>
-                <td className={`mono${version === 2 ? ' current' : ''}`}>{v2}</td>
-              </tr>
+          <div className="row" style={{ gap: 12, marginBottom: 12 }}>
+            {([1, 2] as const).map((v) => (
+              <label key={v} className="row" style={{ gap: 6 }}>
+                <input
+                  type="radio"
+                  name="tokenver"
+                  style={{ width: 'auto' }}
+                  checked={version === v}
+                  disabled={busy || (v === 1 && personal)}
+                  onChange={() => choose(v)}
+                />
+                v{v}.0{v === 1 && raw == null ? ' (default, not set)' : ''}
+              </label>
             ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-        How to check: decode an access token for this API (e.g. on jwt.ms) and look at{' '}
-        <code>ver</code>, <code>iss</code> and <code>aud</code>. In v1.0, <code>aud</code> is
-        whatever the client asked for, so a request for{' '}
-        <code>{appIdUri ?? 'api://…'}/.default</code> gives that URI and a request by client id
-        gives the GUID. In v2.0 it is always the client id GUID. Your API’s token validation must
-        accept the matching issuer and audience.
-      </div>
+            {personal && (
+              <span className="muted" style={{ fontSize: 12 }}>
+                v1.0 isn’t possible: the sign-in audience includes personal Microsoft accounts.
+              </span>
+            )}
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table className="table token-compare">
+              <thead>
+                <tr>
+                  <th>Claim</th>
+                  <th className={version === 1 ? 'current' : undefined}>v1.0</th>
+                  <th className={version === 2 ? 'current' : undefined}>v2.0</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(([k, v1, v2]) => (
+                  <tr key={k}>
+                    <td>{k}</td>
+                    <td className={`mono${version === 1 ? ' current' : ''}`}>{v1}</td>
+                    <td className={`mono${version === 2 ? ' current' : ''}`}>{v2}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
 import {
   addApplicationCertificate,
@@ -62,6 +62,7 @@ import { CredentialUsage } from '../components/CredentialUsage';
 import { ExposedApiManager } from '../components/ExposedApiManager';
 import { SchemaExtensionsManager } from '../components/SchemaExtensionsManager';
 import { AuthenticationSettings } from '../components/AuthenticationSettings';
+import { EnterpriseAppIcon, ExternalLinkIcon } from '../components/ButtonIcons';
 
 // Monaco is large; load it only when the Manifest tab opens.
 const ManifestEditor = lazy(() => import('../components/ManifestEditor'));
@@ -90,6 +91,12 @@ export function ApplicationDetail() {
   const { id = '' } = useParams();
   const token = useGraphToken();
   const nav = useNavigate();
+  const location = useLocation();
+  // Opened from the list: going back through history returns to the same tab,
+  // search and filter, and the list restores its scroll position. Opened any
+  // other way (deep link, enterprise app): fall back to the list.
+  const fromList = (location.state as { fromList?: string } | null)?.fromList;
+  const goBack = () => (fromList ? nav(-1) : nav('/applications'));
   const currentTenantId = useCurrentTenantId();
   const [app, setApp] = useState<Application | null>(null);
   const [sp, setSp] = useState<ServicePrincipal | null>(null);
@@ -154,6 +161,9 @@ export function ApplicationDetail() {
 
   return (
     <>
+      <button className="ghost back-link" onClick={goBack}>
+        ← App registrations
+      </button>
       <div className="page-header">
         <div className="row" style={{ gap: 12, alignItems: 'center' }}>
           <AppIcon
@@ -181,12 +191,18 @@ export function ApplicationDetail() {
             style={{ textDecoration: 'none' }}
             title="Open this app registration in the Microsoft Entra admin center"
           >
-            <button type="button">Open in Entra ↗</button>
+            <button type="button" className="btn-with-icon">
+              <ExternalLinkIcon />
+              Open in Entra
+            </button>
           </a>
           {tab === 'overview' && !editing && <button onClick={() => setEditing(true)}>Edit</button>}
           {sp && (
             <Link to={`/enterprise-apps/${sp.id}`} style={{ textDecoration: 'none' }}>
-              <button className="primary">Manage enterprise app →</button>
+              <button className="primary btn-with-icon">
+                <EnterpriseAppIcon />
+                Manage enterprise app
+              </button>
             </Link>
           )}
         </div>
