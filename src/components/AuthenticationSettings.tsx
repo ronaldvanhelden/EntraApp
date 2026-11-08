@@ -517,8 +517,8 @@ function RedirectUris({
 }) {
   return (
     <div>
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <strong style={{ fontSize: 13 }}>Redirect URIs ({uris.length})</strong>
+      <strong style={{ fontSize: 13 }}>Redirect URIs ({uris.length})</strong>
+      <div style={{ marginTop: 6 }}>
         <button onClick={onEdit} disabled={disabled}>
           Edit
         </button>
