@@ -302,7 +302,7 @@ pre {
   display: none;
 }
 
-.main {
+.layout > .main {
   grid-area: main;
   overflow-y: auto;
   overflow-x: hidden;
@@ -1015,7 +1015,7 @@ label.field span {
 
 /* --- Tablet breakpoint ----------------------------------------------- */
 @media (max-width: 900px) {
-  .main {
+  .layout > .main {
     padding: 20px 20px;
   }
   .kv {
@@ -1092,7 +1092,7 @@ label.field span {
     z-index: 80;
   }
 
-  .main {
+  .layout > .main {
     padding: 16px 12px;
   }
 
@@ -1357,7 +1357,7 @@ label.field span {
 }
 
 @media (max-width: 380px) {
-  .main {
+  .layout > .main {
     padding: 14px 10px;
   }
   .header .brand {
@@ -1446,4 +1446,58 @@ button.tag-suggestion {
   font-size: 12px;
   border-radius: 999px;
   border-color: var(--border);
+}
+
+/* Monaco host for the app registration manifest editor. */
+.manifest-editor {
+  height: calc(100vh - 340px);
+  min-height: 420px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+/* Authentication tab */
+.auth-legend {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.auth-legend p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.auth-can {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  font-size: 13px;
+}
+.auth-can ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.auth-can li + li {
+  margin-top: 2px;
+}
+.auth-can-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.token-compare td.current,
+.token-compare th.current {
+  background: rgba(47, 129, 247, 0.12);
+}
+.token-compare tbody tr {
+  cursor: default;
+}
+@media (max-width: 760px) {
+  .auth-legend,
+  .auth-can {
+    grid-template-columns: 1fr;
+  }
 }
