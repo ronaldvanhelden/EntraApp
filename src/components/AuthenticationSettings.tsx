@@ -413,10 +413,8 @@ const AUTH_ICONS: Record<AuthIconName, ReactNode> = {
   ),
   device: (
     <>
-      <rect x="2" y="4" width="14" height="10" rx="1.5" />
-      <path d="M6 18h6M9 14v4" />
-      <rect x="17" y="8" width="5" height="12" rx="1" />
-      <path d="M19.5 17.5h.01" />
+      <rect x="6" y="2" width="12" height="20" rx="2" />
+      <path d="M11 18h2" />
     </>
   ),
   terminal: (
@@ -439,7 +437,7 @@ const AUTH_ICONS: Record<AuthIconName, ReactNode> = {
   ),
 };
 
-// Card title row: a JS mark first for public clients, then the card icon, title, badges, then a separator line.
+// Card title row: a desktop mark first for public (frontend) clients, then the card icon, title, badges, then a separator line.
 function AuthCardHeader({
   icon,
   tone,
@@ -455,12 +453,25 @@ function AuthCardHeader({
     <div className="auth-card-header">
       {tone === 'public' && (
         <span
-          className="js-icon js-icon-lg"
+          className="frontend-icon"
           role="img"
           aria-label={CLIENT.public.label}
           title={CLIENT.public.title}
         >
-          JS
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <rect x="3" y="4" width="18" height="12" rx="1.5" />
+            <path d="M8 20h8M12 16v4" />
+          </svg>
         </span>
       )}
       <span className={`auth-icon ${tone}`} aria-hidden>

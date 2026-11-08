@@ -1506,13 +1506,17 @@ button.tag-suggestion {
   line-height: 1;
   letter-spacing: -0.02em;
 }
-.js-icon.js-icon-lg {
+.frontend-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 32px;
   height: 32px;
-  padding: 0 3px 3px 0;
-  border-radius: 6px;
-  font-size: 13px;
+  border-radius: 8px;
   flex-shrink: 0;
+  color: var(--text);
+  border: 1px solid var(--border);
+  background: var(--bg);
   cursor: default;
 }
 .auth-card-header {
