@@ -226,6 +226,12 @@ export function getApplicationByAppId(token: TokenFn, appId: string) {
   }).then((r) => r[0]);
 }
 
+// Every v1.0 property of the app registration, unfiltered — the manifest
+// editor shows the object exactly as Graph has it.
+export function getApplicationManifest(token: TokenFn, id: string) {
+  return graph<Record<string, unknown>>(token, `/applications/${id}`);
+}
+
 export function createApplication(token: TokenFn, input: CreateApplicationInput) {
   return graph<Application>(token, '/applications', {
     method: 'POST',

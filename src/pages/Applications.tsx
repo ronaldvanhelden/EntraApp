@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
 import {
@@ -6,7 +6,9 @@ import {
   listApplications,
   listDeactivatedApplications,
   listOwnedApplications,
+  listUsedTags,
   updateApplication,
+  type UsedTag,
 } from '../graph/applications';
 import { createServicePrincipalFromAppId } from '../graph/servicePrincipals';
 import type { Application } from '../graph/types';
@@ -16,11 +18,16 @@ import { DeletedItemsList } from '../components/DeletedItemsList';
 import { FavoriteStar, TagChip } from '../components/TagChip';
 import {
   FAVORITE_TAG,
+  TAG_PREFIX,
+  addTag,
   hasTag,
   isFavorite,
+  isOurTag,
   ourTags,
+  removeTag,
   sortTags,
   tagLabel,
+  toStoredTag,
   withFavorite,
 } from '../lib/tags';
 
@@ -49,6 +56,10 @@ export function Applications() {
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [tagBusyId, setTagBusyId] = useState<string | null>(null);
   const [tagError, setTagError] = useState<string | null>(null);
+  // Row ids ticked for bulk tagging. Cleared whenever the list reloads.
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [usedTags, setUsedTags] = useState<UsedTag[] | null>(null);
 
   useEffect(() => {
     const handle = setTimeout(() => setDebouncedSearch(search.trim()), 250);
@@ -60,6 +71,7 @@ export function Applications() {
     let cancelled = false;
     setApps(null);
     setError(null);
+    setSelected(new Set());
     const q = debouncedSearch || undefined;
     (view === 'owned'
       ? listOwnedApplications(token, q)
@@ -112,6 +124,73 @@ export function Applications() {
     if (!tagFilter) return apps;
     return apps.filter((a) => hasTag(a.tags, tagFilter));
   }, [apps, tagFilter]);
+
+  // Only rows on screen count as selected, so a tag filter never lets a bulk
+  // action reach apps the user can't see.
+  const selectedApps = useMemo(
+    () => visible.filter((a) => selected.has(a.id)),
+    [visible, selected],
+  );
+  const allVisibleSelected = visible.length > 0 && selectedApps.length === visible.length;
+
+  const toggleSelected = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const toggleAllVisible = () =>
+    setSelected(allVisibleSelected ? new Set() : new Set(visible.map((a) => a.id)));
+
+  // Tenant-wide tag suggestions for the bulk bar, fetched the first time
+  // something is selected.
+  useEffect(() => {
+    if (selectedApps.length === 0 || usedTags) return;
+    let cancelled = false;
+    listUsedTags(token)
+      .then((t) => {
+        if (!cancelled) setUsedTags(t);
+      })
+      .catch(() => {
+        if (!cancelled) setUsedTags([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, selectedApps.length, usedTags]);
+
+  // Applies a tag change to every selected app. Graph PATCHes tags wholesale
+  // per app, so each one is its own request; they run a few at a time and
+  // each row updates as soon as its write succeeds. Failures are collected
+  // and reported together rather than stopping the batch.
+  const bulkApply = async (transform: (tags: string[] | undefined) => string[]) => {
+    const targets = selectedApps
+      .map((app) => ({ app, next: transform(app.tags) }))
+      .filter(({ app, next }) => !sameTags(app.tags, next));
+    if (targets.length === 0) return;
+    setBulkBusy(true);
+    setTagError(null);
+    const failures: string[] = [];
+    await runPool(targets, 4, async ({ app, next }) => {
+      try {
+        await updateApplication(token, app.id, { tags: next });
+        setApps((prev) =>
+          prev ? prev.map((a) => (a.id === app.id ? { ...a, tags: next } : a)) : prev,
+        );
+      } catch (e: unknown) {
+        failures.push(`${app.displayName}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    });
+    if (failures.length) {
+      setTagError(
+        `Tag update failed for ${failures.length} of ${targets.length} apps — ${failures.join('; ')}`,
+      );
+    }
+    setUsedTags(null);
+    setBulkBusy(false);
+  };
 
   // Tags live on the app registration in Entra, so the star is a Graph write.
   // Applied optimistically and rolled back if the PATCH fails.
@@ -230,11 +309,31 @@ export function Applications() {
       {listed && tagError && <div className="card error">{tagError}</div>}
       {listed && !apps && !error && <span className="spinner" />}
 
+      {listed && apps && selectedApps.length > 0 && (
+        <BulkTagBar
+          selected={selectedApps}
+          suggestions={usedTags ?? tagFacets}
+          busy={bulkBusy}
+          onAdd={(tag) => bulkApply((tags) => addTag(tags, tag))}
+          onRemove={(tag) => bulkApply((tags) => removeTag(tags, tag))}
+          onClear={() => setSelected(new Set())}
+        />
+      )}
+
       {listed && apps && (
         <div className="card" style={{ padding: 0 }}>
           <table className="table">
             <thead>
               <tr>
+                <th className="select-cell">
+                  <Checkbox
+                    checked={allVisibleSelected}
+                    indeterminate={selectedApps.length > 0 && !allVisibleSelected}
+                    disabled={visible.length === 0 || bulkBusy}
+                    label="Select all visible app registrations"
+                    onChange={toggleAllVisible}
+                  />
+                </th>
                 <th>Display name</th>
                 <th>Application (client) ID</th>
                 <th>Tags</th>
@@ -244,7 +343,19 @@ export function Applications() {
             </thead>
             <tbody>
               {visible.map((a) => (
-                <tr key={a.id} onClick={() => nav(`/applications/${a.id}`)}>
+                <tr
+                  key={a.id}
+                  className={selected.has(a.id) ? 'selected' : undefined}
+                  onClick={() => nav(`/applications/${a.id}`)}
+                >
+                  <td className="select-cell" onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selected.has(a.id)}
+                      disabled={bulkBusy}
+                      label={`Select ${a.displayName}`}
+                      onChange={() => toggleSelected(a.id)}
+                    />
+                  </td>
                   <td>
                     <div className="row" style={{ gap: 10, alignItems: 'center' }}>
                       <FavoriteStar
@@ -304,7 +415,7 @@ export function Applications() {
               ))}
               {visible.length === 0 && (
                 <tr>
-                  <td colSpan={5}>
+                  <td colSpan={6}>
                     <div className="empty">
                       {view === 'deactivated' && !tagFilter && !debouncedSearch
                         ? 'No deactivated app registrations.'
@@ -429,6 +540,146 @@ function CreateAppModal({
         </p>
       )}
     </Modal>
+  );
+}
+
+function sameTags(a: string[] | undefined, b: string[]): boolean {
+  const x = a ?? [];
+  return x.length === b.length && x.every((t, i) => t === b[i]);
+}
+
+async function runPool<T>(items: T[], size: number, worker: (item: T) => Promise<void>) {
+  let i = 0;
+  const lanes = Array.from({ length: Math.min(size, items.length) }, async () => {
+    while (i < items.length) await worker(items[i++]);
+  });
+  await Promise.all(lanes);
+}
+
+function Checkbox({
+  checked,
+  indeterminate = false,
+  disabled,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+  disabled?: boolean;
+  label: string;
+  onChange: () => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate;
+  }, [indeterminate]);
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      aria-label={label}
+      title={label}
+      checked={checked}
+      disabled={disabled}
+      onChange={onChange}
+    />
+  );
+}
+
+// Shown above the table while rows are ticked: add a tag to all of them, or
+// remove one of our tags that some of them carry.
+function BulkTagBar({
+  selected,
+  suggestions,
+  busy,
+  onAdd,
+  onRemove,
+  onClear,
+}: {
+  selected: Application[];
+  suggestions: Array<{ tag: string; count: number }>;
+  busy: boolean;
+  onAdd: (tag: string) => Promise<void>;
+  onRemove: (tag: string) => Promise<void>;
+  onClear: () => void;
+}) {
+  const [value, setValue] = useState('');
+
+  // Our tags present on the selection, with how many selected apps carry each.
+  const present = useMemo(() => {
+    const counts = new Map<string, { tag: string; count: number }>();
+    for (const a of selected) {
+      for (const t of ourTags(a.tags)) {
+        const key = t.toLowerCase();
+        const hit = counts.get(key);
+        if (hit) hit.count += 1;
+        else counts.set(key, { tag: t, count: 1 });
+      }
+    }
+    return [...counts.values()].sort((a, b) => tagLabel(a.tag).localeCompare(tagLabel(b.tag)));
+  }, [selected]);
+
+  const add = async () => {
+    const stored = toStoredTag(value);
+    if (!stored) return;
+    // Reuse the casing already in use in the tenant, so "prod" joins "Prod".
+    const existing = suggestions.find((s) => s.tag.toLowerCase() === stored.toLowerCase());
+    await onAdd(existing?.tag ?? stored);
+    setValue('');
+  };
+
+  const n = selected.length;
+  return (
+    <div className="card bulk-bar">
+      <strong>{n} selected</strong>
+      <span className="row" style={{ gap: 4 }}>
+        <span className="mono muted" style={{ fontSize: 12 }}>
+          {TAG_PREFIX}
+        </span>
+        <input
+          list="bulk-tag-suggestions"
+          value={value}
+          disabled={busy}
+          placeholder="Tag to add"
+          style={{ width: 170 }}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void add();
+          }}
+        />
+        <datalist id="bulk-tag-suggestions">
+          {suggestions
+            .filter((s) => isOurTag(s.tag))
+            .map((s) => (
+              <option key={s.tag} value={tagLabel(s.tag)} />
+            ))}
+        </datalist>
+        <button className="primary" disabled={busy || !toStoredTag(value)} onClick={add}>
+          {busy ? 'Saving…' : `Add to ${n}`}
+        </button>
+      </span>
+      {present.length > 0 && (
+        <span className="row wrap" style={{ gap: 4 }}>
+          <span className="muted" style={{ fontSize: 12 }}>
+            Remove:
+          </span>
+          {present.map((p) => (
+            <TagChip
+              key={p.tag}
+              tag={p.tag}
+              disabled={busy}
+              title={`Remove ${tagLabel(p.tag)} from the ${p.count} selected ${
+                p.count === 1 ? 'app' : 'apps'
+              } that have it`}
+              onRemove={() => void onRemove(p.tag)}
+            />
+          ))}
+        </span>
+      )}
+      <button className="ghost" disabled={busy} onClick={onClear} style={{ marginLeft: 'auto' }}>
+        Clear selection
+      </button>
+    </div>
   );
 }
 

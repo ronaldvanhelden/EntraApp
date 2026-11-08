@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
 import {
@@ -10,7 +10,6 @@ import {
   removeApplicationPassword,
   updateApplication,
   type AddPasswordInput,
-  type UpdateApplicationPatch,
 } from '../graph/applications';
 import { AddCertificateModal, type CertSubmitPayload } from '../components/AddCertificateModal';
 import {
@@ -62,6 +61,10 @@ import { ActivityTab } from '../components/ActivityTab';
 import { CredentialUsage } from '../components/CredentialUsage';
 import { ExposedApiManager } from '../components/ExposedApiManager';
 import { SchemaExtensionsManager } from '../components/SchemaExtensionsManager';
+import { AuthenticationSettings } from '../components/AuthenticationSettings';
+
+// Monaco is large; load it only when the Manifest tab opens.
+const ManifestEditor = lazy(() => import('../components/ManifestEditor'));
 import { useCurrentTenantId } from '../auth/useCurrentTenantId';
 import { entraAppRegistrationUrl } from '../lib/entraLinks';
 import { listUsedTags, type UsedTag } from '../graph/applications';
@@ -74,7 +77,14 @@ const AUDIENCES = [
 ];
 
 type Tab =
-  'overview' | 'credentials' | 'authentication' | 'permissions' | 'api' | 'schema' | 'activity';
+  | 'overview'
+  | 'credentials'
+  | 'authentication'
+  | 'permissions'
+  | 'api'
+  | 'schema'
+  | 'manifest'
+  | 'activity';
 
 export function ApplicationDetail() {
   const { id = '' } = useParams();
@@ -210,6 +220,9 @@ export function ApplicationDetail() {
         <button className={tab === 'schema' ? 'active' : ''} onClick={() => setTab('schema')}>
           Schema extensions
         </button>
+        <button className={tab === 'manifest' ? 'active' : ''} onClick={() => setTab('manifest')}>
+          Manifest
+        </button>
         <button className={tab === 'activity' ? 'active' : ''} onClick={() => setTab('activity')}>
           Activity
         </button>
@@ -320,9 +333,16 @@ export function ApplicationDetail() {
         />
       )}
 
-      {tab === 'authentication' && <AuthenticationCard app={app} onAppChange={setApp} />}
+      {tab === 'authentication' && (
+        <AuthenticationSettings app={app} onAppChange={setApp} ficCount={fic?.length ?? 0} />
+      )}
       {tab === 'api' && <ExposedApiManager app={app} onAppChange={setApp} />}
       {tab === 'schema' && <SchemaExtensionsManager app={app} />}
+      {tab === 'manifest' && (
+        <Suspense fallback={<span className="spinner" />}>
+          <ManifestEditor app={app} onAppChange={setApp} />
+        </Suspense>
+      )}
       {tab === 'activity' && <ActivityTab appId={app.appId} app={app} fics={fic} sp={sp} />}
 
       {confirmDelete && (
@@ -785,337 +805,6 @@ function OAuthFlowSummary({ app }: { app: Application }) {
         </span>
       ))}
     </div>
-  );
-}
-
-function AuthenticationCard({
-  app,
-  onAppChange,
-}: {
-  app: Application;
-  onAppChange: (next: Application) => void;
-}) {
-  const token = useGraphToken();
-  const [saving, setSaving] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [editPlatform, setEditPlatform] = useState<null | 'web' | 'spa' | 'publicClient'>(null);
-
-  const spaUris = app.spa?.redirectUris ?? [];
-  const webUris = app.web?.redirectUris ?? [];
-  const publicUris = app.publicClient?.redirectUris ?? [];
-  const idTokenIssuance = !!app.web?.implicitGrantSettings?.enableIdTokenIssuance;
-  const accessTokenIssuance = !!app.web?.implicitGrantSettings?.enableAccessTokenIssuance;
-  const fallbackPublic = !!app.isFallbackPublicClient;
-
-  const patch = async (body: UpdateApplicationPatch, local: Partial<Application>, key: string) => {
-    setSaving(key);
-    setError(null);
-    try {
-      await updateApplication(token, app.id, body);
-      onAppChange({ ...app, ...local });
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(null);
-    }
-  };
-
-  const toggleFallbackPublic = () => {
-    const next = !fallbackPublic;
-    patch({ isFallbackPublicClient: next }, { isFallbackPublicClient: next }, 'fallback');
-  };
-
-  const toggleIdToken = () => {
-    const next = !idTokenIssuance;
-    const web = {
-      ...app.web,
-      implicitGrantSettings: {
-        ...app.web?.implicitGrantSettings,
-        enableIdTokenIssuance: next,
-        enableAccessTokenIssuance: accessTokenIssuance,
-      },
-    };
-    patch({ web }, { web }, 'idtoken');
-  };
-
-  const toggleAccessToken = () => {
-    const next = !accessTokenIssuance;
-    const web = {
-      ...app.web,
-      implicitGrantSettings: {
-        ...app.web?.implicitGrantSettings,
-        enableIdTokenIssuance: idTokenIssuance,
-        enableAccessTokenIssuance: next,
-      },
-    };
-    patch({ web }, { web }, 'accesstoken');
-  };
-
-  const saveRedirectUris = async (platform: 'web' | 'spa' | 'publicClient', uris: string[]) => {
-    const local: Partial<Application> = {};
-    const body: UpdateApplicationPatch = {};
-    if (platform === 'web') {
-      body.web = { ...app.web, redirectUris: uris };
-      local.web = body.web;
-    } else if (platform === 'spa') {
-      body.spa = { ...app.spa, redirectUris: uris };
-      local.spa = body.spa;
-    } else {
-      body.publicClient = { ...app.publicClient, redirectUris: uris };
-      local.publicClient = body.publicClient;
-    }
-    await patch(body, local, `uris:${platform}`);
-    setEditPlatform(null);
-  };
-
-  return (
-    <div className="card">
-      <h3>Authentication</h3>
-      <div className="row wrap" style={{ gap: 8, marginBottom: 12 }}>
-        <FlowBadge
-          active={webUris.length > 0}
-          label={`Web (${webUris.length})`}
-          hint="Confidential client — redirect URIs live on web.redirectUris. Uses client secret or certificate."
-        />
-        <FlowBadge
-          active={spaUris.length > 0}
-          label={`SPA (${spaUris.length})`}
-          hint="Single-page app — Authorization Code + PKCE. No client secret."
-        />
-        <FlowBadge
-          active={publicUris.length > 0}
-          label={`Mobile/Desktop (${publicUris.length})`}
-          hint="Native public client redirect URIs (e.g. MSAL mobile/desktop apps)."
-        />
-        <FlowBadge
-          active={fallbackPublic}
-          label="Allow public client flows"
-          hint="Enables device-code and ROPC flows. Required for apps that can't protect a secret."
-        />
-        <FlowBadge
-          active={idTokenIssuance}
-          label="Implicit ID token"
-          hint="Legacy implicit flow for ID tokens. Prefer Auth Code + PKCE."
-        />
-        <FlowBadge
-          active={accessTokenIssuance}
-          label="Implicit access token"
-          hint="Legacy implicit flow for access tokens. Prefer Auth Code + PKCE."
-        />
-      </div>
-
-      {error && <p className="error">{error}</p>}
-
-      <RedirectUriBlock
-        title="Web"
-        subtitle="Authorization code flow with client secret / certificate."
-        uris={webUris}
-        onEdit={() => setEditPlatform('web')}
-        disabled={saving !== null}
-      />
-      <RedirectUriBlock
-        title="Single-page application (SPA)"
-        subtitle="Authorization code + PKCE. No client secret."
-        uris={spaUris}
-        onEdit={() => setEditPlatform('spa')}
-        disabled={saving !== null}
-      />
-      <RedirectUriBlock
-        title="Mobile / desktop (public client)"
-        subtitle="Native MSAL apps and custom URI schemes."
-        uris={publicUris}
-        onEdit={() => setEditPlatform('publicClient')}
-        disabled={saving !== null}
-      />
-
-      <h4 style={{ marginTop: 20, marginBottom: 8 }}>Advanced settings</h4>
-      <div className="kv">
-        <div className="k">Allow public client flows</div>
-        <div>
-          <label className="row" style={{ gap: 6 }}>
-            <input
-              type="checkbox"
-              style={{ width: 'auto' }}
-              checked={fallbackPublic}
-              disabled={saving === 'fallback'}
-              onChange={toggleFallbackPublic}
-            />
-            {fallbackPublic ? 'Yes' : 'No'}{' '}
-            <span className="muted" style={{ fontSize: 12 }}>
-              (device code, ROPC)
-            </span>
-          </label>
-        </div>
-        <div className="k">Implicit grant — ID tokens</div>
-        <div>
-          <label className="row" style={{ gap: 6 }}>
-            <input
-              type="checkbox"
-              style={{ width: 'auto' }}
-              checked={idTokenIssuance}
-              disabled={saving === 'idtoken'}
-              onChange={toggleIdToken}
-            />
-            {idTokenIssuance ? 'Issued' : 'Disabled'}
-          </label>
-        </div>
-        <div className="k">Implicit grant — access tokens</div>
-        <div>
-          <label className="row" style={{ gap: 6 }}>
-            <input
-              type="checkbox"
-              style={{ width: 'auto' }}
-              checked={accessTokenIssuance}
-              disabled={saving === 'accesstoken'}
-              onChange={toggleAccessToken}
-            />
-            {accessTokenIssuance ? 'Issued' : 'Disabled'}
-          </label>
-        </div>
-      </div>
-
-      {editPlatform && (
-        <RedirectUriEditModal
-          title={
-            editPlatform === 'web'
-              ? 'Edit Web redirect URIs'
-              : editPlatform === 'spa'
-                ? 'Edit SPA redirect URIs'
-                : 'Edit public-client redirect URIs'
-          }
-          initial={editPlatform === 'web' ? webUris : editPlatform === 'spa' ? spaUris : publicUris}
-          onClose={() => setEditPlatform(null)}
-          onSave={(uris) => saveRedirectUris(editPlatform, uris)}
-        />
-      )}
-    </div>
-  );
-}
-
-function FlowBadge({ active, label, hint }: { active: boolean; label: string; hint?: string }) {
-  return (
-    <span
-      className={`badge ${active ? 'granted' : ''}`}
-      title={hint}
-      style={{ opacity: active ? 1 : 0.55 }}
-    >
-      {active ? '✓ ' : '○ '}
-      {label}
-    </span>
-  );
-}
-
-function RedirectUriBlock({
-  title,
-  subtitle,
-  uris,
-  onEdit,
-  disabled,
-}: {
-  title: string;
-  subtitle: string;
-  uris: string[];
-  onEdit: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div style={{ marginTop: 12 }}>
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ fontWeight: 600 }}>{title}</div>
-          <div className="muted" style={{ fontSize: 12 }}>
-            {subtitle}
-          </div>
-        </div>
-        <button onClick={onEdit} disabled={disabled}>
-          Edit
-        </button>
-      </div>
-      {uris.length === 0 ? (
-        <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
-          No redirect URIs configured.
-        </div>
-      ) : (
-        <ul
-          className="mono"
-          style={{
-            fontSize: 12,
-            margin: '6px 0 0',
-            paddingLeft: 20,
-          }}
-        >
-          {uris.map((u) => (
-            <li key={u}>
-              {u}
-              <CopyButton value={u} label="redirect URI" />
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function RedirectUriEditModal({
-  title,
-  initial,
-  onClose,
-  onSave,
-}: {
-  title: string;
-  initial: string[];
-  onClose: () => void;
-  onSave: (uris: string[]) => Promise<void>;
-}) {
-  const [text, setText] = useState(initial.join('\n'));
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const save = async () => {
-    const uris = text
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter(Boolean);
-    setSaving(true);
-    setError(null);
-    try {
-      await onSave(uris);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Modal
-      title={title}
-      onClose={() => !saving && onClose()}
-      footer={
-        <>
-          <button disabled={saving} onClick={onClose}>
-            Cancel
-          </button>
-          <button className="primary" disabled={saving} onClick={save}>
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-        </>
-      }
-    >
-      <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
-        One URI per line. Must be an HTTPS URL (or <code>http://localhost</code>), except for
-        public-client URIs which also allow custom schemes.
-      </p>
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        className="mono"
-        rows={Math.max(6, Math.min(16, text.split('\n').length + 2))}
-        style={{ width: '100%', fontSize: 12 }}
-        placeholder="https://contoso.example.com/auth/callback"
-        autoFocus
-      />
-      {error && <p className="error">{error}</p>}
-    </Modal>
   );
 }
 
