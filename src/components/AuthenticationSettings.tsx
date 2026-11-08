@@ -128,7 +128,7 @@ export function AuthenticationSettings({
         </p>
         <div className="auth-legend">
           <div>
-            <span className={CLIENT.confidential.cls}>{CLIENT.confidential.label}</span>
+            <ClientBadge kind="confidential" />
             <p>
               Code runs on a server you control (ASP.NET, Node, Java, a daemon, a web API calling
               another API). It proves who it is with a <strong>client secret</strong>,{' '}
@@ -137,7 +137,7 @@ export function AuthenticationSettings({
             </p>
           </div>
           <div>
-            <span className={CLIENT.public.cls}>{CLIENT.public.label}</span>
+            <ClientBadge kind="public" />
             <p>
               Code runs on the user’s device: browser SPA, mobile app, desktop app, CLI. Anything
               shipped there can be read, so it <strong>cannot keep a secret</strong>. Instead it
@@ -342,13 +342,10 @@ function AuthCard({
   footnote?: ReactNode;
   children?: ReactNode;
 }) {
-  const c = CLIENT[client];
   return (
     <div className="card auth-card">
       <AuthCardHeader icon={icon} tone={client} title={title}>
-        <span className={c.cls} title={c.title}>
-          {c.label}
-        </span>
+        <ClientBadge kind={client} />
         {statusOverride ? (
           statusOverride.map((s) => (
             <span key={s.text} className={STATUS[s.status].cls} title={STATUS[s.status].title}>
@@ -378,6 +375,22 @@ function AuthCard({
       )}
       {children && <div style={{ marginTop: 12 }}>{children}</div>}
     </div>
+  );
+}
+
+// Client-kind badge. Public clients lead with a JS mark: the code ships to the
+// user's device, where anyone can read it.
+function ClientBadge({ kind }: { kind: ClientKind }) {
+  const c = CLIENT[kind];
+  return (
+    <span className={`${c.cls} client-badge`} title={c.title}>
+      {kind === 'public' && (
+        <span className="js-icon" aria-hidden>
+          JS
+        </span>
+      )}
+      {c.label}
+    </span>
   );
 }
 

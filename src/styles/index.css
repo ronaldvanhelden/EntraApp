@@ -1486,6 +1486,26 @@ button.tag-suggestion {
   background: var(--bg);
   font-size: 13px;
 }
+.client-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.js-icon {
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  width: 14px;
+  height: 14px;
+  padding: 0 1px 1px 0;
+  border-radius: 2px;
+  background: #f7df1e;
+  color: #000;
+  font-size: 7px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
 .auth-card-header {
   display: flex;
   align-items: center;
