@@ -1506,6 +1506,15 @@ button.tag-suggestion {
   line-height: 1;
   letter-spacing: -0.02em;
 }
+.js-icon.js-icon-lg {
+  width: 32px;
+  height: 32px;
+  padding: 0 3px 3px 0;
+  border-radius: 6px;
+  font-size: 13px;
+  flex-shrink: 0;
+  cursor: default;
+}
 .auth-card-header {
   display: flex;
   align-items: center;

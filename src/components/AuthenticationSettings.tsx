@@ -345,7 +345,6 @@ function AuthCard({
   return (
     <div className="card auth-card">
       <AuthCardHeader icon={icon} tone={client} title={title}>
-        <ClientBadge kind={client} />
         {statusOverride ? (
           statusOverride.map((s) => (
             <span key={s.text} className={STATUS[s.status].cls} title={STATUS[s.status].title}>
@@ -440,7 +439,7 @@ const AUTH_ICONS: Record<AuthIconName, ReactNode> = {
   ),
 };
 
-// Card title row: icon top-left, title, badges, then a separator line.
+// Card title row: a JS mark first for public clients, then the card icon, title, badges, then a separator line.
 function AuthCardHeader({
   icon,
   tone,
@@ -454,6 +453,16 @@ function AuthCardHeader({
 }) {
   return (
     <div className="auth-card-header">
+      {tone === 'public' && (
+        <span
+          className="js-icon js-icon-lg"
+          role="img"
+          aria-label={CLIENT.public.label}
+          title={CLIENT.public.title}
+        >
+          JS
+        </span>
+      )}
       <span className={`auth-icon ${tone}`} aria-hidden>
         <svg
           width="18"
