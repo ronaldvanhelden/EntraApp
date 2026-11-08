@@ -28,6 +28,7 @@ import { entraEnterpriseAppUrl } from '../lib/entraLinks';
 import { AppIcon } from '../components/AppIcon';
 import { CopyButton } from '../components/CopyButton';
 import { Modal } from '../components/Modal';
+import { AppRegistrationIcon, ExternalLinkIcon } from '../components/ButtonIcons';
 
 type Tab = 'overview' | 'permissions' | 'assignments' | 'activity';
 
@@ -188,11 +189,17 @@ export function EnterpriseAppDetail() {
             style={{ textDecoration: 'none' }}
             title="Open this enterprise app in the Microsoft Entra admin center"
           >
-            <button type="button">Open in Entra ↗</button>
+            <button type="button" className="btn-with-icon">
+              <ExternalLinkIcon />
+              Open in Entra
+            </button>
           </a>
           {appRegId && (
             <Link to={`/applications/${appRegId}`} style={{ textDecoration: 'none' }}>
-              <button>View app registration →</button>
+              <button className="btn-with-icon">
+                <AppRegistrationIcon />
+                View app registration
+              </button>
             </Link>
           )}
         </div>

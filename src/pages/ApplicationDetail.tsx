@@ -62,6 +62,7 @@ import { CredentialUsage } from '../components/CredentialUsage';
 import { ExposedApiManager } from '../components/ExposedApiManager';
 import { SchemaExtensionsManager } from '../components/SchemaExtensionsManager';
 import { AuthenticationSettings } from '../components/AuthenticationSettings';
+import { EnterpriseAppIcon, ExternalLinkIcon } from '../components/ButtonIcons';
 
 // Monaco is large; load it only when the Manifest tab opens.
 const ManifestEditor = lazy(() => import('../components/ManifestEditor'));
@@ -190,12 +191,18 @@ export function ApplicationDetail() {
             style={{ textDecoration: 'none' }}
             title="Open this app registration in the Microsoft Entra admin center"
           >
-            <button type="button">Open in Entra ↗</button>
+            <button type="button" className="btn-with-icon">
+              <ExternalLinkIcon />
+              Open in Entra
+            </button>
           </a>
           {tab === 'overview' && !editing && <button onClick={() => setEditing(true)}>Edit</button>}
           {sp && (
             <Link to={`/enterprise-apps/${sp.id}`} style={{ textDecoration: 'none' }}>
-              <button className="primary">Manage enterprise app →</button>
+              <button className="primary btn-with-icon">
+                <EnterpriseAppIcon />
+                Manage enterprise app
+              </button>
             </Link>
           )}
         </div>
