@@ -4,7 +4,7 @@ import { restoreScroll, saveScroll } from '../lib/scrollMemory';
 import { useGraphToken } from '../auth/useGraphToken';
 import {
   createApplication,
-  listApplications,
+  listActiveApplications,
   listDeactivatedApplications,
   listOwnedApplications,
   listUsedTags,
@@ -138,7 +138,7 @@ export function Applications() {
       ? listOwnedApplications(token, q)
       : view === 'deactivated'
         ? listDeactivatedApplications(token, q)
-        : listApplications(token, q)
+        : listActiveApplications(token, q)
     )
       .then((list) => {
         if (cancelled) return;
