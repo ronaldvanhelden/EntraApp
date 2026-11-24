@@ -237,15 +237,19 @@ function AddAssignmentModal({
         </>
       }
     >
-      <label className="field">
-        <span>Principal (user, group, or service principal)</span>
+      {/* Not a <label>: a label forwards every click inside it to its first
+          button, which after picking someone is the picker's own "Clear". */}
+      <div style={{ marginBottom: 12 }}>
+        <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>
+          Principal (user, group, or service principal)
+        </div>
         <PrincipalPicker
           kinds={['user', 'group', 'sp']}
           selected={principal}
           onChange={setPrincipal}
           autoFocus
         />
-      </label>
+      </div>
 
       <label className="field">
         <span>Role</span>

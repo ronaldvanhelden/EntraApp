@@ -91,5 +91,24 @@ export const GRAPH_SCOPES = [
   'AuditLog.Read.All',
 ];
 
+// Creating, editing and deleting users and groups. Kept out of GRAPH_SCOPES so
+// sign-in keeps working on app registrations that don't declare them: they
+// are requested (incremental consent) the first time such a write is made.
+export const USER_WRITE_SCOPES = ['User.ReadWrite.All'];
+export const GROUP_WRITE_SCOPES = ['Group.ReadWrite.All'];
+// Setting or resetting a user's password: the permission Graph asks for to
+// write passwordProfile. Requested the first time a password is reset.
+export const USER_PASSWORD_SCOPES = ['User-PasswordProfile.ReadWrite.All'];
+// Sending a guest their invitation again.
+export const USER_INVITE_SCOPES = ['User.Invite.All'];
+// Read-only extras on the user page, each tried silently and only asked for
+// when the admin clicks: directory roles (active and PIM-eligible) and the
+// Identity Protection risk state.
+export const ROLE_READ_SCOPES = ['RoleManagement.Read.Directory'];
+export const RISK_READ_SCOPES = ['IdentityRiskyUser.Read.All'];
+// The SharePoint site behind a Microsoft 365 group. Also requested on demand:
+// it is tried silently, and consent is only asked for when the user clicks.
+export const SITE_READ_SCOPES = ['Sites.Read.All'];
+
 export const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
 export const GRAPH_BASE_BETA = 'https://graph.microsoft.com/beta';

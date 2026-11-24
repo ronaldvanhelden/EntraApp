@@ -1,4 +1,5 @@
 import { graph, graphAll } from './client';
+import { buildQuery } from '../lib/searchQuery';
 import type {
   AppRoleAssignment,
   OAuth2PermissionGrant,
@@ -21,6 +22,18 @@ export function listServicePrincipals(token: TokenFn, search?: string) {
     return graphAll<ServicePrincipal>(token, '/servicePrincipals', {
       query: { $select, $top: 100 },
     });
+  }
+
+  // Field syntax (name:…, -type=…, enabled=false): see lib/searchQuery.ts.
+  const structured = buildQuery(q, 'sp');
+  if (structured === 'none') return Promise.resolve([] as ServicePrincipal[]);
+  if (structured) {
+    return graphAll<ServicePrincipal>(
+      token,
+      '/servicePrincipals',
+      { query: { $select, $top: 100, ...structured.params() }, advanced: true },
+      3,
+    ).then((list) => list.filter(structured.keep));
   }
 
   if (GUID_LIKE.test(q)) {

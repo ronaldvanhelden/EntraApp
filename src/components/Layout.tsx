@@ -1,10 +1,26 @@
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { AuthenticatedTemplate, UnauthenticatedTemplate, useMsal } from '@azure/msal-react';
+import { useMsal } from '@azure/msal-react';
 import { GRAPH_SCOPES } from '../auth/config';
 import { useAuthConfig } from '../auth/context';
+import { useCurrentTenantId } from '../auth/useCurrentTenantId';
+import {
+  buildTenantUrl,
+  exitTenantOverride,
+  loadTenantShortcuts,
+  sectionHash,
+} from '../auth/tenantParam';
 import { TenantChip } from './TenantChip';
+import {
+  AppRegistrationIcon,
+  EnterpriseAppIcon,
+  GroupIcon,
+  OverviewIcon,
+  SettingsIcon,
+  TenantIcon,
+  UserIcon,
+} from './ButtonIcons';
 import { scrollToTop } from '../lib/scrollMemory';
 
 interface Props {
@@ -73,24 +89,24 @@ export function Layout({ children }: Props) {
     .filter(Boolean)
     .join(' ');
 
+  // Signed in for *this* tenant: after a tenant switch the cache can still
+  // hold accounts of other tenants that don't get in here.
+  const { signedIn } = useAuthConfig();
+  if (!signedIn) return <SignInScreen />;
+
   return (
     <>
-      <UnauthenticatedTemplate>
-        <SignInScreen />
-      </UnauthenticatedTemplate>
-      <AuthenticatedTemplate>
-        <div className={layoutClasses}>
-          <Header onMenuClick={toggleMenu} navOpen={showingMenu} />
-          <Sidebar />
-          {navOpen && (
-            <div className="nav-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />
-          )}
-          <main className="main">
-            <ScrollReset />
-            {children}
-          </main>
-        </div>
-      </AuthenticatedTemplate>
+      <div className={layoutClasses}>
+        <Header onMenuClick={toggleMenu} navOpen={showingMenu} />
+        <Sidebar />
+        {navOpen && (
+          <div className="nav-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />
+        )}
+        <main className="main">
+          <ScrollReset />
+          {children}
+        </main>
+      </div>
     </>
   );
 }
@@ -143,19 +159,80 @@ function Sidebar() {
     <nav className="sidebar">
       <h4>Directory</h4>
       <NavLink to="/" end className={nav}>
+        <OverviewIcon />
         Overview
       </NavLink>
       <NavLink to="/applications" className={nav}>
+        <AppRegistrationIcon />
         App registrations
       </NavLink>
       <NavLink to="/enterprise-apps" className={nav}>
+        <EnterpriseAppIcon />
         Enterprise apps
+      </NavLink>
+      <NavLink to="/users" className={nav}>
+        <UserIcon />
+        Users
+      </NavLink>
+      <NavLink to="/groups" className={nav}>
+        <GroupIcon />
+        Groups
       </NavLink>
       <h4>Tools</h4>
       <NavLink to="/settings" className={nav}>
+        <SettingsIcon />
         Settings
       </NavLink>
+      <TenantLinks />
     </nav>
+  );
+}
+
+// The tenant shortcuts from Settings, as a switcher. A click moves this tab
+// to that tenant (a reload on its ?tenant= URL) and stays in the same section
+// of the app; accounts that already signed in are reused, so going back and
+// forth doesn't ask for a sign-in each time.
+function TenantLinks() {
+  const { tenantOverride } = useAuthConfig();
+  const tenantId = useCurrentTenantId();
+  const { pathname } = useLocation();
+  // Read on every render: the list is edited on the Settings page.
+  const shortcuts = loadTenantShortcuts();
+  if (shortcuts.length === 0) return null;
+  const section = sectionHash(pathname);
+  const pinned = tenantOverride?.toLowerCase();
+  return (
+    <>
+      <h4>Tenants</h4>
+      <a
+        href="#/"
+        className={pinned ? undefined : 'active'}
+        title="The tenant from Settings, without a pin"
+        onClick={(e) => {
+          e.preventDefault();
+          if (pinned) exitTenantOverride(section);
+        }}
+      >
+        <TenantIcon />
+        <span className="sidebar-label">Default tenant</span>
+      </a>
+      {shortcuts.map((s) => {
+        const id = s.tenantId.toLowerCase();
+        const active = Boolean(pinned) && (id === pinned || id === tenantId?.toLowerCase());
+        return (
+          <a
+            key={s.tenantId}
+            href={buildTenantUrl(s.tenantId, section)}
+            className={active ? 'active' : undefined}
+            title={`Switch this tab to ${s.tenantId}`}
+            onClick={(e) => active && e.preventDefault()}
+          >
+            <TenantIcon />
+            <span className="sidebar-label">{s.label}</span>
+          </a>
+        );
+      })}
+    </>
   );
 }
 

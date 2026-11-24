@@ -1,4 +1,5 @@
 import { graph, graphAll } from './client';
+import { buildQuery } from '../lib/searchQuery';
 import { ourTags, toStoredTag } from '../lib/tags';
 import type { Application, KeyCredential } from './types';
 
@@ -80,6 +81,22 @@ export async function listApplications(token: TokenFn, search?: string) {
     return graphAll<Application>(token, '/applications', {
       query: { $select: LIST_SELECT, $expand: LIST_EXPAND, $top: 100 },
     });
+  }
+
+  // Field syntax (name:…, tag:…, -audience=…): see lib/searchQuery.ts.
+  const structured = buildQuery(q, 'app');
+  if (structured === 'none') return [];
+  if (structured) {
+    const list = await graphAll<Application>(
+      token,
+      '/applications',
+      {
+        query: { $select: LIST_SELECT, $expand: LIST_EXPAND, $top: 100, ...structured.params() },
+        advanced: true,
+      },
+      3,
+    );
+    return list.filter(structured.keep);
   }
 
   if (GUID_LIKE.test(q)) {

@@ -15,6 +15,12 @@
 // parameter half-way through the flow. sessionStorage is per tab, which lines
 // up with MSAL's own sessionStorage token cache: a second tab opened from the
 // plain URL is back on the saved default tenant.
+//
+// Switching tenant inside a tab is a navigation to another ?tenant= value (or
+// to none). That reloads the page — MSAL is rebuilt for the new authority and
+// nothing of the previous directory lingers in memory — while the tab's token
+// cache survives, so the accounts already signed in are reused (see
+// MsalProvider).
 
 export const TENANT_PARAM = 'tenant';
 
@@ -113,6 +119,13 @@ export function exitTenantOverride(hashPath = '/'): void {
   // inside the hash): land on the target view and reload explicitly.
   window.location.hash = normalizeHash(hashPath);
   window.location.reload();
+}
+
+// Where a tenant switch lands: the same section of the app, but not the
+// object that was open — it doesn't exist in the other directory.
+export function sectionHash(hash = window.location.hash): string {
+  const section = hash.replace(/^#/, '').split('?')[0].split('/').filter(Boolean)[0];
+  return section ? `/${section}` : '/';
 }
 
 export interface TenantShortcut {

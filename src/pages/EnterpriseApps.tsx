@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useGraphToken } from '../auth/useGraphToken';
 import { useCurrentTenantId } from '../auth/useCurrentTenantId';
 import { listServicePrincipals, updateServicePrincipal } from '../graph/servicePrincipals';
 import type { ServicePrincipal } from '../graph/types';
 import { AppIcon } from '../components/AppIcon';
 import { DeletedItemsList } from '../components/DeletedItemsList';
+import { QueryInput } from '../components/QueryInput';
+import { SortTh, useSort } from '../components/SortableTable';
+import type { Entity } from '../lib/searchQuery';
+
+const SP_ENTITIES: Entity[] = ['sp'];
 
 type Filter = 'all' | 'enterprise' | 'managed' | 'legacy';
 // 'deleted' is the directory recycle bin, not part of the live list.
@@ -32,8 +37,10 @@ export function EnterpriseApps() {
   const nav = useNavigate();
   const [sps, setSps] = useState<ServicePrincipal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  // ?q= seeds the search, so the Overview search can hand over to this list.
+  const [params] = useSearchParams();
+  const [search, setSearch] = useState(() => params.get('q') ?? '');
+  const [debouncedSearch, setDebouncedSearch] = useState(() => search.trim());
   const [filter, setFilter] = useState<Filter>('all');
   const [status, setStatus] = useState<Status>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -120,6 +127,19 @@ export function EnterpriseApps() {
     return [...set].sort();
   }, [sps, currentTenantId]);
 
+  const { sorted, sort } = useSort(filtered, {
+    name: (sp) => sp.displayName,
+    'app-id': (sp) => sp.appId,
+    type: (sp) => sp.servicePrincipalType ?? 'Application',
+    tenant: (sp) =>
+      isExternal(sp, currentTenantId)
+        ? 'External'
+        : sp.appOwnerOrganizationId
+          ? 'This tenant'
+          : null,
+    enabled: (sp) => Boolean(sp.accountEnabled),
+  });
+
   return (
     <>
       <div className="page-header">
@@ -130,11 +150,12 @@ export function EnterpriseApps() {
       </div>
 
       <div className="toolbar">
-        <input
+        <QueryInput
           className="search"
+          entities={SP_ENTITIES}
           placeholder="Search by name or appId…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={setSearch}
         />
         <div className="tabs" style={{ margin: 0, borderBottom: 'none' }}>
           <button className={status === 'all' ? 'active' : ''} onClick={() => setStatus('all')}>
@@ -249,16 +270,26 @@ export function EnterpriseApps() {
           <table className="table">
             <thead>
               <tr>
-                <th>Display name</th>
-                <th>Application ID</th>
-                <th>Type</th>
-                <th>Home tenant</th>
-                <th>Enabled</th>
+                <SortTh id="name" sort={sort}>
+                  Display name
+                </SortTh>
+                <SortTh id="app-id" sort={sort}>
+                  Application ID
+                </SortTh>
+                <SortTh id="type" sort={sort}>
+                  Type
+                </SortTh>
+                <SortTh id="tenant" sort={sort}>
+                  Home tenant
+                </SortTh>
+                <SortTh id="enabled" sort={sort}>
+                  Enabled
+                </SortTh>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((sp) => {
+              {sorted.map((sp) => {
                 const external =
                   sp.appOwnerOrganizationId &&
                   currentTenantId &&
