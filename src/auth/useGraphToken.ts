@@ -1,35 +1,28 @@
 import { useMsal } from '@azure/msal-react';
-import { InteractionRequiredAuthError } from '@azure/msal-browser';
 import { useCallback } from 'react';
-import { GRAPH_SCOPES } from './config';
+import { READ_SCOPES } from './config';
+import { acquireGraphToken } from './acquireToken';
 
-// Pass `scopes` to ask for more than the sign-in set — e.g. the write scopes
-// in config.ts, which are only consented to when a write is first attempted.
+// Returns the token getter the Graph client calls for every request.
+//
+// Without `scopes` it follows the request: the client passes the permission a
+// write needs (see scopesForRequest in config.ts) and everything else gets
+// the read-only set, so the write permissions are only consented to when a
+// change is first made. Pass `scopes` to pin the getter to one set — the
+// user/group write scopes and the optional read extras in config.ts.
+//
 // With `interactive` off the token is only taken silently: if the scopes still
 // need consent this throws instead of opening a popup — for calls made on page
 // load, where a popup would be unexpected (and blocked by the browser).
-export function useGraphToken(scopes: string[] = GRAPH_SCOPES, interactive = true) {
+export function useGraphToken(scopes?: string[], interactive = true) {
   const { instance, accounts } = useMsal();
 
-  return useCallback(async (): Promise<string> => {
-    const account = instance.getActiveAccount() ?? accounts[0];
-    if (!account) throw new Error('Not signed in');
-
-    try {
-      const result = await instance.acquireTokenSilent({
-        account,
-        scopes,
-      });
-      return result.accessToken;
-    } catch (err) {
-      if (interactive && err instanceof InteractionRequiredAuthError) {
-        const result = await instance.acquireTokenPopup({
-          account,
-          scopes,
-        });
-        return result.accessToken;
-      }
-      throw err;
-    }
-  }, [instance, accounts, scopes, interactive]);
+  return useCallback(
+    async (needed?: string[]): Promise<string> => {
+      const account = instance.getActiveAccount() ?? accounts[0];
+      if (!account) throw new Error('Not signed in');
+      return acquireGraphToken(instance, account, scopes ?? needed ?? READ_SCOPES, interactive);
+    },
+    [instance, accounts, scopes, interactive],
+  );
 }

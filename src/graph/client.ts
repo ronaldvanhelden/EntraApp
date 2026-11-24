@@ -1,4 +1,4 @@
-import { GRAPH_BASE, GRAPH_BASE_BETA } from '../auth/config';
+import { GRAPH_BASE, GRAPH_BASE_BETA, scopesForRequest } from '../auth/config';
 
 export class GraphError extends Error {
   status: number;
@@ -43,12 +43,16 @@ function buildUrl(
   return url.toString();
 }
 
+// The getter is told which permission the request needs beyond reading (see
+// scopesForRequest); getters pinned to a scope set ignore it.
+export type GraphTokenFn = (scopes?: string[]) => Promise<string>;
+
 export async function graph<T>(
-  getToken: () => Promise<string>,
+  getToken: GraphTokenFn,
   path: string,
   init: GraphRequestInit = {},
 ): Promise<T> {
-  const token = await getToken();
+  const token = await getToken(scopesForRequest(init.method ?? 'GET', path));
   const res = await fetch(buildUrl(path, init.query, init.advanced, init.api), {
     method: init.method ?? 'GET',
     headers: {
@@ -86,7 +90,7 @@ export interface Paged<T> {
 }
 
 export async function graphAll<T>(
-  getToken: () => Promise<string>,
+  getToken: GraphTokenFn,
   path: string,
   init: GraphRequestInit = {},
   maxPages = 10,

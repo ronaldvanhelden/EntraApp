@@ -78,12 +78,30 @@ must register an application in Entra ID with:
   The Setup screen computes and shows this URL — copy it into the app
   registration.
 - **Supported account types**: any (single-tenant or multi-tenant)
-- **API permissions (Microsoft Graph, Delegated)**:
-  - `User.Read`
-  - `Application.ReadWrite.All`
-  - `Directory.AccessAsUser.All`
-  - `DelegatedPermissionGrant.ReadWrite.All`
-- **Admin consent** granted for the tenant (the `.All` scopes all require it)
+- **API permissions (Microsoft Graph, Delegated)** — declare these on the app
+  registration. The app asks for them in steps, so nobody consents to more
+  than they use:
+  - **Sign-in**: `User.Read`
+  - **Reading** (asked once, right after sign-in): `User.Read.All`,
+    `Group.Read.All`, `Application.Read.All`,
+    `DelegatedPermissionGrant.Read.All`, `CrossTenantInformation.ReadBasic.All`,
+    `AuditLog.Read.All`
+  - **Changing things** (each asked the first time such a change is made):
+    - `Application.ReadWrite.All` — app registrations and enterprise apps
+    - `DelegatedPermissionGrant.ReadWrite.All` — delegated permission grants
+    - `AppRoleAssignment.ReadWrite.All` — application permissions and
+      user/group assignments
+    - `User.ReadWrite.All`, `Group.ReadWrite.All` — users and groups
+    - `User-PasswordProfile.ReadWrite.All` — resetting a password
+    - `User.Invite.All` — resending a guest invitation
+  - **Optional extras** (asked from the screen that shows them):
+    `RoleManagement.Read.Directory`, `IdentityRiskyUser.Read.All`,
+    `Sites.Read.All`
+- **Admin consent**: the `.All` scopes require it. Granting it for the tenant
+  up front skips the prompts; a read-only admin can instead consent to the
+  reading set alone. Tenants that consented before reading and writing were
+  split keep working: the read-write permissions they hold cover the
+  read-only ones.
 
 ## Deploy to GitHub Pages
 

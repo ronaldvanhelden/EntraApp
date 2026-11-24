@@ -8,7 +8,7 @@ import {
 import { MsalProvider as InnerProvider } from '@azure/msal-react';
 import {
   buildMsalConfig,
-  GRAPH_SCOPES,
+  LOGIN_SCOPES,
   isConfigured,
   loadAuthConfig,
   saveAuthConfig,
@@ -79,7 +79,7 @@ async function restoreAccount(
       // (and an account profile) that really belongs here.
       const result = await instance.acquireTokenSilent({
         account,
-        scopes: GRAPH_SCOPES,
+        scopes: LOGIN_SCOPES,
         forceRefresh: true,
       });
       if (wanted && result.tenantId?.toLowerCase() !== wanted) continue;

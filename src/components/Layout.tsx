@@ -2,7 +2,8 @@ import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useMsal } from '@azure/msal-react';
-import { GRAPH_SCOPES } from '../auth/config';
+import { LOGIN_SCOPES, READ_SCOPES } from '../auth/config';
+import { useGraphToken } from '../auth/useGraphToken';
 import { useAuthConfig } from '../auth/context';
 import { useCurrentTenantId } from '../auth/useCurrentTenantId';
 import {
@@ -95,7 +96,7 @@ export function Layout({ children }: Props) {
   if (!signedIn) return <SignInScreen />;
 
   return (
-    <>
+    <ReadAccessGate>
       <div className={layoutClasses}>
         <Header onMenuClick={toggleMenu} navOpen={showingMenu} />
         <Sidebar />
@@ -107,7 +108,7 @@ export function Layout({ children }: Props) {
           {children}
         </main>
       </div>
-    </>
+    </ReadAccessGate>
   );
 }
 
@@ -236,14 +237,81 @@ function TenantLinks() {
   );
 }
 
+// Sign-in only asks for the user's own profile. Reading the directory takes
+// permissions an admin has to consent to; they are checked for silently, and
+// when they are missing this screen asks for them from a click — a consent
+// popup opened on page load would be blocked by the browser.
+function ReadAccessGate({ children }: { children: ReactNode }) {
+  const { instance, accounts } = useMsal();
+  const silent = useGraphToken(READ_SCOPES, false);
+  const interactive = useGraphToken(READ_SCOPES);
+  const [state, setState] = useState<'checking' | 'ok' | 'needed'>('checking');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    silent()
+      .then(() => !cancelled && setState('ok'))
+      .catch(() => !cancelled && setState((s) => (s === 'ok' ? s : 'needed')));
+    return () => {
+      cancelled = true;
+    };
+  }, [silent]);
+
+  if (state === 'ok') return <>{children}</>;
+  if (state === 'checking')
+    return (
+      <div className="center">
+        <span className="spinner" />
+      </div>
+    );
+
+  const active = instance.getActiveAccount() ?? accounts[0];
+  const grant = () => {
+    setError(null);
+    interactive()
+      .then(() => setState('ok'))
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+  };
+  return (
+    <div className="center">
+      <h1>EntraApp</h1>
+      <p className="muted" style={{ maxWidth: 520 }}>
+        Signed in as <strong>{active?.username}</strong>. To show this directory, EntraApp needs
+        permission to read its apps, users, groups, permission grants and audit logs. Nothing is
+        changed with it — permission to make changes is asked for separately, the first time you
+        make one.
+      </p>
+      <p className="mono muted" style={{ fontSize: 12, maxWidth: 520 }}>
+        {READ_SCOPES.join(' · ')}
+      </p>
+      <div className="row">
+        <button className="primary" onClick={grant}>
+          Grant read access
+        </button>
+        <button onClick={() => instance.logoutRedirect().catch(() => {})}>Sign out</button>
+      </div>
+      {error && (
+        <p className="error" style={{ maxWidth: 520 }}>
+          {error}
+        </p>
+      )}
+      <p className="muted" style={{ fontSize: 12, maxWidth: 520 }}>
+        These permissions need an administrator's consent. If you are not one, ask an admin to grant
+        them for the organisation, then reload this page.
+      </p>
+    </div>
+  );
+}
+
 function SignInScreen() {
   const { instance } = useMsal();
   const { config, tenantOverride } = useAuthConfig();
   const signIn = () => {
     instance
-      .loginPopup({ scopes: GRAPH_SCOPES, prompt: 'select_account' })
+      .loginPopup({ scopes: LOGIN_SCOPES, prompt: 'select_account' })
       .catch(() =>
-        instance.loginRedirect({ scopes: GRAPH_SCOPES, prompt: 'select_account' }).catch(() => {}),
+        instance.loginRedirect({ scopes: LOGIN_SCOPES, prompt: 'select_account' }).catch(() => {}),
       );
   };
   return (

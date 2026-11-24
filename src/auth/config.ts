@@ -76,24 +76,70 @@ export function buildMsalConfig(config: AuthConfig): Configuration {
   };
 }
 
-// Scopes must match those declared on the app registration (Debble EntraApp).
-// Directory.AccessAsUser.All lets the app act as the signed-in user, which
-// covers creating appRoleAssignments on service principals for admins;
-// DelegatedPermissionGrant.ReadWrite.All is used for oauth2PermissionGrants.
-export const GRAPH_SCOPES = [
+// Permissions are asked for in steps, so nobody consents to more than they
+// use:
+//
+//  1. Sign-in asks for LOGIN_SCOPES only.
+//  2. Looking around needs READ_SCOPES. Right after sign-in the app checks
+//     for them silently and, when they are missing, shows one screen with a
+//     button that asks for them (a prompt on page load would be blocked).
+//  3. Each kind of change asks for its own write permission the first time
+//     it is made — always from a click, so the consent popup can open.
+//
+// All of them should be declared on the app registration (see the README).
+export const LOGIN_SCOPES = ['User.Read'];
+
+export const READ_SCOPES = [
   'User.Read',
   'User.Read.All',
   'Group.Read.All',
-  'Application.ReadWrite.All',
-  'DelegatedPermissionGrant.ReadWrite.All',
-  'AppRoleAssignment.ReadWrite.All',
+  'Application.Read.All',
+  'DelegatedPermissionGrant.Read.All',
   'CrossTenantInformation.ReadBasic.All',
   'AuditLog.Read.All',
 ];
 
-// Creating, editing and deleting users and groups. Kept out of GRAPH_SCOPES so
-// sign-in keeps working on app registrations that don't declare them: they
-// are requested (incremental consent) the first time such a write is made.
+// App registrations and enterprise apps: create, edit, delete, credentials,
+// owners, schema extensions and restoring deleted apps.
+export const APP_WRITE_SCOPES = ['Application.ReadWrite.All'];
+// Delegated permission grants (oauth2PermissionGrants).
+export const GRANT_WRITE_SCOPES = ['DelegatedPermissionGrant.ReadWrite.All'];
+// App role assignments: application permissions and user/group assignments.
+export const ROLE_ASSIGN_SCOPES = ['AppRoleAssignment.ReadWrite.All'];
+
+// The permission a Graph request needs beyond READ_SCOPES, judged from its
+// method and path, or undefined when reading is enough. The Graph client asks
+// this for every call, so no caller has to remember to pass a write token.
+// Writes to users and groups are not routed here: their callers pin the token
+// to USER_WRITE_SCOPES / GROUP_WRITE_SCOPES themselves.
+export function scopesForRequest(method: string, path: string): string[] | undefined {
+  if (method === 'GET') return undefined;
+  const p = path.replace(/^https:\/\/graph\.microsoft\.com\/[^/]+/, '').split('?')[0];
+  // POSTs that only read.
+  if (/^\/(\$batch|directoryObjects\/getByIds)\b/.test(p)) return undefined;
+  if (/\/appRoleAssign(edTo|ments)\b/.test(p)) return ROLE_ASSIGN_SCOPES;
+  if (/^\/oauth2PermissionGrants\b/.test(p)) return GRANT_WRITE_SCOPES;
+  if (/^\/(applications|servicePrincipals|schemaExtensions|directory\/deletedItems)\b/.test(p))
+    return APP_WRITE_SCOPES;
+  return undefined;
+}
+
+// Before reading and writing were split, tenants consented to the read-write
+// permissions only. Those cover the read-only ones, so a scope set that isn't
+// consented yet is retried in this older form before asking for consent.
+const LEGACY_SCOPE: Record<string, string> = {
+  'Application.Read.All': 'Application.ReadWrite.All',
+  'DelegatedPermissionGrant.Read.All': 'DelegatedPermissionGrant.ReadWrite.All',
+};
+
+// The older equivalent of a scope set, or null when it has none.
+export function legacyScopes(scopes: string[]): string[] | null {
+  if (!scopes.some((s) => s in LEGACY_SCOPE)) return null;
+  return scopes.map((s) => LEGACY_SCOPE[s] ?? s);
+}
+
+// Creating, editing and deleting users and groups: requested the first time
+// such a write is made.
 export const USER_WRITE_SCOPES = ['User.ReadWrite.All'];
 export const GROUP_WRITE_SCOPES = ['Group.ReadWrite.All'];
 // Setting or resetting a user's password: the permission Graph asks for to
