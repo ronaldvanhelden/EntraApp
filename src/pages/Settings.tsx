@@ -182,9 +182,9 @@ function TenantShortcuts({ currentTenantId }: { currentTenantId: string }) {
     <div className="card" style={{ maxWidth: 640 }}>
       <h3>Tenant shortcuts</h3>
       <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-        Each shortcut opens EntraApp pinned to one tenant. Open it in a new tab, or bookmark it to
-        jump straight into that directory — handy when your home tenant differs from the one you
-        manage.
+        Each shortcut pins EntraApp to one tenant. They are listed in the menu: a click switches
+        this tab to that tenant and keeps you signed in where it can. The link can also be
+        bookmarked to jump straight into that directory.
       </p>
 
       {shortcuts.length === 0 ? (
@@ -200,7 +200,7 @@ function TenantShortcuts({ currentTenantId }: { currentTenantId: string }) {
               <div className="shortcut-row" key={s.tenantId}>
                 <div className="shortcut-main">
                   <div className="shortcut-label">
-                    <a href={url} target="_blank" rel="noreferrer">
+                    <a href={url} title="Switch this tab to this tenant">
                       {s.label}
                     </a>
                     {active && <span className="badge granted">active</span>}

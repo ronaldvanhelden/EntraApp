@@ -7,6 +7,9 @@ import { ApplicationDetail } from './pages/ApplicationDetail';
 import { EnterpriseApps } from './pages/EnterpriseApps';
 import { EnterpriseAppDetail } from './pages/EnterpriseAppDetail';
 import { Settings } from './pages/Settings';
+import { Search } from './pages/Search';
+import { Groups, Users } from './pages/Principals';
+import { GroupDetail, UserDetail } from './pages/PrincipalDetail';
 
 export default function App() {
   return (
@@ -18,6 +21,11 @@ export default function App() {
           <Route path="/applications/:id" element={<ApplicationDetail />} />
           <Route path="/enterprise-apps" element={<EnterpriseApps />} />
           <Route path="/enterprise-apps/:id" element={<EnterpriseAppDetail />} />
+          <Route path="/users" element={<Users />} />
+          <Route path="/users/:id" element={<UserDetail />} />
+          <Route path="/groups" element={<Groups />} />
+          <Route path="/groups/:id" element={<GroupDetail />} />
+          <Route path="/search" element={<Search />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

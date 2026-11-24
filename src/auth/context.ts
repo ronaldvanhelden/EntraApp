@@ -8,6 +8,8 @@ interface AuthConfigContextValue {
   savedConfig: AuthConfig;
   /** Tenant this tab is pinned to via ?tenant=…, or null. */
   tenantOverride: string | null;
+  /** Whether an account is signed in for the tenant the tab is on now. */
+  signedIn: boolean;
   /** Persists a new configuration and drops any URL tenant pin. */
   setConfig: (config: AuthConfig) => void;
 }

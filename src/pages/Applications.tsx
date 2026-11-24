@@ -16,6 +16,9 @@ import type { Application } from '../graph/types';
 import { Modal } from '../components/Modal';
 import { AppIcon } from '../components/AppIcon';
 import { DeletedItemsList } from '../components/DeletedItemsList';
+import { QueryInput } from '../components/QueryInput';
+import { SortTh, useSort } from '../components/SortableTable';
+import type { Entity } from '../lib/searchQuery';
 import { FavoriteStar, TagChip } from '../components/TagChip';
 import {
   FAVORITE_TAG,
@@ -31,6 +34,8 @@ import {
   toStoredTag,
   withFavorite,
 } from '../lib/tags';
+
+const APP_ENTITIES: Entity[] = ['app'];
 
 type View = 'active' | 'owned' | 'deactivated' | 'deleted';
 const VIEWS: View[] = ['active', 'owned', 'deactivated', 'deleted'];
@@ -269,6 +274,18 @@ export function Applications() {
     }
   };
 
+  // Without a sort the list keeps its loaded order: favorites first, then A–Z.
+  const { sorted, sort } = useSort(visible, {
+    name: (a) => a.displayName,
+    'app-id': (a) => a.appId,
+    tags: (a) =>
+      sortTags(a.tags ?? [])
+        .map(tagLabel)
+        .join(' '),
+    credentials: credentialRank,
+    audience: (a) => a.signInAudience,
+  });
+
   return (
     <>
       <div className="page-header">
@@ -282,11 +299,12 @@ export function Applications() {
       </div>
 
       <div className="toolbar">
-        <input
+        <QueryInput
           className="search"
+          entities={APP_ENTITIES}
           placeholder="Search by name, unique name, appId, or tag…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={setSearch}
         />
         <div className="tabs" style={{ margin: 0, borderBottom: 'none' }}>
           <button
@@ -387,15 +405,25 @@ export function Applications() {
                     onChange={toggleAllVisible}
                   />
                 </th>
-                <th>Display name</th>
-                <th>Application (client) ID</th>
-                <th>Tags</th>
-                <th>Credentials</th>
-                <th>Sign-in audience</th>
+                <SortTh id="name" sort={sort}>
+                  Display name
+                </SortTh>
+                <SortTh id="app-id" sort={sort}>
+                  Application (client) ID
+                </SortTh>
+                <SortTh id="tags" sort={sort}>
+                  Tags
+                </SortTh>
+                <SortTh id="credentials" sort={sort}>
+                  Credentials
+                </SortTh>
+                <SortTh id="audience" sort={sort}>
+                  Sign-in audience
+                </SortTh>
               </tr>
             </thead>
             <tbody>
-              {visible.map((a) => (
+              {sorted.map((a) => (
                 <tr
                   key={a.id}
                   className={selected.has(a.id) ? 'selected' : undefined}
@@ -750,6 +778,22 @@ function credentialGroupState(creds: Array<{ endDateTime?: string }> | undefined
     if (end - now < soonMs) worst = 'soon';
   }
   return worst;
+}
+
+// Sorts the Credentials column by urgency — expired, expiring soon, healthy —
+// and by how many credentials there are within each; apps without any last.
+function credentialRank(app: Application): number | null {
+  const states = [
+    credentialGroupState(app.passwordCredentials),
+    credentialGroupState(app.keyCredentials),
+  ];
+  const count =
+    (app.passwordCredentials?.length ?? 0) +
+    (app.keyCredentials?.length ?? 0) +
+    (app.federatedIdentityCredentials?.length ?? 0);
+  if (count === 0) return null;
+  const urgency = states.includes('expired') ? 0 : states.includes('soon') ? 1 : 2;
+  return urgency * 10000 - Math.min(count, 9999);
 }
 
 function hasExpiredCredential(app: Application): boolean {

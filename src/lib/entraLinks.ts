@@ -19,3 +19,11 @@ export function entraEnterpriseAppUrl(
 ): string {
   return `${base(tenantId)}#view/Microsoft_AAD_IAM/ManagedAppMenuBlade/~/Overview/objectId/${spObjectId}/appId/${appId}`;
 }
+
+export function entraUserUrl(userId: string, tenantId?: string): string {
+  return `${base(tenantId)}#view/Microsoft_AAD_UsersAndTenants/UserProfileMenuBlade/~/overview/userId/${userId}`;
+}
+
+export function entraGroupUrl(groupId: string, tenantId?: string): string {
+  return `${base(tenantId)}#view/Microsoft_AAD_IAM/GroupDetailsMenuBlade/~/Overview/groupId/${groupId}`;
+}

@@ -280,7 +280,9 @@ pre {
   min-width: 0;
 }
 .sidebar a {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 10px 12px;
   color: var(--text-muted);
   border-radius: var(--radius-sm);
@@ -294,6 +296,18 @@ pre {
 .sidebar a.active {
   background: var(--bg-hover);
   color: var(--text);
+}
+.sidebar a svg {
+  flex-shrink: 0;
+}
+.sidebar a.active svg {
+  color: var(--accent);
+}
+.sidebar-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .sidebar h4 {
   color: var(--text-dim);
@@ -678,8 +692,23 @@ button.link:hover .mono {
 .table tbody tr:hover {
   background: var(--bg-hover);
 }
+/* Accent bar on the hovered row, so it stands out from its neighbours. */
+.table tbody tr:hover > td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
 .table tbody tr {
   cursor: pointer;
+  transition: background 0.12s ease;
+}
+/* Rows that go nowhere: no pointer, no hover. */
+.table tbody tr.static {
+  cursor: default;
+}
+.table tbody tr.static:hover {
+  background: none;
+}
+.table tbody tr.static:hover > td:first-child {
+  box-shadow: none;
 }
 .table tbody tr.selected {
   background: var(--bg-hover);
@@ -1808,4 +1837,415 @@ button.tag-suggestion {
     text-align: left;
     padding-left: 28px;
   }
+}
+
+/* Overview search (DirectorySearch): one box, results drop down in four
+   sections — app registrations, enterprise apps, users and groups. */
+.dsearch {
+  position: relative;
+  margin-bottom: 16px;
+}
+.dsearch > input {
+  padding: 10px 44px 10px 40px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius);
+}
+.dsearch > input::-webkit-search-cancel-button {
+  display: none;
+}
+.dsearch-icon {
+  position: absolute;
+  left: 13px;
+  top: 23px;
+  transform: translateY(-50%);
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.dsearch kbd {
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  background: var(--bg);
+}
+.dsearch-kbd {
+  position: absolute;
+  right: 12px;
+  top: 23px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.dsearch-panel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 6px;
+}
+.dsearch-section + .dsearch-section {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-subtle);
+}
+.dsearch-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.dsearch-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  min-width: 0;
+}
+.dsearch-option:hover {
+  color: var(--text);
+  text-decoration: none;
+  background: var(--bg-hover);
+}
+.dsearch-results-link {
+  margin-top: 6px;
+  border-top: 1px solid var(--border-subtle);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+.dsearch-results-link .dsearch-all {
+  padding-left: 0;
+}
+.dsearch-option.active {
+  background: var(--bg-hover);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.dsearch-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.dsearch-name,
+.dsearch-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dsearch-name mark {
+  background: none;
+  color: var(--accent-hover);
+  font-weight: 600;
+}
+.dsearch-star {
+  color: var(--warning);
+}
+.dsearch-sub {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.dsearch-id {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.dsearch-option > [role='img'] {
+  flex-shrink: 0;
+}
+.dsearch-ext {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-dim);
+}
+.dsearch-all {
+  font-size: 12.5px;
+  color: var(--accent);
+  padding-left: 34px;
+}
+.dsearch-note {
+  padding: 6px 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.dsearch-more {
+  padding-left: 42px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.dsearch-foot {
+  display: flex;
+  gap: 16px;
+  margin-top: 6px;
+  padding: 8px 8px 2px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+@media (max-width: 640px) {
+  .dsearch-id,
+  .dsearch-foot,
+  .dsearch-kbd {
+    display: none;
+  }
+}
+
+/* Search results page (/search). */
+.toolbar .search.search-wide {
+  max-width: 560px;
+}
+.filter-chips {
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.filter-chips button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.filter-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 4px;
+  background: var(--border);
+}
+.table a.result-link {
+  color: var(--text);
+}
+.table mark {
+  background: none;
+  color: var(--accent-hover);
+  font-weight: 600;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+/* User / group detail pages: properties beside details, related lists in one
+   tabbed card — tighter than the default card stack. */
+.detail-header {
+  margin-bottom: 12px;
+}
+.detail-header h1 {
+  font-size: 20px;
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 12px;
+}
+.detail-grid > .card {
+  margin-bottom: 0;
+  padding: 12px 14px;
+  height: 100%;
+}
+.detail-grid .card h3 {
+  margin-bottom: 8px;
+}
+.detail-grid label.field {
+  margin-bottom: 8px;
+}
+.detail-grid input,
+.detail-grid textarea {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: end;
+}
+/* The display name spans both columns. */
+.form-grid > label.field:first-child {
+  grid-column: 1 / -1;
+}
+.form-grid > label.row {
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+}
+/* Chain icon + SharePoint profile name after a synced property's label. */
+.sp-sync,
+label.field span .sp-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  font-style: normal;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--accent);
+  white-space: nowrap;
+  cursor: help;
+}
+.sp-sync svg {
+  width: 11px;
+  height: 11px;
+}
+.kv.compact {
+  grid-template-columns: 150px 1fr;
+  row-gap: 5px;
+  column-gap: 12px;
+}
+.related-card {
+  padding: 0;
+}
+.related-card > .tabs {
+  margin-bottom: 0;
+  padding: 0 6px;
+}
+.related-card .table th,
+.related-card .table td {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+.related-note {
+  padding: 12px 14px;
+}
+@media (max-width: 900px) {
+  .detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* "Show site" in a table cell or details row: asks for SharePoint consent. */
+button.site-consent {
+  min-height: 0;
+  padding: 1px 8px;
+  font-size: 12px;
+  border-color: var(--border);
+}
+
+/* Sortable column header (SortTh). */
+.table th button.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 0;
+  margin: -2px -6px;
+  padding: 2px 6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.table th button.th-sort:hover,
+.table th button.th-sort.active {
+  color: var(--text);
+}
+.table th button.th-sort:hover {
+  background: var(--bg-hover);
+}
+.th-sort-arrow {
+  font-size: 9px;
+  opacity: 0.35;
+}
+.th-sort.active .th-sort-arrow {
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* Search box with query-language completion (QueryInput). */
+.qinput {
+  position: relative;
+}
+.toolbar .qinput.search > input {
+  width: 100%;
+}
+.qinput > input::-webkit-search-cancel-button {
+  display: none;
+}
+.qinput > input[aria-invalid='true'] {
+  border-color: var(--warning);
+}
+.qinput-list,
+.qinput-problem {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  width: max-content;
+  max-width: min(520px, 90vw);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.qinput-list {
+  padding: 4px;
+}
+.qinput-problem {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--warning);
+}
+.qinput-option {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  cursor: pointer;
+}
+.qinput-option:hover,
+.qinput-option.active {
+  background: var(--bg-hover);
+}
+.qinput-option.active {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.qinput-option .muted {
+  font-size: 12px;
+}
+.qinput-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 4px;
+  padding: 6px 8px 3px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.qinput-foot kbd {
+  font: inherit;
+  font-size: 11px;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
 }
