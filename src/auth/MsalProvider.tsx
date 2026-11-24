@@ -31,6 +31,7 @@ interface Props {
 // cache gets in does the sign-in screen appear — the other tenants' accounts
 // stay signed in meanwhile.
 const TENANT_ACCOUNTS_KEY = 'entraapp.tenantAccounts';
+const GUID_RE = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
 function tenantAccounts(): Record<string, string> {
   try {
@@ -68,9 +69,20 @@ async function restoreAccount(
     ...all.filter((a) => a.tenantId?.toLowerCase() === key),
     ...all,
   ].filter((a, i, list) => list.findIndex((b) => b.homeAccountId === a.homeAccountId) === i);
+  const wanted = GUID_RE.test(tenant) ? key : null;
   for (const account of ordered.slice(0, 4)) {
     try {
-      const result = await instance.acquireTokenSilent({ account, scopes: GRAPH_SCOPES });
+      // forceRefresh: MSAL's cache lookup goes by the account's own tenant, so
+      // without it an account from another tenant would hand back its cached
+      // token for *that* tenant — and the app would show the wrong directory.
+      // Redeeming the refresh token at this tenant's authority gives a token
+      // (and an account profile) that really belongs here.
+      const result = await instance.acquireTokenSilent({
+        account,
+        scopes: GRAPH_SCOPES,
+        forceRefresh: true,
+      });
+      if (wanted && result.tenantId?.toLowerCase() !== wanted) continue;
       return result.account ?? account;
     } catch {
       // Not usable here without interaction: try the next one.
