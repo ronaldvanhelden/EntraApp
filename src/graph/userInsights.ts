@@ -214,6 +214,7 @@ export async function listUserLicenses(token: TokenFn, id: string): Promise<Rela
 
 export interface UserRole {
   key: string;
+  roleDefinitionId: string;
   name: string;
   description?: string;
   // Active now, or eligible: can be activated through PIM.
@@ -281,6 +282,7 @@ export async function listUserRoles(token: TokenFn, id: string): Promise<Related
     until?: string | null,
   ): UserRole => ({
     key: `${state}-${a.id}`,
+    roleDefinitionId: a.roleDefinitionId,
     name: def?.displayName ?? a.roleDefinitionId,
     description: def?.description,
     state,

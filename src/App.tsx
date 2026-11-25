@@ -10,6 +10,7 @@ import { Settings } from './pages/Settings';
 import { Search } from './pages/Search';
 import { Groups, Users } from './pages/Principals';
 import { GroupDetail, UserDetail } from './pages/PrincipalDetail';
+import { Pim } from './pages/Pim';
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="/users/:id" element={<UserDetail />} />
           <Route path="/groups" element={<Groups />} />
           <Route path="/groups/:id" element={<GroupDetail />} />
+          <Route path="/pim" element={<Pim />} />
           <Route path="/search" element={<Search />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -94,6 +94,13 @@ const FIELDS: Record<Entity, Field[]> = {
       kind: 'text',
     },
     { name: 'lastname', aliases: ['surname'], prop: 'surname', label: 'Last name', kind: 'text' },
+    {
+      name: 'company',
+      aliases: ['companyname'],
+      prop: 'companyName',
+      label: 'Company',
+      kind: 'text',
+    },
     { name: 'department', prop: 'department', label: 'Department', kind: 'text' },
     { name: 'jobtitle', aliases: ['title'], prop: 'jobTitle', label: 'Job title', kind: 'text' },
     {

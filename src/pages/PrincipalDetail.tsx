@@ -5,6 +5,7 @@ import { useGraphToken } from '../auth/useGraphToken';
 import { useCurrentTenantId } from '../auth/useCurrentTenantId';
 import {
   GROUP_WRITE_SCOPES,
+  PIM_ASSIGN_SCOPES,
   RISK_READ_SCOPES,
   ROLE_READ_SCOPES,
   USER_INVITE_SCOPES,
@@ -20,6 +21,8 @@ import {
   listAppAssignments,
   listGroupMembers,
   listGroupOwners,
+  addGroupMember,
+  removeGroupMember,
   listUserGroups,
   updateGroup,
   updateUser,
@@ -63,7 +66,10 @@ import type { AppRoleAssignment } from '../graph/types';
 import { entraGroupUrl, entraUserUrl } from '../lib/entraLinks';
 import { ChainLinkIcon, ExternalLinkIcon } from '../components/ButtonIcons';
 import { useConfirm, type ConfirmOptions } from '../components/ConfirmDialog';
+import { ConsentGate } from '../components/ConsentGate';
 import { CopyButton } from '../components/CopyButton';
+import { AssignRole } from '../components/PimDialogs';
+import { removeRole } from '../graph/pim';
 import { groupKind } from '../components/DirectorySearch';
 import { GroupSiteLink, useGroupSites } from '../components/GroupSites';
 import { Identicon } from '../components/Identicon';
@@ -158,6 +164,8 @@ function RelatedPanel<T>({
   // Adds a bin button to each row: asks first, then drops the row.
   remove?: {
     label: string;
+    // Rows this returns false for get no button.
+    canRemove?: (item: T) => boolean;
     confirm: (item: T) => ConfirmOptions;
     run: (item: T) => Promise<void>;
   };
@@ -261,11 +269,13 @@ function RelatedPanel<T>({
                 ))}
                 {remove && (
                   <td className="row-actions" onClick={(e) => e.stopPropagation()}>
-                    <RemoveButton
-                      label={remove.label}
-                      busy={busy === rowKey(item)}
-                      onClick={() => void removeRow(item)}
-                    />
+                    {remove.canRemove?.(item) !== false && (
+                      <RemoveButton
+                        label={remove.label}
+                        busy={busy === rowKey(item)}
+                        onClick={() => void removeRow(item)}
+                      />
+                    )}
                   </td>
                 )}
               </tr>
@@ -396,68 +406,94 @@ function appAssignmentsTab(token: TokenFn, kind: 'users' | 'groups', id: string)
   };
 }
 
-// ------------------------------------------------------- Optional permissions
+// -------------------------------------------------------------------- Roles
 
-// Wraps a panel that needs a permission outside the sign-in set. The token is
-// tried silently; when consent is still missing the panel shows a button
-// instead of opening a popup on page load.
-function ConsentGate({
-  scopes,
-  what,
-  inline = false,
-  children,
+// The user's admin roles — held or eligible, directly or through a group —
+// with assigning a new one and removing a direct one (both through PIM).
+function UserRolesPanel({
+  token,
+  userId,
+  userName,
+  onCount,
 }: {
-  // Inside a details row rather than filling a tab.
-  inline?: boolean;
-  scopes: string[];
-  // What the permission is for, e.g. "directory roles".
-  what: string;
-  children: (token: TokenFn) => ReactNode;
+  token: TokenFn;
+  userId: string;
+  userName: string;
+  onCount: (label: string) => void;
 }) {
-  const silent = useGraphToken(scopes, false);
-  const interactive = useGraphToken(scopes);
-  const [state, setState] = useState<'checking' | 'ok' | 'needed'>('checking');
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    silent()
-      .then(() => !cancelled && setState('ok'))
-      .catch(() => !cancelled && setState('needed'));
-    return () => {
-      cancelled = true;
-    };
-  }, [silent]);
-
-  if (state === 'ok') return <>{children(interactive)}</>;
-  const box = inline ? undefined : 'related-note';
-  if (state === 'checking')
-    return (
-      <div className={box}>
-        <span className="spinner" />
-      </div>
-    );
+  const assignToken = useGraphToken(PIM_ASSIGN_SCOPES);
+  const [assigning, setAssigning] = useState(false);
+  const [version, setVersion] = useState(0);
   return (
-    <div className={box}>
-      <div className="row" style={{ gap: 12, alignItems: 'center' }}>
-        <span className="muted">
-          Showing {what} needs the <span className="mono">{scopes.join(', ')}</span> permission.
-        </span>
-        <button
-          onClick={() =>
-            interactive()
-              .then(() => setState('ok'))
-              .catch((e: unknown) => setError(message(e)))
-          }
-        >
-          Grant access
+    <>
+      <div className="row related-note" style={{ justifyContent: 'space-between', gap: 12 }}>
+        <div className="muted" style={{ fontSize: 12 }}>
+          Eligible roles have to be activated before use; the user does that under{' '}
+          <Link to="/pim">Privileged roles</Link>.
+        </div>
+        <button style={{ flexShrink: 0 }} onClick={() => setAssigning(true)}>
+          + Assign role
         </button>
       </div>
-      {error && (
-        <p className="error" style={{ marginBottom: 0 }}>
-          {error}
-        </p>
+      <RelatedPanel
+        load={() => listUserRoles(token, userId)}
+        deps={[token, userId, version]}
+        onCount={onCount}
+        columns={['Admin role', 'Status', 'Scope', 'Assigned']}
+        rowKey={(r) => r.key}
+        row={(r) => [
+          <span title={r.description}>{r.name}</span>,
+          r.state === 'active' ? (
+            <span className="badge granted">Active</span>
+          ) : (
+            <span className="badge pending" title="Can be activated through PIM">
+              Eligible
+              {r.until ? ` until ${new Date(r.until).toLocaleDateString()}` : ''}
+            </span>
+          ),
+          r.scope === '/' ? 'Whole directory' : <span className="mono">{r.scope}</span>,
+          r.viaGroup ? (
+            <>
+              Through <Link to={`/groups/${r.viaGroup.id}`}>{r.viaGroup.name}</Link>
+            </>
+          ) : (
+            'Directly'
+          ),
+        ]}
+        remove={{
+          label: 'Remove this role',
+          // A role that comes through a group is removed on the group.
+          canRemove: (r) => !r.viaGroup,
+          confirm: (r) => ({
+            title: `Remove ${r.name} from ${userName}?`,
+            message:
+              r.state === 'eligible'
+                ? `${userName} can no longer activate this role.`
+                : `${userName} loses this role straight away. A role that is only active because it was activated can't be removed here — remove the eligibility instead.`,
+            confirmLabel: 'Remove role',
+          }),
+          run: (r) =>
+            removeRole(assignToken, {
+              kind: r.state,
+              principalId: userId,
+              roleDefinitionId: r.roleDefinitionId,
+              directoryScopeId: r.scope,
+            }).then(() => undefined),
+        }}
+        empty="No admin roles."
+      />
+      {assigning && (
+        <AssignRole
+          principal={{ id: userId, displayName: userName, kind: 'user' }}
+          onClose={() => setAssigning(false)}
+          onDone={() => {
+            setAssigning(false);
+            // PIM applies the assignment a moment after accepting it.
+            window.setTimeout(() => setVersion((v) => v + 1), 2000);
+          }}
+        />
       )}
-    </div>
+    </>
   );
 }
 
@@ -1021,6 +1057,321 @@ function SaveBar({
         </p>
       )}
     </>
+  );
+}
+
+// The groups a user is a direct member of, with a button to add another.
+function UserGroupsPanel({
+  token,
+  userId,
+  userName,
+  onCount,
+}: {
+  token: TokenFn;
+  userId: string;
+  userName: string;
+  onCount: (label: string) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [version, setVersion] = useState(0);
+  // Ids of the listed groups, so the picker can say "already a member".
+  const [memberOf, setMemberOf] = useState<string[]>([]);
+  return (
+    <>
+      <div className="row related-note" style={{ justifyContent: 'space-between', gap: 12 }}>
+        <div className="muted" style={{ fontSize: 12 }}>
+          Groups the user is a direct member of.
+        </div>
+        <button style={{ flexShrink: 0 }} onClick={() => setAdding(true)}>
+          + Add to group
+        </button>
+      </div>
+      <RelatedPanel
+        load={async () => {
+          const groups = await listUserGroups(token, userId);
+          setMemberOf(groups.items.map((g) => g.id));
+          return groups;
+        }}
+        deps={[token, userId, version]}
+        onCount={onCount}
+        columns={['Member of', 'Type', 'Mail']}
+        rowKey={(g) => g.id}
+        to={(g) => `/groups/${g.id}`}
+        row={(g) => [
+          <NameCell id={g.id} name={g.displayName ?? g.id} to={`/groups/${g.id}`} />,
+          <span className="muted">{groupKind(g)}</span>,
+          g.mail ?? dash,
+        ]}
+        empty="Not a member of any group."
+      />
+      {adding && (
+        <AddToGroup
+          userId={userId}
+          userName={userName}
+          memberOf={memberOf}
+          onClose={() => setAdding(false)}
+          onAdded={() => {
+            setAdding(false);
+            setVersion((v) => v + 1);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function AddToGroup({
+  userId,
+  userName,
+  memberOf,
+  onClose,
+  onAdded,
+}: {
+  userId: string;
+  userName: string;
+  memberOf: string[];
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const token = useGraphToken(GROUP_WRITE_SCOPES);
+  const [picked, setPicked] = useState<PrincipalRef | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const already = picked !== null && memberOf.includes(picked.id);
+
+  const submit = async () => {
+    if (!picked) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await addGroupMember(token, picked.id, userId);
+      onAdded();
+    } catch (e: unknown) {
+      setError(message(e));
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={`Add ${userName} to a group`}
+      onClose={() => !saving && onClose()}
+      footer={
+        <>
+          <button disabled={saving} onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className="primary"
+            disabled={saving || !picked || already}
+            onClick={() => void submit()}
+          >
+            {saving ? 'Adding…' : 'Add to group'}
+          </button>
+        </>
+      }
+    >
+      <p style={{ marginTop: 0, fontSize: 14 }}>
+        Members of dynamic groups, groups synced from on-premises AD and distribution lists can't be
+        changed here.
+      </p>
+      <PrincipalPicker
+        kinds={['group']}
+        selected={picked}
+        onChange={(p) => {
+          setPicked(p);
+          setError(null);
+        }}
+        placeholder="Search groups (min 2 chars)…"
+        autoFocus
+      />
+      {already && (
+        <p className="error" style={{ marginTop: 12 }}>
+          {userName} is already a member of this group.
+        </p>
+      )}
+      {error && (
+        <p className="error" style={{ marginTop: 12 }}>
+          {error}
+        </p>
+      )}
+    </Modal>
+  );
+}
+
+// Why Graph won't take a new member for this group, if it won't.
+function membersLocked(group: GroupData): string | undefined {
+  const types = group.groupTypes ?? [];
+  if (group.onPremisesSyncEnabled)
+    return 'This group is synced from on-premises AD; change its members there.';
+  if (group.membershipRule || types.includes('DynamicMembership'))
+    return 'Members of a dynamic group follow from its membership rule.';
+  if (group.mailEnabled && !types.includes('Unified'))
+    return 'Distribution lists and mail-enabled security groups are managed in Exchange.';
+  return undefined;
+}
+
+// The direct members of a group, with buttons to add one and to remove one.
+function GroupMembersPanel({
+  token,
+  group,
+  onCount,
+}: {
+  token: TokenFn;
+  group: GroupData;
+  onCount: (label: string) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [version, setVersion] = useState(0);
+  // Ids of the listed members, so the picker can say "already a member".
+  const [members, setMembers] = useState<string[]>([]);
+  const locked = membersLocked(group);
+  const writeToken = useGraphToken(GROUP_WRITE_SCOPES);
+  return (
+    <>
+      <div className="row related-note" style={{ justifyContent: 'space-between', gap: 12 }}>
+        <div className="muted" style={{ fontSize: 12 }}>
+          {locked ?? 'Direct members of this group.'}
+        </div>
+        <button
+          style={{ flexShrink: 0 }}
+          disabled={!!locked}
+          title={locked}
+          onClick={() => setAdding(true)}
+        >
+          + Add member
+        </button>
+      </div>
+      <RelatedPanel
+        load={async () => {
+          const list = await listGroupMembers(token, group.id);
+          setMembers(list.items.map((m) => m.id));
+          return list;
+        }}
+        deps={[token, group.id, version]}
+        onCount={onCount}
+        columns={['Name', 'Type', 'Sign-in name / ID']}
+        rowKey={(m) => m.id}
+        to={(m) => memberTarget(m)[1]}
+        row={memberCells}
+        empty="This group has no members."
+        remove={
+          locked
+            ? undefined
+            : {
+                label: 'Remove from group',
+                confirm: (m) => ({
+                  title: `Remove ${m.displayName ?? 'this member'} from the group?`,
+                  message: (
+                    <p style={{ margin: 0, fontSize: 14 }}>
+                      <strong>{m.userPrincipalName ?? m.displayName ?? m.id}</strong> loses whatever{' '}
+                      <strong>{group.displayName ?? 'this group'}</strong> gives access to: apps,
+                      licences, sites and roles assigned to the group.
+                    </p>
+                  ),
+                  confirmLabel: 'Remove member',
+                }),
+                run: async (m) => {
+                  await removeGroupMember(writeToken, group.id, m.id);
+                  setMembers((prev) => prev.filter((id) => id !== m.id));
+                },
+              }
+        }
+      />
+      {adding && (
+        <AddGroupMember
+          group={group}
+          members={members}
+          onClose={() => setAdding(false)}
+          onAdded={() => {
+            setAdding(false);
+            setVersion((v) => v + 1);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function AddGroupMember({
+  group,
+  members,
+  onClose,
+  onAdded,
+}: {
+  group: GroupData;
+  members: string[];
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const token = useGraphToken(GROUP_WRITE_SCOPES);
+  const [picked, setPicked] = useState<PrincipalRef | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Microsoft 365 groups only take users; security groups also take groups
+  // and service principals.
+  const unified = (group.groupTypes ?? []).includes('Unified');
+  const problem = !picked
+    ? null
+    : picked.id === group.id
+      ? "A group can't be a member of itself."
+      : members.includes(picked.id)
+        ? `${picked.displayName ?? 'This one'} is already a member of this group.`
+        : null;
+
+  const submit = async () => {
+    if (!picked) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await addGroupMember(token, group.id, picked.id);
+      onAdded();
+    } catch (e: unknown) {
+      setError(message(e));
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={`Add a member to ${group.displayName ?? 'this group'}`}
+      onClose={() => !saving && onClose()}
+      footer={
+        <>
+          <button disabled={saving} onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className="primary"
+            disabled={saving || !picked || problem !== null}
+            onClick={() => void submit()}
+          >
+            {saving ? 'Adding…' : 'Add member'}
+          </button>
+        </>
+      }
+    >
+      <p style={{ marginTop: 0, fontSize: 14 }}>
+        {unified
+          ? 'A Microsoft 365 group can only have users as members.'
+          : 'A security group can have users, other groups and service principals as members.'}
+      </p>
+      <PrincipalPicker
+        kinds={unified ? ['user'] : ['user', 'group', 'sp']}
+        selected={picked}
+        onChange={(p) => {
+          setPicked(p);
+          setError(null);
+        }}
+        placeholder={unified ? 'Search users (min 2 chars)…' : 'Search (min 2 chars)…'}
+        autoFocus
+      />
+      {(problem ?? error) && (
+        <p className="error" style={{ marginTop: 12 }}>
+          {problem ?? error}
+        </p>
+      )}
+    </Modal>
   );
 }
 
@@ -1632,20 +1983,7 @@ export function UserDetail() {
             key: 'groups',
             title: 'Groups',
             panel: (onCount) => (
-              <RelatedPanel
-                load={() => listUserGroups(token, user.id)}
-                deps={[token, user.id]}
-                onCount={onCount}
-                columns={['Member of', 'Type', 'Mail']}
-                rowKey={(g) => g.id}
-                to={(g) => `/groups/${g.id}`}
-                row={(g) => [
-                  <NameCell id={g.id} name={g.displayName ?? g.id} to={`/groups/${g.id}`} />,
-                  <span className="muted">{groupKind(g)}</span>,
-                  g.mail ?? dash,
-                ]}
-                empty="Not a member of any group."
-              />
+              <UserGroupsPanel token={token} userId={user.id} userName={name} onCount={onCount} />
             ),
           },
           {
@@ -1654,32 +1992,11 @@ export function UserDetail() {
             panel: (onCount) => (
               <ConsentGate scopes={ROLE_READ_SCOPES} what="directory roles">
                 {(roleToken) => (
-                  <RelatedPanel
-                    load={() => listUserRoles(roleToken, user.id)}
-                    deps={[roleToken, user.id]}
+                  <UserRolesPanel
+                    token={roleToken}
+                    userId={user.id}
+                    userName={name}
                     onCount={onCount}
-                    columns={['Admin role', 'Status', 'Scope', 'Assigned']}
-                    rowKey={(r) => r.key}
-                    row={(r) => [
-                      <span title={r.description}>{r.name}</span>,
-                      r.state === 'active' ? (
-                        <span className="badge granted">Active</span>
-                      ) : (
-                        <span className="badge pending" title="Can be activated through PIM">
-                          Eligible
-                          {r.until ? ` until ${new Date(r.until).toLocaleDateString()}` : ''}
-                        </span>
-                      ),
-                      r.scope === '/' ? 'Whole directory' : <span className="mono">{r.scope}</span>,
-                      r.viaGroup ? (
-                        <>
-                          Through <Link to={`/groups/${r.viaGroup.id}`}>{r.viaGroup.name}</Link>
-                        </>
-                      ) : (
-                        'Directly'
-                      ),
-                    ]}
-                    empty="No admin roles."
                   />
                 )}
               </ConsentGate>
@@ -2133,18 +2450,7 @@ export function GroupDetail() {
           {
             key: 'members',
             title: 'Members',
-            panel: (onCount) => (
-              <RelatedPanel
-                load={() => listGroupMembers(token, group.id)}
-                deps={[token, group.id]}
-                onCount={onCount}
-                columns={['Name', 'Type', 'Sign-in name / ID']}
-                rowKey={(m) => m.id}
-                to={(m) => memberTarget(m)[1]}
-                row={memberCells}
-                empty="This group has no members."
-              />
-            ),
+            panel: (onCount) => <GroupMembersPanel token={token} group={group} onCount={onCount} />,
           },
           {
             key: 'owners',

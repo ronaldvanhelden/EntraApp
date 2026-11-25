@@ -1,3 +1,4 @@
+import { GRAPH_BASE } from '../auth/config';
 import { graph, graphAll, GraphError } from './client';
 import type { DirectoryAuditEvent } from './directoryAudits';
 import type { QuickGroup, QuickUser } from './quickSearch';
@@ -265,6 +266,23 @@ export function listUserGroups(token: TokenFn, userId: string) {
     `/users/${userId}/memberOf/microsoft.graph.group`,
     'id,displayName,description,mail,mailEnabled,securityEnabled,groupTypes',
   );
+}
+
+// Makes a user (or any directory object) a direct member of the group. Needs
+// Group.ReadWrite.All and a role that manages the group, or ownership of it.
+// Graph refuses groups it doesn't manage: dynamic groups, groups synced from
+// on-premises AD, and distribution or mail-enabled security groups (Exchange).
+export function addGroupMember(token: TokenFn, groupId: string, memberId: string) {
+  return graph<void>(token, `/groups/${groupId}/members/$ref`, {
+    method: 'POST',
+    body: { '@odata.id': `${GRAPH_BASE}/directoryObjects/${memberId}` },
+  });
+}
+
+// Takes a direct member out of the group. Same permissions and the same
+// unmanaged kinds of group as addGroupMember.
+export function removeGroupMember(token: TokenFn, groupId: string, memberId: string) {
+  return graph<void>(token, `/groups/${groupId}/members/${memberId}/$ref`, { method: 'DELETE' });
 }
 
 export function listGroupMembers(token: TokenFn, groupId: string) {

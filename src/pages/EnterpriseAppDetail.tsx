@@ -24,13 +24,14 @@ import {
 import { PermissionsManager } from '../components/PermissionsManager';
 import { AssignedUsersManager } from '../components/AssignedUsersManager';
 import { ActivityTab } from '../components/ActivityTab';
+import { ChangeHistory } from '../components/ChangeHistory';
 import { entraEnterpriseAppUrl } from '../lib/entraLinks';
 import { AppIcon } from '../components/AppIcon';
 import { CopyButton } from '../components/CopyButton';
 import { Modal } from '../components/Modal';
 import { AppRegistrationIcon, ExternalLinkIcon } from '../components/ButtonIcons';
 
-type Tab = 'overview' | 'permissions' | 'assignments' | 'activity';
+type Tab = 'overview' | 'permissions' | 'assignments' | 'activity' | 'changes';
 
 export function EnterpriseAppDetail() {
   const { id = '' } = useParams();
@@ -224,6 +225,9 @@ export function EnterpriseAppDetail() {
         <button className={tab === 'activity' ? 'active' : ''} onClick={() => setTab('activity')}>
           Activity
         </button>
+        <button className={tab === 'changes' ? 'active' : ''} onClick={() => setTab('changes')}>
+          Changes
+        </button>
       </div>
 
       {tab === 'overview' && (
@@ -305,6 +309,7 @@ export function EnterpriseAppDetail() {
       {tab === 'permissions' && <PermissionsManager clientSp={sp} />}
       {tab === 'assignments' && <AssignedUsersManager sp={sp} />}
       {tab === 'activity' && <ActivityTab appId={sp.appId} sp={sp} />}
+      {tab === 'changes' && <ChangeHistory targets={[{ id: sp.id, label: 'Enterprise app' }]} />}
 
       {confirmDelete && (
         <Modal

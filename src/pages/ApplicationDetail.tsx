@@ -58,6 +58,7 @@ import { PrivilegeBadge, useScopeCatalog } from '../components/PrivilegeBadge';
 import { ScopeDetailsModal } from '../components/ScopeDetailsModal';
 import { AddRequiredPermissionModal } from '../components/AddRequiredPermissionModal';
 import { ActivityTab } from '../components/ActivityTab';
+import { ChangeHistory } from '../components/ChangeHistory';
 import { CredentialUsage } from '../components/CredentialUsage';
 import { ExposedApiManager } from '../components/ExposedApiManager';
 import { SchemaExtensionsManager } from '../components/SchemaExtensionsManager';
@@ -85,7 +86,8 @@ type Tab =
   | 'api'
   | 'schema'
   | 'manifest'
-  | 'activity';
+  | 'activity'
+  | 'changes';
 
 export function ApplicationDetail() {
   const { id = '' } = useParams();
@@ -244,6 +246,9 @@ export function ApplicationDetail() {
         <button className={tab === 'activity' ? 'active' : ''} onClick={() => setTab('activity')}>
           Activity
         </button>
+        <button className={tab === 'changes' ? 'active' : ''} onClick={() => setTab('changes')}>
+          Changes
+        </button>
       </div>
 
       {tab === 'overview' && editing && (
@@ -362,6 +367,14 @@ export function ApplicationDetail() {
         </Suspense>
       )}
       {tab === 'activity' && <ActivityTab appId={app.appId} app={app} fics={fic} sp={sp} />}
+      {tab === 'changes' && (
+        <ChangeHistory
+          targets={[
+            { id: app.id, label: 'App registration' },
+            ...(sp ? [{ id: sp.id, label: 'Enterprise app' }] : []),
+          ]}
+        />
+      )}
 
       {confirmDelete && (
         <DeleteModal

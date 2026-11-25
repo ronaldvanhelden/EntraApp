@@ -7,7 +7,10 @@ type TokenFn = () => Promise<string>;
 // Number of objects in a directory collection. /$count returns a bare number
 // and needs the eventual-consistency header (but not $count=true, which the
 // `advanced` flag would add).
-export function countCollection(token: TokenFn, collection: 'applications' | 'servicePrincipals') {
+export function countCollection(
+  token: TokenFn,
+  collection: 'applications' | 'servicePrincipals' | 'users' | 'groups',
+) {
   return graph<number>(token, `/${collection}/$count`, {
     headers: { ConsistencyLevel: 'eventual' },
   });

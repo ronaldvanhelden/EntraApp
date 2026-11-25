@@ -347,6 +347,8 @@ const userColumns = (late: Column<QuickUser>[]): Column<QuickUser>[] => [
         <span className="badge granted">Enabled</span>
       ),
   },
+  { header: 'Company', cell: (u) => u.companyName ?? dash, sort: (u) => u.companyName },
+  { header: 'Department', cell: (u) => u.department ?? dash, sort: (u) => u.department },
   ...late,
   {
     header: 'Created',
