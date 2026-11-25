@@ -700,12 +700,10 @@ button.link:hover .mono {
   cursor: pointer;
   transition: background 0.12s ease;
 }
-/* Rows that go nowhere: no pointer, no hover. */
+/* Rows that go nowhere: still highlighted on hover so the eye can follow the
+   row across, but no pointer and no accent bar. */
 .table tbody tr.static {
   cursor: default;
-}
-.table tbody tr.static:hover {
-  background: none;
 }
 .table tbody tr.static:hover > td:first-child {
   box-shadow: none;
@@ -2085,6 +2083,15 @@ button.tag-suggestion {
   margin-bottom: 8px;
   padding-bottom: 6px;
 }
+/* Tenant summary on top of the Overview. */
+.tenant-card {
+  margin-bottom: 16px;
+}
+.tenant-facts {
+  margin-top: 12px;
+  overflow-wrap: anywhere;
+}
+
 /* Chain icon + SharePoint profile name after a synced property's label. */
 .sp-sync,
 label.field span .sp-sync {
@@ -2248,4 +2255,23 @@ button.site-consent {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg);
+}
+
+/* Change history (audit log) */
+.changes {
+  display: grid;
+  gap: 4px;
+}
+.change {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+}
+.change-name {
+  font-weight: 600;
+}
+.change code {
+  overflow-wrap: anywhere;
 }

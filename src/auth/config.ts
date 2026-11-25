@@ -151,6 +151,13 @@ export const USER_INVITE_SCOPES = ['User.Invite.All'];
 // when the admin clicks: directory roles (active and PIM-eligible) and the
 // Identity Protection risk state.
 export const ROLE_READ_SCOPES = ['RoleManagement.Read.Directory'];
+// Privileged Identity Management: turning your own eligible role on, and
+// (for admins who manage roles) assigning or removing roles for others.
+export const PIM_ACTIVATE_SCOPES = ['RoleAssignmentSchedule.ReadWrite.Directory'];
+export const PIM_ASSIGN_SCOPES = [
+  'RoleEligibilitySchedule.ReadWrite.Directory',
+  'RoleAssignmentSchedule.ReadWrite.Directory',
+];
 export const RISK_READ_SCOPES = ['IdentityRiskyUser.Read.All'];
 // The SharePoint site behind a Microsoft 365 group. Also requested on demand:
 // it is tried silently, and consent is only asked for when the user clicks.

@@ -15,6 +15,7 @@ import {
 import type { Application } from '../graph/types';
 import { AppIcon } from '../components/AppIcon';
 import { DirectorySearch } from '../components/DirectorySearch';
+import { TenantCard } from '../components/TenantCard';
 
 // Activities the Overview card surfaces. Names must match Microsoft Graph's
 // activityDisplayName values exactly — they're case-sensitive strings.
@@ -107,6 +108,8 @@ export function Home() {
 
   return (
     <>
+      <DirectorySearch />
+
       <div className="page-header">
         <div>
           <h1>Overview</h1>
@@ -131,7 +134,7 @@ export function Home() {
         </div>
       </div>
 
-      <DirectorySearch />
+      <TenantCard />
 
       <div className="stat-grid">
         <StatTile label="App registrations" value={appCount} to="/applications" />

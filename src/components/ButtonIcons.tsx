@@ -20,6 +20,16 @@ function Icon({ size = 15, children }: { size?: number; children: ReactNode }) {
   );
 }
 
+// Shield: privileged roles (PIM).
+export function ShieldIcon() {
+  return (
+    <Icon>
+      <path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z" />
+      <path d="M9 12l2 2 4-4" />
+    </Icon>
+  );
+}
+
 // Office building: a tenant (directory) to switch to.
 export function TenantIcon() {
   return (

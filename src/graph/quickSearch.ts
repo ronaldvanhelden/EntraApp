@@ -32,11 +32,11 @@ const APP_SELECT = 'id,appId,displayName,uniqueName,info,tags,signInAudience,cre
 const SP_SELECT =
   'id,appId,displayName,servicePrincipalType,accountEnabled,publisherName,appOwnerOrganizationId,info';
 
-// The name, department and job title fields are only there for the query
-// language (searchQuery.ts), which filters on them.
+// The name and job title fields are only there for the query language
+// (searchQuery.ts), which filters on them.
 const USER_SELECT =
   'id,displayName,userPrincipalName,mail,userType,accountEnabled,createdDateTime,' +
-  'givenName,surname,department,jobTitle';
+  'givenName,surname,department,jobTitle,companyName';
 const GROUP_SELECT =
   'id,displayName,description,mail,mailEnabled,securityEnabled,groupTypes,createdDateTime,' +
   'mailNickname';
@@ -178,6 +178,8 @@ export interface QuickUser {
   mail?: string;
   userType?: string;
   accountEnabled?: boolean;
+  companyName?: string | null;
+  department?: string | null;
 }
 
 export interface QuickGroup {

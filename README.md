@@ -94,9 +94,12 @@ must register an application in Entra ID with:
     - `User.ReadWrite.All`, `Group.ReadWrite.All` — users and groups
     - `User-PasswordProfile.ReadWrite.All` — resetting a password
     - `User.Invite.All` — resending a guest invitation
+    - `RoleAssignmentSchedule.ReadWrite.Directory` — activating your own
+      role (PIM); with `RoleEligibilitySchedule.ReadWrite.Directory` also
+      assigning and removing roles for others
   - **Optional extras** (asked from the screen that shows them):
-    `RoleManagement.Read.Directory`, `IdentityRiskyUser.Read.All`,
-    `Sites.Read.All`
+    `RoleManagement.Read.Directory` (roles and PIM),
+    `IdentityRiskyUser.Read.All`, `Sites.Read.All`
 - **Admin consent**: the `.All` scopes require it. Granting it for the tenant
   up front skips the prompts; a read-only admin can instead consent to the
   reading set alone. Tenants that consented before reading and writing were

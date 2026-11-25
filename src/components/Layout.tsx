@@ -19,6 +19,7 @@ import {
   GroupIcon,
   OverviewIcon,
   SettingsIcon,
+  ShieldIcon,
   TenantIcon,
   UserIcon,
 } from './ButtonIcons';
@@ -178,6 +179,10 @@ function Sidebar() {
       <NavLink to="/groups" className={nav}>
         <GroupIcon />
         Groups
+      </NavLink>
+      <NavLink to="/pim" className={nav}>
+        <ShieldIcon />
+        Privileged roles
       </NavLink>
       <h4>Tools</h4>
       <NavLink to="/settings" className={nav}>
