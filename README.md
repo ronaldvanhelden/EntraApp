@@ -27,6 +27,10 @@ against Microsoft Graph.
   _high_ (tenant-wide mail, files and chats, or write access to the directory);
   the list is in `src/lib/dangerousPermissions.ts`. Needs no permission beyond
   the reading set.
+- **Deactivate / reactivate** an app registration (`application.isDisabled`,
+  via Graph beta) from its Overview: no new tokens in any tenant, configuration
+  kept. The same page toggles sign-in for its enterprise app in this tenant
+  (`servicePrincipal.accountEnabled`).
 - **Tags & favorites** on app registrations, stored in the directory
   (`application.tags`) so they're shared with everyone managing the tenant. Tags
   written here are namespaced `debble:<name>`; tags set by Entra or other tooling

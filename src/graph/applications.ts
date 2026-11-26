@@ -284,6 +284,27 @@ export function updateApplication(token: TokenFn, id: string, patch: UpdateAppli
   });
 }
 
+// Whether the app registration is deactivated. isDisabled is read from the
+// beta endpoint, like the Deactivated list; null and false both mean active.
+export async function getApplicationDisabled(token: TokenFn, id: string) {
+  const row = await graph<Pick<Application, 'isDisabled'>>(token, `/applications/${id}`, {
+    api: 'beta',
+    query: { $select: 'isDisabled' },
+  });
+  return row.isDisabled === true;
+}
+
+// Deactivate (true) or reactivate (false) the app registration. Deactivating
+// stops new tokens in every tenant the app is used in while keeping its
+// configuration; tokens already issued stay valid until they expire.
+export function setApplicationDisabled(token: TokenFn, id: string, isDisabled: boolean) {
+  return graph<void>(token, `/applications/${id}`, {
+    api: 'beta',
+    method: 'PATCH',
+    body: { isDisabled },
+  });
+}
+
 export function deleteApplication(token: TokenFn, id: string) {
   return graph<void>(token, `/applications/${id}`, { method: 'DELETE' });
 }

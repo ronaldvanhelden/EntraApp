@@ -6,8 +6,10 @@ import {
   addApplicationPassword,
   deleteApplication,
   getApplication,
+  getApplicationDisabled,
   removeApplicationCertificate,
   removeApplicationPassword,
+  setApplicationDisabled,
   updateApplication,
   type AddPasswordInput,
 } from '../graph/applications';
@@ -21,6 +23,7 @@ import {
   listAppRoleAssignments,
   listOAuth2GrantsForClient,
   updateOAuth2Grant,
+  updateServicePrincipal,
 } from '../graph/servicePrincipals';
 import {
   listMyActiveRoleTemplateIds,
@@ -108,6 +111,11 @@ export function ApplicationDetail() {
   const [editing, setEditing] = useState(false);
   const [tab, setTab] = useState<Tab>(initialTab);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // null until the state is known; stays null when it can't be read.
+  const [deactivated, setDeactivated] = useState<boolean | null>(null);
+  const [stateBusy, setStateBusy] = useState<'app' | 'sp' | null>(null);
+  const [stateError, setStateError] = useState<string | null>(null);
+  const { confirm, confirmDialog } = useConfirm();
   const [fic, setFic] = useState<FederatedIdentityCredential[] | null>(null);
   const [activityByKeyId, setActivityByKeyId] = useState<Map<string, AppCredentialSignInActivity>>(
     new Map(),
@@ -125,9 +133,16 @@ export function ApplicationDetail() {
     setActivityByKeyId(new Map());
     setActivityError(null);
     setResourceSps({});
+    setDeactivated(null);
+    setStateError(null);
     getApplication(token, id)
       .then(async (a) => {
         setApp(a);
+        getApplicationDisabled(token, a.id)
+          .then(setDeactivated)
+          .catch(() => {
+            /* state unknown — the row offers no action */
+          });
         getServicePrincipalByAppId(token, a.appId)
           .then((maybe) => setSp(maybe ?? null))
           .catch(() => {
@@ -155,6 +170,56 @@ export function ApplicationDetail() {
     });
   }, [app, token, resourceSps]);
 
+  const toggleDeactivated = async () => {
+    if (!app || deactivated === null) return;
+    const next = !deactivated;
+    if (next) {
+      const ok = await confirm({
+        title: 'Deactivate app registration?',
+        confirmLabel: 'Deactivate',
+        message: (
+          <div style={{ fontSize: 14 }}>
+            <p style={{ marginTop: 0 }}>
+              <strong>{app.displayName}</strong> stops getting new tokens and users can no longer
+              sign in — in every tenant that uses it. Tokens already issued stay valid until they
+              expire.
+            </p>
+            <p style={{ marginBottom: 0 }}>
+              Configuration, credentials and permissions are kept, and the app can be reactivated at
+              any time. Owners of the app can reactivate it too.
+            </p>
+          </div>
+        ),
+      });
+      if (!ok) return;
+    }
+    setStateBusy('app');
+    setStateError(null);
+    try {
+      await setApplicationDisabled(token, app.id, next);
+      setDeactivated(next);
+    } catch (e: unknown) {
+      setStateError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setStateBusy(null);
+    }
+  };
+
+  const toggleSpEnabled = async () => {
+    if (!sp) return;
+    const next = !sp.accountEnabled;
+    setStateBusy('sp');
+    setStateError(null);
+    try {
+      await updateServicePrincipal(token, sp.id, { accountEnabled: next });
+      setSp({ ...sp, accountEnabled: next });
+    } catch (e: unknown) {
+      setStateError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setStateBusy(null);
+    }
+  };
+
   if (error) return <div className="card error">{error}</div>;
   if (!app)
     return (
@@ -180,6 +245,11 @@ export function ApplicationDetail() {
             <div className="row" style={{ gap: 6, alignItems: 'center' }}>
               <h1 style={{ margin: 0 }}>{app.displayName}</h1>
               <FavoriteToggle app={app} onAppChange={setApp} />
+              {deactivated && (
+                <span className="badge expired" title="No new tokens are issued for this app">
+                  Deactivated
+                </span>
+              )}
             </div>
             <div className="subtitle mono">
               {app.appId}
@@ -278,6 +348,58 @@ export function ApplicationDetail() {
             </div>
             <div className="k">Display name</div>
             <div>{app.displayName}</div>
+            <div className="k">State</div>
+            <div className="row">
+              {deactivated === null ? (
+                <span className="muted">—</span>
+              ) : (
+                <>
+                  {deactivated ? (
+                    <span className="badge expired">Deactivated</span>
+                  ) : (
+                    <span className="badge granted">Active</span>
+                  )}
+                  <button
+                    onClick={toggleDeactivated}
+                    disabled={stateBusy !== null}
+                    style={{ marginLeft: 8 }}
+                    title={
+                      deactivated
+                        ? 'Let the app get tokens again'
+                        : 'Stop new tokens for this app in every tenant; configuration is kept'
+                    }
+                  >
+                    {stateBusy === 'app' ? '…' : deactivated ? 'Reactivate' : 'Deactivate'}
+                  </button>
+                </>
+              )}
+            </div>
+            {sp && (
+              <>
+                <div className="k">Enterprise app sign-in</div>
+                <div className="row">
+                  {sp.accountEnabled ? (
+                    <span className="badge granted">Enabled</span>
+                  ) : (
+                    <span className="badge">Disabled</span>
+                  )}
+                  <button
+                    onClick={toggleSpEnabled}
+                    disabled={stateBusy !== null}
+                    style={{ marginLeft: 8 }}
+                    title="Sign-in for the service principal in this tenant only (accountEnabled)"
+                  >
+                    {stateBusy === 'sp' ? '…' : sp.accountEnabled ? 'Disable' : 'Enable'}
+                  </button>
+                </div>
+              </>
+            )}
+            {stateError && (
+              <>
+                <div className="k" />
+                <div className="error">{stateError}</div>
+              </>
+            )}
             <div className="k">Sign-in audience</div>
             <div>{app.signInAudience}</div>
             <div className="k">Unique name</div>
@@ -376,6 +498,7 @@ export function ApplicationDetail() {
         />
       )}
 
+      {confirmDialog}
       {confirmDelete && (
         <DeleteModal
           app={app}
