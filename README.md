@@ -19,6 +19,14 @@ against Microsoft Graph.
   - Revoke either kind inline
   - Pick common APIs (Microsoft Graph, Exchange, SharePoint, Azure Management)
     or search all service principals
+- **Risky permissions**: every service principal holding a dangerous
+  application (app-only) permission on Microsoft Graph, Exchange Online,
+  SharePoint Online or the legacy Azure AD Graph, worst first. Permissions are
+  rated _critical_ (a route to Global Administrator, such as
+  `RoleManagement.ReadWrite.Directory` or `AppRoleAssignment.ReadWrite.All`) or
+  _high_ (tenant-wide mail, files and chats, or write access to the directory);
+  the list is in `src/lib/dangerousPermissions.ts`. Needs no permission beyond
+  the reading set.
 - **Tags & favorites** on app registrations, stored in the directory
   (`application.tags`) so they're shared with everyone managing the tenant. Tags
   written here are namespaced `debble:<name>`; tags set by Entra or other tooling
