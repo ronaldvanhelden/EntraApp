@@ -11,6 +11,7 @@ import { Search } from './pages/Search';
 import { Groups, Users } from './pages/Principals';
 import { GroupDetail, UserDetail } from './pages/PrincipalDetail';
 import { Pim } from './pages/Pim';
+import { RiskyPermissions } from './pages/RiskyPermissions';
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/groups" element={<Groups />} />
           <Route path="/groups/:id" element={<GroupDetail />} />
           <Route path="/pim" element={<Pim />} />
+          <Route path="/risky-permissions" element={<RiskyPermissions />} />
           <Route path="/search" element={<Search />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />

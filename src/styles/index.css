@@ -2275,3 +2275,70 @@ button.site-consent {
 .change code {
   overflow-wrap: anywhere;
 }
+
+/* --- Risky permissions -------------------------------------------------- */
+.risk-tile.critical .stat-value {
+  color: #ff8080;
+}
+.risk-tile.high .stat-value {
+  color: #ffb27a;
+}
+.risk-tile .stat-label {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+}
+.risk-tile:hover {
+  border-color: var(--border);
+  background: var(--bg-elevated);
+}
+.perm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 560px;
+}
+.perm-chip {
+  display: inline-block;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  background: rgba(110, 118, 129, 0.1);
+  white-space: nowrap;
+}
+.perm-chip.high {
+  color: #ffb27a;
+  background: rgba(219, 109, 40, 0.18);
+  border-color: rgba(219, 109, 40, 0.45);
+}
+.perm-chip.critical {
+  color: #ff8080;
+  background: rgba(248, 81, 73, 0.2);
+  border-color: rgba(248, 81, 73, 0.55);
+}
+.perm-chip-api {
+  opacity: 0.75;
+  margin-right: 5px;
+}
+.perm-chip-api::after {
+  content: ' ·';
+}
+.table td.perm-detail {
+  background: var(--bg);
+  padding: 4px 12px 8px 46px;
+}
+.perm-detail-table {
+  border-collapse: collapse;
+}
+.perm-detail-table td {
+  border: none;
+  padding: 6px 16px 6px 0;
+  vertical-align: top;
+  font-size: 13px;
+}
+.perm-detail-table .muted {
+  font-size: 12px;
+}

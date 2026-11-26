@@ -30,6 +30,16 @@ export function ShieldIcon() {
   );
 }
 
+// Warning triangle: service principals holding dangerous permissions.
+export function RiskIcon() {
+  return (
+    <Icon>
+      <path d="M12 4l9 16H3z" />
+      <path d="M12 10v4M12 17v.01" />
+    </Icon>
+  );
+}
+
 // Office building: a tenant (directory) to switch to.
 export function TenantIcon() {
   return (

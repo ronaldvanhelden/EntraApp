@@ -18,6 +18,7 @@ import {
   EnterpriseAppIcon,
   GroupIcon,
   OverviewIcon,
+  RiskIcon,
   SettingsIcon,
   ShieldIcon,
   TenantIcon,
@@ -183,6 +184,10 @@ function Sidebar() {
       <NavLink to="/pim" className={nav}>
         <ShieldIcon />
         Privileged roles
+      </NavLink>
+      <NavLink to="/risky-permissions" className={nav}>
+        <RiskIcon />
+        Risky permissions
       </NavLink>
       <h4>Tools</h4>
       <NavLink to="/settings" className={nav}>
